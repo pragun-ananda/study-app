@@ -5,8 +5,8 @@ import * as THREE from 'three';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import { useStore } from '../../store/useStore';
 import { TopicNode } from '../../types/telemetry';
+import { getCategoryShade } from '../../utils/theme';
 import PostProcessing from './PostProcessing';
-import { DOMAIN_BASE_COLORS, getCategoryShade } from '../../utils/theme';
 
 // Derive distinct incoming (lighter/warmer) and outgoing (richer/electric) edge highlight shades correlated to the active node's color
 const getIncomingEdgeColor = (activeColorHex: string): string => {
@@ -154,6 +154,30 @@ const useConnectedGraph = () => {
   }, [topicNodes, activeId]);
 };
 
+interface ConnectedGraphResult {
+  activeId: string | null;
+  activeNode: TopicNode | null;
+  activeNodeColorHex: string | null;
+  nodeMap: Map<string, TopicNode>;
+  directIncomingKeys: Set<string>;
+  directOutgoingKeys: Set<string>;
+  transitiveIncomingKeys: Set<string>;
+  transitiveOutgoingKeys: Set<string>;
+  connectedNodeIds: Set<string>;
+}
+
+const ConnectedGraphContext = React.createContext<ConnectedGraphResult>({
+  activeId: null,
+  activeNode: null,
+  activeNodeColorHex: null,
+  nodeMap: new Map(),
+  directIncomingKeys: new Set(),
+  directOutgoingKeys: new Set(),
+  transitiveIncomingKeys: new Set(),
+  transitiveOutgoingKeys: new Set(),
+  connectedNodeIds: new Set()
+});
+
 // Shader for Solar Wind Edge Energy Flow Particles
 const SolarWindShaderMaterial = {
   uniforms: {
@@ -206,7 +230,7 @@ function SolarWindEnergyStreams() {
   const materialRef = useRef<THREE.ShaderMaterial>(null!);
 
   const topicNodes = useStore((state) => state.topicNodes);
-  const { activeId, activeNodeColorHex, nodeMap, directIncomingKeys, directOutgoingKeys, transitiveIncomingKeys, transitiveOutgoingKeys } = useConnectedGraph();
+  const { activeId, activeNodeColorHex, nodeMap, directIncomingKeys, directOutgoingKeys, transitiveIncomingKeys, transitiveOutgoingKeys } = React.useContext(ConnectedGraphContext);
 
   const { starts, ends, speeds, offsets, sizes, colors, count } = useMemo(() => {
     const startList: number[] = [];
@@ -611,7 +635,7 @@ function DeepSpaceStarfield() {
 const sharedSphereGeometry = new THREE.SphereGeometry(0.38, 16, 16);
 
 // Interactive Knowledge Node Component (Always fully formed and crisp during Deep Space Fly-In)
-const KnowledgeNode = React.memo(({ node }: { node: TopicNode }) => {
+const KnowledgeNode = React.memo(({ node, isConnectedComponent }: { node: TopicNode; isConnectedComponent: boolean }) => {
   const meshRef = useRef<THREE.Mesh>(null!);
   const ringRef = useRef<THREE.Mesh>(null!);
 
@@ -622,11 +646,8 @@ const KnowledgeNode = React.memo(({ node }: { node: TopicNode }) => {
   const selectedCategory = useStore((state) => state.selectedCategory);
   const searchQuery = useStore((state) => state.searchQuery);
 
-  const { activeId, connectedNodeIds } = useConnectedGraph();
-
   const isSelected = selectedTopicId === node.id;
   const isHovered = hoveredTopicId === node.id;
-  const isConnectedComponent = activeId ? connectedNodeIds.has(node.id) : false;
   const isCategoryMatched = !selectedCategory || selectedCategory === 'ALL' || node.category === selectedCategory;
   const isSearchMatched = !searchQuery || node.name.toLowerCase().includes(searchQuery.toLowerCase());
 
@@ -738,7 +759,7 @@ const KnowledgeNode = React.memo(({ node }: { node: TopicNode }) => {
 // Render 3D Directed Prerequisite & Unlocked Edges
 function KnowledgeGraphEdges() {
   const topicNodes = useStore((state) => state.topicNodes);
-  const { activeId, activeNodeColorHex, nodeMap, directIncomingKeys, directOutgoingKeys, transitiveIncomingKeys, transitiveOutgoingKeys } = useConnectedGraph();
+  const { activeId, activeNodeColorHex, nodeMap, directIncomingKeys, directOutgoingKeys, transitiveIncomingKeys, transitiveOutgoingKeys } = React.useContext(ConnectedGraphContext);
 
   const edges = useMemo(() => {
     const edgeList: {
@@ -902,8 +923,34 @@ function CameraRig({ controlsRef, introRef }: { controlsRef: React.RefObject<Orb
   return null;
 }
 
-export default function SceneCanvas() {
+function SceneContent() {
   const topicNodes = useStore((state) => state.topicNodes);
+  const connectedGraph = useConnectedGraph();
+
+  return (
+    <ConnectedGraphContext.Provider value={connectedGraph}>
+      {/* 3-Tier Deep Space Parallax Starfield Layer (Far, Mid, Foreground) */}
+      <DeepSpaceStarfield />
+
+      <KnowledgeGraphEdges />
+
+      {/* Directional Energy Flow Particles along Prerequisite Edges (Solar Wind) */}
+      <SolarWindEnergyStreams />
+
+      {topicNodes.map((node) => (
+        <KnowledgeNode
+          key={node.id}
+          node={node}
+          isConnectedComponent={connectedGraph.activeId ? connectedGraph.connectedNodeIds.has(node.id) : false}
+        />
+      ))}
+
+      <PostProcessing />
+    </ConnectedGraphContext.Provider>
+  );
+}
+
+export default function SceneCanvas() {
   const setSelectedTopicId = useStore((state) => state.setSelectedTopicId);
   const controlsRef = useRef<OrbitControlsImpl>(null!);
   const introRef = useRef(0);
@@ -941,19 +988,7 @@ export default function SceneCanvas() {
         <pointLight position={[15, 15, 15]} intensity={2.0} color="#00f0ff" />
         <pointLight position={[-15, -15, -15]} intensity={1.5} color="#00ff9d" />
         
-        {/* 3-Tier Deep Space Parallax Starfield Layer (Far, Mid, Foreground) */}
-        <DeepSpaceStarfield />
-
-        <KnowledgeGraphEdges />
-
-        {/* Directional Energy Flow Particles along Prerequisite Edges (Solar Wind) */}
-        <SolarWindEnergyStreams />
-
-        {topicNodes.map((node) => (
-          <KnowledgeNode key={node.id} node={node} />
-        ))}
-        
-        <PostProcessing />
+        <SceneContent />
       </Canvas>
     </div>
   );
