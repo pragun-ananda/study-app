@@ -23,83 +23,7 @@ import NoteViewerModal from './NoteViewerModal';
 import { useStore } from '../../store/useStore';
 import { TopicNode } from '../../types/telemetry';
 import { DOMAIN_BASE_COLORS, getCategoryShade } from '../../utils/theme';
-
-// Topological Sort of all ancestor prerequisite nodes leading up to targetId
-const getTopologicalPrerequisites = (targetId: string, topicNodes: TopicNode[]): TopicNode[] => {
-  const nodeMap = new Map<string, TopicNode>();
-  topicNodes.forEach((node) => nodeMap.set(node.id, node));
-
-  const targetNode = nodeMap.get(targetId);
-  if (!targetNode) return [];
-
-  // 1. Collect all ancestor node IDs (excluding targetId itself)
-  const ancestorSet = new Set<string>();
-  const queue = [...targetNode.prerequisites];
-
-  while (queue.length > 0) {
-    const currId = queue.shift()!;
-    if (!ancestorSet.has(currId) && currId !== targetId) {
-      ancestorSet.add(currId);
-      const currNode = nodeMap.get(currId);
-      if (currNode) {
-        queue.push(...currNode.prerequisites);
-      }
-    }
-  }
-
-  if (ancestorSet.size === 0) return [];
-
-  // 2. Build in-degree map for nodes within ancestorSet
-  const inDegree = new Map<string, number>();
-  ancestorSet.forEach((id) => inDegree.set(id, 0));
-
-  ancestorSet.forEach((id) => {
-    const node = nodeMap.get(id);
-    if (node) {
-      node.prerequisites.forEach((pId: string) => {
-        if (ancestorSet.has(pId)) {
-          inDegree.set(id, (inDegree.get(id) ?? 0) + 1);
-        }
-      });
-    }
-  });
-
-  // 3. Kahn's Algorithm
-  const topoQueue: string[] = [];
-  inDegree.forEach((degree, id) => {
-    if (degree === 0) {
-      topoQueue.push(id);
-    }
-  });
-
-  const resultIds: string[] = [];
-  while (topoQueue.length > 0) {
-    const currId = topoQueue.shift()!;
-    resultIds.push(currId);
-
-    const currNode = nodeMap.get(currId);
-    if (currNode) {
-      currNode.unlocks.forEach((unlockId: string) => {
-        if (ancestorSet.has(unlockId)) {
-          const newDeg = (inDegree.get(unlockId) ?? 1) - 1;
-          inDegree.set(unlockId, newDeg);
-          if (newDeg === 0) {
-            topoQueue.push(unlockId);
-          }
-        }
-      });
-    }
-  }
-
-  // Fallback: include any remaining unvisited ancestors
-  ancestorSet.forEach((id) => {
-    if (!resultIds.includes(id)) {
-      resultIds.push(id);
-    }
-  });
-
-  return resultIds.map((id) => nodeMap.get(id)!).filter(Boolean);
-};
+import { getTopologicalPrerequisites } from '../../utils/graph';
 
 export default function TelemetryHUD() {
   const hudVisible = useStore((state) => state.hudVisible);
@@ -141,6 +65,20 @@ export default function TelemetryHUD() {
     setNewTodoTitle('');
   };
 
+  const categories = ['ALL', 'AI & ML', 'CS', 'SYSTEMS', 'MATH', 'PHYSICS', 'CYBERSECURITY', 'ARCH'];
+  const completedTodosCount = todos.filter((t) => t.completed).length;
+  const selectedNode = topicNodes.find((n) => n.id === selectedTopicId);
+  const selectedNodeColor = selectedNode ? getCategoryShade(selectedNode.id, selectedNode.category) : '#00f0ff';
+  const topologicalPrereqs = useMemo(
+    () => (selectedNode ? getTopologicalPrerequisites(selectedNode.id, topicNodes) : []),
+    [selectedNode?.id, topicNodes]
+  );
+
+  // Dynamic Mastery Score calculated per active Subgraph
+  const activeSubgraphNodes = selectedCategory && selectedCategory !== 'ALL'
+    ? topicNodes.filter((n) => n.category === selectedCategory)
+    : topicNodes;
+
   if (!hudVisible) {
     return (
       <div className="pointer-events-none fixed inset-0 z-20 flex items-bottom justify-end p-6">
@@ -155,20 +93,6 @@ export default function TelemetryHUD() {
       </div>
     );
   }
-
-  const categories = ['ALL', 'AI & ML', 'CS', 'SYSTEMS', 'MATH', 'PHYSICS', 'CYBERSECURITY', 'ARCH'];
-  const completedTodosCount = todos.filter((t) => t.completed).length;
-  const selectedNode = topicNodes.find((n) => n.id === selectedTopicId);
-  const selectedNodeColor = selectedNode ? getCategoryShade(selectedNode.id, selectedNode.category) : '#00f0ff';
-  const topologicalPrereqs = useMemo(
-    () => (selectedNode ? getTopologicalPrerequisites(selectedNode.id, topicNodes) : []),
-    [selectedNode?.id, topicNodes]
-  );
-
-  // Dynamic Mastery Score calculated per active Subgraph
-  const activeSubgraphNodes = selectedCategory && selectedCategory !== 'ALL'
-    ? topicNodes.filter((n) => n.category === selectedCategory)
-    : topicNodes;
 
   const currentMasteryScore = Math.round(
     activeSubgraphNodes.reduce((acc, curr) => acc + curr.mastery, 0) / (activeSubgraphNodes.length || 1)
