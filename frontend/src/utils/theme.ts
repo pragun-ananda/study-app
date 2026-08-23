@@ -10,15 +10,6 @@ export const DOMAIN_BASE_COLORS: Record<string, string> = {
   'ARCH': '#0088ff'           // Ion Engine Blue
 };
 
-export const DOMAIN_HUES: Record<string, number> = {
-  'AI & ML': 0.50,       // Laser Cyan
-  'CS': 0.916,           // Neon Hot Pink
-  'SYSTEMS': 0.75,       // Synapse Purple
-  'MATH': 0.138,         // Overclock Yellow
-  'PHYSICS': 0.40,       // Tritium Green
-  'CYBERSECURITY': 0.966,// Hazard Plasma Red
-  'ARCH': 0.597          // Ion Engine Blue
-};
 
 export const getCategoryShade = (id: string, category: string): string => {
   const baseColorHex = DOMAIN_BASE_COLORS[category] || '#00f0ff';

@@ -5,8 +5,8 @@ import * as THREE from 'three';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import { useStore } from '../../store/useStore';
 import { TopicNode } from '../../types/telemetry';
+import { getCategoryShade } from '../../utils/theme';
 import PostProcessing from './PostProcessing';
-import { DOMAIN_BASE_COLORS, getCategoryShade } from '../../utils/theme';
 
 // Derive distinct incoming (lighter/warmer) and outgoing (richer/electric) edge highlight shades correlated to the active node's color
 const getIncomingEdgeColor = (activeColorHex: string): string => {
@@ -154,6 +154,30 @@ const useConnectedGraph = () => {
   }, [topicNodes, activeId]);
 };
 
+interface ConnectedGraphResult {
+  activeId: string | null;
+  activeNode: TopicNode | null;
+  activeNodeColorHex: string | null;
+  nodeMap: Map<string, TopicNode>;
+  directIncomingKeys: Set<string>;
+  directOutgoingKeys: Set<string>;
+  transitiveIncomingKeys: Set<string>;
+  transitiveOutgoingKeys: Set<string>;
+  connectedNodeIds: Set<string>;
+}
+
+const ConnectedGraphContext = React.createContext<ConnectedGraphResult>({
+  activeId: null,
+  activeNode: null,
+  activeNodeColorHex: null,
+  nodeMap: new Map(),
+  directIncomingKeys: new Set(),
+  directOutgoingKeys: new Set(),
+  transitiveIncomingKeys: new Set(),
+  transitiveOutgoingKeys: new Set(),
+  connectedNodeIds: new Set()
+});
+
 // Shader for Solar Wind Edge Energy Flow Particles
 const SolarWindShaderMaterial = {
   uniforms: {
@@ -206,7 +230,7 @@ function SolarWindEnergyStreams() {
   const materialRef = useRef<THREE.ShaderMaterial>(null!);
 
   const topicNodes = useStore((state) => state.topicNodes);
-  const { activeId, activeNodeColorHex, nodeMap, directIncomingKeys, directOutgoingKeys, transitiveIncomingKeys, transitiveOutgoingKeys } = useConnectedGraph();
+  const { activeId, activeNodeColorHex, nodeMap, directIncomingKeys, directOutgoingKeys, transitiveIncomingKeys, transitiveOutgoingKeys } = React.useContext(ConnectedGraphContext);
 
   const { starts, ends, speeds, offsets, sizes, colors, count } = useMemo(() => {
     const startList: number[] = [];
@@ -232,11 +256,14 @@ function SolarWindEnergyStreams() {
           for (let p = 0; p < photonsPerEdge; p++) {
             startList.push(...source.coordinates);
             endList.push(...target.coordinates);
-            speedList.push(0.35 + Math.random() * 0.2);
-            offsetList.push(p / photonsPerEdge + Math.random() * 0.08);
+
+            // Deterministic hash based on edge and photon index to prevent particle teleporting on hover
+            const seed = ((source.id.charCodeAt(source.id.length - 1) * 37 + target.id.charCodeAt(target.id.length - 1) * 19 + p * 13) % 1000) / 1000;
+            speedList.push(0.35 + seed * 0.2);
+            offsetList.push(p / photonsPerEdge + seed * 0.08);
 
             let col = sourceColor;
-            let sz = 0.5 + Math.random() * 0.3;
+            let sz = 0.5 + seed * 0.3;
 
             if (activeId && activeNodeColorHex) {
               if (directOutgoingKeys.has(edgeKey)) {
@@ -379,19 +406,11 @@ const StarlightGlintShaderMaterial = {
   `
 };
 
+const sharedPlaneGeometry = new THREE.PlaneGeometry(1, 1);
+
 function AnamorphicStarGlint({ color, scale = 1.0, opacity = 0.95 }: { color: string; scale?: number; opacity?: number }) {
   const meshRef = useRef<THREE.Mesh>(null!);
   const materialRef = useRef<THREE.ShaderMaterial>(null!);
-
-  useFrame((state, delta) => {
-    if (materialRef.current) {
-      materialRef.current.uniforms.uTime.value += delta;
-      materialRef.current.uniforms.uOpacity.value = opacity;
-    }
-    if (meshRef.current) {
-      meshRef.current.quaternion.copy(state.camera.quaternion); // Always face camera (billboard)
-    }
-  });
 
   const material = useMemo(() => {
     return new THREE.ShaderMaterial({
@@ -405,11 +424,27 @@ function AnamorphicStarGlint({ color, scale = 1.0, opacity = 0.95 }: { color: st
       depthWrite: false,
       blending: THREE.AdditiveBlending
     });
-  }, [color, opacity]);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      material.dispose();
+    };
+  }, [material]);
+
+  useFrame((state, delta) => {
+    if (materialRef.current) {
+      materialRef.current.uniforms.uTime.value += delta;
+      materialRef.current.uniforms.uOpacity.value = opacity;
+      materialRef.current.uniforms.uColor.value.set(color);
+    }
+    if (meshRef.current) {
+      meshRef.current.quaternion.copy(state.camera.quaternion); // Always face camera (billboard)
+    }
+  });
 
   return (
-    <mesh ref={meshRef} scale={[scale * 3.8, scale * 3.8, 1]} frustumCulled={false}>
-      <planeGeometry args={[1, 1]} />
+    <mesh ref={meshRef} geometry={sharedPlaneGeometry} scale={[scale * 3.8, scale * 3.8, 1]} frustumCulled={false}>
       <primitive object={material} ref={materialRef} attach="material" />
     </mesh>
   );
@@ -560,10 +595,15 @@ function DeepSpaceStarfield() {
     return { positions: pos, colors: col, sizes: sz, phases: ph };
   }, []);
 
+  const farMatRef = useRef<THREE.ShaderMaterial>(null!);
+  const midMatRef = useRef<THREE.ShaderMaterial>(null!);
+  const foreMatRef = useRef<THREE.ShaderMaterial>(null!);
+
   useFrame((_, delta) => {
-    if (materialRef.current) {
-      materialRef.current.uniforms.uTime.value += delta;
-    }
+    if (farMatRef.current) farMatRef.current.uniforms.uTime.value += delta;
+    if (midMatRef.current) midMatRef.current.uniforms.uTime.value += delta;
+    if (foreMatRef.current) foreMatRef.current.uniforms.uTime.value += delta;
+
     // 3-Tier Parallax Differential Motion
     if (farRef.current) farRef.current.rotation.y += delta * 0.002;
     if (midRef.current) midRef.current.rotation.y += delta * 0.005;
@@ -580,7 +620,7 @@ function DeepSpaceStarfield() {
           <bufferAttribute attach="attributes-aSize" count={farData.sizes.length} array={farData.sizes} itemSize={1} />
           <bufferAttribute attach="attributes-aPhase" count={farData.phases.length} array={farData.phases} itemSize={1} />
         </bufferGeometry>
-        <shaderMaterial ref={materialRef} args={[DeepSpaceShaderMaterial]} transparent depthWrite={false} blending={THREE.AdditiveBlending} />
+        <shaderMaterial ref={farMatRef} args={[DeepSpaceShaderMaterial]} transparent depthWrite={false} blending={THREE.AdditiveBlending} />
       </points>
 
       {/* Tier 2: Mid-Ground Starfield */}
@@ -591,7 +631,7 @@ function DeepSpaceStarfield() {
           <bufferAttribute attach="attributes-aSize" count={midData.sizes.length} array={midData.sizes} itemSize={1} />
           <bufferAttribute attach="attributes-aPhase" count={midData.phases.length} array={midData.phases} itemSize={1} />
         </bufferGeometry>
-        <shaderMaterial args={[DeepSpaceShaderMaterial]} transparent depthWrite={false} blending={THREE.AdditiveBlending} />
+        <shaderMaterial ref={midMatRef} args={[DeepSpaceShaderMaterial]} transparent depthWrite={false} blending={THREE.AdditiveBlending} />
       </points>
 
       {/* Tier 3: Foreground Starfield */}
@@ -602,31 +642,27 @@ function DeepSpaceStarfield() {
           <bufferAttribute attach="attributes-aSize" count={foreData.sizes.length} array={foreData.sizes} itemSize={1} />
           <bufferAttribute attach="attributes-aPhase" count={foreData.phases.length} array={foreData.phases} itemSize={1} />
         </bufferGeometry>
-        <shaderMaterial args={[DeepSpaceShaderMaterial]} transparent depthWrite={false} blending={THREE.AdditiveBlending} />
+        <shaderMaterial ref={foreMatRef} args={[DeepSpaceShaderMaterial]} transparent depthWrite={false} blending={THREE.AdditiveBlending} />
       </points>
     </group>
   );
 }
 
 const sharedSphereGeometry = new THREE.SphereGeometry(0.38, 16, 16);
+const sharedRingGeometry = new THREE.RingGeometry(0.5, 0.62, 24);
 
 // Interactive Knowledge Node Component (Always fully formed and crisp during Deep Space Fly-In)
-const KnowledgeNode = React.memo(({ node }: { node: TopicNode }) => {
+const KnowledgeNode = React.memo(({ node, isConnectedComponent }: { node: TopicNode; isConnectedComponent: boolean }) => {
   const meshRef = useRef<THREE.Mesh>(null!);
   const ringRef = useRef<THREE.Mesh>(null!);
 
-  const selectedTopicId = useStore((state) => state.selectedTopicId);
-  const hoveredTopicId = useStore((state) => state.hoveredTopicId);
+  const isSelected = useStore((state) => state.selectedTopicId === node.id);
+  const isHovered = useStore((state) => state.hoveredTopicId === node.id);
   const setSelectedTopicId = useStore((state) => state.setSelectedTopicId);
   const setHoveredTopicId = useStore((state) => state.setHoveredTopicId);
   const selectedCategory = useStore((state) => state.selectedCategory);
   const searchQuery = useStore((state) => state.searchQuery);
 
-  const { activeId, connectedNodeIds } = useConnectedGraph();
-
-  const isSelected = selectedTopicId === node.id;
-  const isHovered = hoveredTopicId === node.id;
-  const isConnectedComponent = activeId ? connectedNodeIds.has(node.id) : false;
   const isCategoryMatched = !selectedCategory || selectedCategory === 'ALL' || node.category === selectedCategory;
   const isSearchMatched = !searchQuery || node.name.toLowerCase().includes(searchQuery.toLowerCase());
 
@@ -693,8 +729,7 @@ const KnowledgeNode = React.memo(({ node }: { node: TopicNode }) => {
 
       {/* Orbital ring for hovered or selected node */}
       {(isSelected || isHovered) && (
-        <mesh ref={ringRef} frustumCulled={false}>
-          <ringGeometry args={[0.5, 0.62, 24]} />
+        <mesh ref={ringRef} geometry={sharedRingGeometry} frustumCulled={false}>
           <meshBasicMaterial color={nodeColor} side={THREE.DoubleSide} transparent opacity={0.85} />
         </mesh>
       )}
@@ -712,22 +747,18 @@ const KnowledgeNode = React.memo(({ node }: { node: TopicNode }) => {
             onClick={handleNodeClick}
             style={{
               backgroundColor: isSelected || isHovered ? nodeColor : undefined,
-              borderColor: isSelected || isHovered ? nodeColor : undefined,
-              boxShadow: isSelected
-                ? `0 0 18px ${nodeColor}`
-                : isHovered
-                ? `0 0 12px ${nodeColor}`
-                : undefined
+              borderColor: nodeColor,
+              boxShadow: isSelected || isHovered ? `0 0 16px ${nodeColor}80` : undefined
             }}
-            className={`px-2.5 py-1 rounded font-mono font-bold uppercase border whitespace-nowrap transition-all duration-200 max-w-[85vw] ${getSingleLineFontSize(node.name.length)} ${
-              isSelected
-                ? 'text-slate-950 scale-105 shadow-xl'
-                : isHovered
-                ? 'text-slate-950 shadow-md'
-                : 'bg-[#080c16]/85 text-slate-200 border-white/10 backdrop-blur-md opacity-90 hover:border-[#00f0ff]'
+            className={`px-2 py-0.5 rounded font-mono font-bold transition-all whitespace-nowrap overflow-hidden text-ellipsis shadow-lg ${getSingleLineFontSize(
+              node.name.length
+            )} ${
+              isSelected || isHovered
+                ? 'text-slate-950 border border-transparent scale-105'
+                : 'text-slate-200 bg-slate-950/90 border border-white/20'
             }`}
           >
-            <span>{node.name}</span>
+            {node.name}
           </div>
         </Html>
       )}
@@ -738,7 +769,7 @@ const KnowledgeNode = React.memo(({ node }: { node: TopicNode }) => {
 // Render 3D Directed Prerequisite & Unlocked Edges
 function KnowledgeGraphEdges() {
   const topicNodes = useStore((state) => state.topicNodes);
-  const { activeId, activeNodeColorHex, nodeMap, directIncomingKeys, directOutgoingKeys, transitiveIncomingKeys, transitiveOutgoingKeys } = useConnectedGraph();
+  const { activeId, activeNodeColorHex, nodeMap, directIncomingKeys, directOutgoingKeys, transitiveIncomingKeys, transitiveOutgoingKeys } = React.useContext(ConnectedGraphContext);
 
   const edges = useMemo(() => {
     const edgeList: {
@@ -826,6 +857,9 @@ function CameraRig({ controlsRef, introRef }: { controlsRef: React.RefObject<Orb
   const prevSelectedId = useRef<string | null>(null);
   const isAnimating = useRef<boolean>(false);
 
+  const targetPos = useMemo(() => new THREE.Vector3(), []);
+  const camTargetPos = useMemo(() => new THREE.Vector3(), []);
+
   useEffect(() => {
     const controls = controlsRef.current;
     if (!controls) return;
@@ -873,8 +907,8 @@ function CameraRig({ controlsRef, introRef }: { controlsRef: React.RefObject<Orb
         const [nx, ny, nz] = selectedNode.coordinates;
         const titleLen = selectedNode.name.length;
         const distOffset = titleLen > 30 ? 6.8 : titleLen > 20 ? 5.4 : 4.2;
-        const targetPos = new THREE.Vector3(nx, ny, nz);
-        const camTargetPos = new THREE.Vector3(nx, ny + 0.2, nz + distOffset);
+        targetPos.set(nx, ny, nz);
+        camTargetPos.set(nx, ny + 0.2, nz + distOffset);
 
         controls.target.lerp(targetPos, delta * 4.5);
         camera.position.lerp(camTargetPos, delta * 4.5);
@@ -885,8 +919,8 @@ function CameraRig({ controlsRef, introRef }: { controlsRef: React.RefObject<Orb
         }
       } else {
         // Zoom out to homepage full graph overview centered in screen
-        const targetPos = new THREE.Vector3(0, 0, 0);
-        const camTargetPos = new THREE.Vector3(0, 0, 48.0);
+        targetPos.set(0, 0, 0);
+        camTargetPos.set(0, 0, 48.0);
 
         controls.target.lerp(targetPos, delta * 4.5);
         camera.position.lerp(camTargetPos, delta * 4.5);
@@ -902,8 +936,34 @@ function CameraRig({ controlsRef, introRef }: { controlsRef: React.RefObject<Orb
   return null;
 }
 
-export default function SceneCanvas() {
+function SceneContent() {
   const topicNodes = useStore((state) => state.topicNodes);
+  const connectedGraph = useConnectedGraph();
+
+  return (
+    <ConnectedGraphContext.Provider value={connectedGraph}>
+      {/* 3-Tier Deep Space Parallax Starfield Layer (Far, Mid, Foreground) */}
+      <DeepSpaceStarfield />
+
+      <KnowledgeGraphEdges />
+
+      {/* Directional Energy Flow Particles along Prerequisite Edges (Solar Wind) */}
+      <SolarWindEnergyStreams />
+
+      {topicNodes.map((node) => (
+        <KnowledgeNode
+          key={node.id}
+          node={node}
+          isConnectedComponent={connectedGraph.activeId ? connectedGraph.connectedNodeIds.has(node.id) : false}
+        />
+      ))}
+
+      <PostProcessing />
+    </ConnectedGraphContext.Provider>
+  );
+}
+
+export default function SceneCanvas() {
   const setSelectedTopicId = useStore((state) => state.setSelectedTopicId);
   const controlsRef = useRef<OrbitControlsImpl>(null!);
   const introRef = useRef(0);
@@ -941,19 +1001,7 @@ export default function SceneCanvas() {
         <pointLight position={[15, 15, 15]} intensity={2.0} color="#00f0ff" />
         <pointLight position={[-15, -15, -15]} intensity={1.5} color="#00ff9d" />
         
-        {/* 3-Tier Deep Space Parallax Starfield Layer (Far, Mid, Foreground) */}
-        <DeepSpaceStarfield />
-
-        <KnowledgeGraphEdges />
-
-        {/* Directional Energy Flow Particles along Prerequisite Edges (Solar Wind) */}
-        <SolarWindEnergyStreams />
-
-        {topicNodes.map((node) => (
-          <KnowledgeNode key={node.id} node={node} />
-        ))}
-        
-        <PostProcessing />
+        <SceneContent />
       </Canvas>
     </div>
   );

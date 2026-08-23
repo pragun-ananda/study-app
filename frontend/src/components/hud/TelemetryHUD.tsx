@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   CheckSquare,
@@ -6,19 +6,13 @@ import {
   BookOpen,
   Plus,
   Trash2,
-  Play,
-  Pause,
-  RotateCcw,
-  Flame,
   Award,
-  Clock,
   ChevronLeft,
   ChevronRight,
   Eye,
   Target,
   Search,
   Compass,
-  ArrowLeft,
   ArrowRight,
   ShieldAlert,
   Zap,
@@ -108,7 +102,23 @@ const getTopologicalPrerequisites = (targetId: string, topicNodes: TopicNode[]):
 };
 
 export default function TelemetryHUD() {
-  const store = useStore();
+  const hudVisible = useStore((state) => state.hudVisible);
+  const setHudVisibility = useStore((state) => state.setHudVisibility);
+  const selectedCategory = useStore((state) => state.selectedCategory);
+  const setSelectedCategory = useStore((state) => state.setSelectedCategory);
+  const searchQuery = useStore((state) => state.searchQuery);
+  const setSearchQuery = useStore((state) => state.setSearchQuery);
+  const topicNodes = useStore((state) => state.topicNodes);
+  const selectedTopicId = useStore((state) => state.selectedTopicId);
+  const setSelectedTopicId = useStore((state) => state.setSelectedTopicId);
+  const isInspectorOpen = useStore((state) => state.isInspectorOpen);
+  const setIsInspectorOpen = useStore((state) => state.setIsInspectorOpen);
+  const setActiveNote = useStore((state) => state.setActiveNote);
+  const updateTopicMastery = useStore((state) => state.updateTopicMastery);
+  const todos = useStore((state) => state.todos);
+  const addTodo = useStore((state) => state.addTodo);
+  const toggleTodo = useStore((state) => state.toggleTodo);
+  const deleteTodo = useStore((state) => state.deleteTodo);
 
   const [activeTab, setActiveTab] = useState<'TOPICS' | 'TODOS'>('TOPICS');
   const [leftPanelCollapsed, setLeftPanelCollapsed] = useState(true);
@@ -118,28 +128,10 @@ export default function TelemetryHUD() {
   const [newTodoCategory, setNewTodoCategory] = useState('AI & ML');
   const [newTodoPriority, setNewTodoPriority] = useState<'HIGH' | 'MEDIUM' | 'LOW'>('HIGH');
 
-  useEffect(() => {
-    let interval: NodeJS.Timeout | null = null;
-    if (store.pomodoro.isRunning) {
-      interval = setInterval(() => {
-        store.tickPomodoro();
-      }, 1000);
-    }
-    return () => {
-      if (interval) clearInterval(interval);
-    };
-  }, [store.pomodoro.isRunning, store]);
-
-  const formatTimer = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
-
   const handleAddTodo = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTodoTitle.trim()) return;
-    store.addTodo({
+    addTodo({
       title: newTodoTitle.trim(),
       category: newTodoCategory,
       priority: newTodoPriority,
@@ -149,13 +141,13 @@ export default function TelemetryHUD() {
     setNewTodoTitle('');
   };
 
-  if (!store.hudVisible) {
+  if (!hudVisible) {
     return (
       <div className="pointer-events-none fixed inset-0 z-20 flex items-bottom justify-end p-6">
         <motion.button
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
-          onClick={() => store.setHudVisibility(true)}
+          onClick={() => setHudVisibility(true)}
           className="pointer-events-auto px-4 py-2 bg-[#080c16]/90 backdrop-blur-md border border-[#00f0ff]/40 text-[#00f0ff] text-xs tracking-widest font-mono rounded hover:bg-[#00f0ff]/10 transition-all flex items-center gap-2 shadow-[0_0_15px_rgba(0,240,255,0.2)]"
         >
           <Eye size={14} /> RESTORE HUD [H]
@@ -165,27 +157,30 @@ export default function TelemetryHUD() {
   }
 
   const categories = ['ALL', 'AI & ML', 'CS', 'SYSTEMS', 'MATH', 'PHYSICS', 'CYBERSECURITY', 'ARCH'];
-  const completedTodosCount = store.todos.filter((t) => t.completed).length;
-  const selectedNode = store.topicNodes.find((n) => n.id === store.selectedTopicId);
+  const completedTodosCount = todos.filter((t) => t.completed).length;
+  const selectedNode = topicNodes.find((n) => n.id === selectedTopicId);
   const selectedNodeColor = selectedNode ? getCategoryShade(selectedNode.id, selectedNode.category) : '#00f0ff';
-  const topologicalPrereqs = selectedNode ? getTopologicalPrerequisites(selectedNode.id, store.topicNodes) : [];
+  const topologicalPrereqs = useMemo(
+    () => (selectedNode ? getTopologicalPrerequisites(selectedNode.id, topicNodes) : []),
+    [selectedNode?.id, topicNodes]
+  );
 
   // Dynamic Mastery Score calculated per active Subgraph
-  const activeSubgraphNodes = store.selectedCategory && store.selectedCategory !== 'ALL'
-    ? store.topicNodes.filter((n) => n.category === store.selectedCategory)
-    : store.topicNodes;
+  const activeSubgraphNodes = selectedCategory && selectedCategory !== 'ALL'
+    ? topicNodes.filter((n) => n.category === selectedCategory)
+    : topicNodes;
 
   const currentMasteryScore = Math.round(
     activeSubgraphNodes.reduce((acc, curr) => acc + curr.mastery, 0) / (activeSubgraphNodes.length || 1)
   );
 
-  const activeCategoryLabel = store.selectedCategory && store.selectedCategory !== 'ALL'
-    ? `${store.selectedCategory} MASTERY`
+  const activeCategoryLabel = selectedCategory && selectedCategory !== 'ALL'
+    ? `${selectedCategory} MASTERY`
     : 'MASTERY';
 
-  const filteredTopics = store.topicNodes.filter((t) => {
-    const categoryMatch = !store.selectedCategory || store.selectedCategory === 'ALL' || t.category === store.selectedCategory;
-    const searchMatch = !store.searchQuery || t.name.toLowerCase().includes(store.searchQuery.toLowerCase());
+  const filteredTopics = topicNodes.filter((t) => {
+    const categoryMatch = !selectedCategory || selectedCategory === 'ALL' || t.category === selectedCategory;
+    const searchMatch = !searchQuery || t.name.toLowerCase().includes(searchQuery.toLowerCase());
     return categoryMatch && searchMatch;
   });
 
@@ -209,12 +204,12 @@ export default function TelemetryHUD() {
                   <Compass size={13} className="text-[#00f0ff]" /> SUBGRAPHS:
                 </span>
                 {categories.map((cat) => {
-                  const isSelected = (cat === 'ALL' && !store.selectedCategory) || store.selectedCategory === cat;
+                  const isSelected = (cat === 'ALL' && !selectedCategory) || selectedCategory === cat;
                   const catColor = cat === 'ALL' ? '#00f0ff' : DOMAIN_BASE_COLORS[cat] || '#00f0ff';
                   return (
                     <button
                       key={cat}
-                      onClick={() => store.setSelectedCategory(cat === 'ALL' ? null : cat)}
+                      onClick={() => setSelectedCategory(cat === 'ALL' ? null : cat)}
                       style={{
                         backgroundColor: isSelected ? `${catColor}25` : undefined,
                         borderColor: isSelected ? catColor : undefined,
@@ -253,7 +248,7 @@ export default function TelemetryHUD() {
                 <Compass size={14} className="text-[#00f0ff]" />
                 <span>SUBGRAPHS</span>
                 <span className="px-1.5 py-0.2 rounded text-[10px] bg-[#00f0ff]/15 text-[#00f0ff] border border-[#00f0ff]/30 font-extrabold">
-                  {store.selectedCategory || 'ALL'}
+                  {selectedCategory || 'ALL'}
                 </span>
               </motion.button>
             )}
@@ -277,9 +272,9 @@ export default function TelemetryHUD() {
                   type="text"
                   autoFocus
                   placeholder="Search 220+ concepts..."
-                  value={store.searchQuery}
+                  value={searchQuery}
                   onChange={(e) => {
-                    store.setSearchQuery(e.target.value);
+                    setSearchQuery(e.target.value);
                     if (leftPanelCollapsed) {
                       setLeftPanelCollapsed(false);
                     }
@@ -292,7 +287,7 @@ export default function TelemetryHUD() {
                 <button
                   type="button"
                   onClick={() => {
-                    store.setSearchQuery('');
+                    setSearchQuery('');
                     setIsSearchOpen(false);
                   }}
                   className="text-slate-400 hover:text-slate-100 p-0.5 flex-shrink-0"
@@ -316,7 +311,7 @@ export default function TelemetryHUD() {
                 title="Open concept search"
               >
                 <Search size={15} />
-                {store.searchQuery && (
+                {searchQuery && (
                   <span className="w-1.5 h-1.5 rounded-full bg-[#00f0ff]" />
                 )}
               </motion.button>
@@ -365,7 +360,7 @@ export default function TelemetryHUD() {
                         : 'text-slate-400 hover:text-slate-200'
                     }`}
                   >
-                    <CheckSquare size={13} /> TASKS ({completedTodosCount}/{store.todos.length})
+                    <CheckSquare size={13} /> TASKS ({completedTodosCount}/{todos.length})
                   </button>
                 </div>
               </div>
@@ -382,9 +377,9 @@ export default function TelemetryHUD() {
                     {filteredTopics.map((topic) => (
                       <div
                         key={topic.id}
-                        onClick={() => store.setSelectedTopicId(topic.id)}
+                        onClick={() => setSelectedTopicId(topic.id)}
                         className={`p-2.5 rounded-lg border text-xs cursor-pointer transition-all ${
-                          store.selectedTopicId === topic.id
+                          selectedTopicId === topic.id
                             ? 'border-[#00f0ff] bg-[#00f0ff]/15 shadow-[0_0_12px_rgba(0,240,255,0.25)]'
                             : 'border-white/10 bg-slate-950/70 hover:border-white/20'
                         }`}
@@ -443,7 +438,7 @@ export default function TelemetryHUD() {
                   </form>
 
                   <div className="flex-1 overflow-y-auto space-y-2 pr-1.5 pb-6 overscroll-contain" onWheel={(e) => e.stopPropagation()}>
-                    {store.todos.map((todo) => (
+                    {todos.map((todo) => (
                       <div
                         key={todo.id}
                         className={`p-2.5 rounded-lg border text-xs transition-all flex items-start justify-between gap-2 ${
@@ -454,7 +449,7 @@ export default function TelemetryHUD() {
                       >
                         <div className="flex items-start gap-2 flex-1">
                           <button
-                            onClick={() => store.toggleTodo(todo.id)}
+                            onClick={() => toggleTodo(todo.id)}
                             className="mt-0.5 text-slate-400 hover:text-[#00f0ff] transition-colors"
                           >
                             {todo.completed ? (
@@ -483,7 +478,7 @@ export default function TelemetryHUD() {
                         </div>
 
                         <button
-                          onClick={() => store.deleteTodo(todo.id)}
+                          onClick={() => deleteTodo(todo.id)}
                           className="text-slate-500 hover:text-[#ff3366] transition-colors p-1"
                         >
                           <Trash2 size={13} />
@@ -505,7 +500,7 @@ export default function TelemetryHUD() {
 
         {/* Floating "EXPLORE" Action Button on the Bottom Right of the Screen */}
         <AnimatePresence>
-          {selectedNode && !store.isInspectorOpen && (
+          {selectedNode && !isInspectorOpen && (
             <motion.div
               initial={{ y: 30, opacity: 0, scale: 0.9 }}
               animate={{ y: 0, opacity: 1, scale: 1 }}
@@ -513,7 +508,7 @@ export default function TelemetryHUD() {
               className="pointer-events-auto fixed bottom-6 right-6 z-30"
             >
               <button
-                onClick={() => store.setIsInspectorOpen(true)}
+                onClick={() => setIsInspectorOpen(true)}
                 style={{
                   borderColor: selectedNodeColor,
                   boxShadow: `0 0 24px ${selectedNodeColor}50`,
@@ -540,7 +535,7 @@ export default function TelemetryHUD() {
 
         {/* Right Selected Knowledge Concept Inspector Card (Opens on EXPLORE click) */}
         <AnimatePresence>
-          {selectedNode && store.isInspectorOpen && (
+          {selectedNode && isInspectorOpen && (
             <motion.div
               initial={{ x: 40, opacity: 0 }}
               animate={{ x: 0, opacity: 1 }}
@@ -555,7 +550,7 @@ export default function TelemetryHUD() {
                   <span className="font-bold text-slate-100 uppercase tracking-wider truncate max-w-[220px]">{selectedNode.name}</span>
                 </div>
                 <button
-                  onClick={() => store.setIsInspectorOpen(false)}
+                  onClick={() => setIsInspectorOpen(false)}
                   className="text-slate-400 hover:text-slate-100 p-1 font-bold"
                   title="Close Inspector"
                 >
@@ -602,7 +597,7 @@ export default function TelemetryHUD() {
                       topologicalPrereqs.map((prereqNode, idx) => (
                         <div
                           key={prereqNode.id}
-                          onClick={() => store.setSelectedTopicId(prereqNode.id)}
+                          onClick={() => setSelectedTopicId(prereqNode.id)}
                           className="p-2 rounded bg-slate-950/80 border border-[#ffaa00]/30 hover:border-[#ffaa00] text-slate-200 text-[11px] cursor-pointer transition-all flex items-center justify-between group"
                         >
                           <div className="flex items-center gap-2 truncate">
@@ -648,7 +643,7 @@ export default function TelemetryHUD() {
                       selectedNode.notes.map((note) => (
                         <div
                           key={note.id}
-                          onClick={() => store.setActiveNote(note)}
+                          onClick={() => setActiveNote(note)}
                           style={{
                             borderColor: `${selectedNodeColor}40`
                           }}
@@ -680,7 +675,7 @@ export default function TelemetryHUD() {
                     {/* Add New Note Button */}
                     <button
                       onClick={() => {
-                        store.setActiveNote(
+                        setActiveNote(
                           {
                             id: '',
                             title: 'Untitled Note',
@@ -712,13 +707,13 @@ export default function TelemetryHUD() {
                   <div className="space-y-1.5">
                     {selectedNode.unlocks.length > 0 ? (
                       selectedNode.unlocks.map((unlockId) => {
-                        const unlockNode = store.topicNodes.find((n) => n.id === unlockId);
+                        const unlockNode = topicNodes.find((n) => n.id === unlockId);
                         if (!unlockNode) return null;
 
                         return (
                           <div
                             key={unlockId}
-                            onClick={() => store.setSelectedTopicId(unlockNode.id)}
+                            onClick={() => setSelectedTopicId(unlockNode.id)}
                             className="p-2 rounded bg-slate-950/80 border border-[#00ff9d]/30 hover:border-[#00ff9d] text-slate-200 text-[11px] cursor-pointer transition-all flex items-center justify-between group"
                           >
                             <div className="flex items-center gap-1.5 truncate">
@@ -747,7 +742,7 @@ export default function TelemetryHUD() {
               {/* Action Button at bottom */}
               <div className="pt-2 flex-shrink-0">
                 <button
-                  onClick={() => store.updateTopicMastery(selectedNode.id, selectedNode.mastery + 10)}
+                  onClick={() => updateTopicMastery(selectedNode.id, selectedNode.mastery + 10)}
                   style={{
                     backgroundColor: selectedNodeColor,
                     boxShadow: `0 0 14px ${selectedNodeColor}60`
