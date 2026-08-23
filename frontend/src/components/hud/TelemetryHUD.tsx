@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   CheckSquare,
@@ -160,7 +160,10 @@ export default function TelemetryHUD() {
   const completedTodosCount = todos.filter((t) => t.completed).length;
   const selectedNode = topicNodes.find((n) => n.id === selectedTopicId);
   const selectedNodeColor = selectedNode ? getCategoryShade(selectedNode.id, selectedNode.category) : '#00f0ff';
-  const topologicalPrereqs = selectedNode ? getTopologicalPrerequisites(selectedNode.id, topicNodes) : [];
+  const topologicalPrereqs = useMemo(
+    () => (selectedNode ? getTopologicalPrerequisites(selectedNode.id, topicNodes) : []),
+    [selectedNode?.id, topicNodes]
+  );
 
   // Dynamic Mastery Score calculated per active Subgraph
   const activeSubgraphNodes = selectedCategory && selectedCategory !== 'ALL'

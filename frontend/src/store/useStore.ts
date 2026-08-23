@@ -1391,7 +1391,7 @@ const INITIAL_TODOS: StudyTodo[] = [
     priority: 'HIGH',
     completed: false,
     dueDate: 'Today',
-    topicId: 'TODO-002'
+    topicId: 'TOPIC-002'
   },
   {
     id: 'TODO-003',
@@ -1463,7 +1463,7 @@ export const useStore = create<TelemetryStore>((set) => ({
   setIsNoteEditing: (isNoteEditing: boolean) => set({ isNoteEditing }),
   addNoteToTopic: (topicId: string, note: Omit<NoteItem, 'id'>) =>
     set((state) => {
-      const newId = `NOTE-${Date.now().toString().slice(-4)}`;
+      const newId = `NOTE-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`.toUpperCase();
       const today = new Date().toLocaleDateString('en-US', {
         month: 'short',
         day: 'numeric',
@@ -1505,7 +1505,11 @@ export const useStore = create<TelemetryStore>((set) => ({
         return n;
       });
       const nextActive = state.activeNote?.id === noteId ? null : state.activeNote;
-      return { topicNodes: updated, activeNote: nextActive };
+      return {
+        topicNodes: updated,
+        activeNote: nextActive,
+        isNoteEditing: state.activeNote?.id === noteId ? false : state.isNoteEditing
+      };
     }),
   addTopicNode: (node: Omit<TopicNode, 'id'>) =>
     set((state) => {
