@@ -257,6 +257,7 @@ export default function TelemetryHUD() {
         >
           <button
             onClick={() => setLeftPanelCollapsed(!leftPanelCollapsed)}
+            aria-label="Toggle study panel"
             className="absolute -right-3 top-4 bg-[#080c16] border border-white/20 text-slate-300 p-1 rounded-full hover:text-[#00f0ff] transition-colors z-30"
           >
             {leftPanelCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}

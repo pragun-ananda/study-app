@@ -6,7 +6,7 @@ describe('Zustand State Store (useStore)', () => {
     useStore.getState().resetState();
   });
 
-  describe('Topic Selection & Mastery', () => {
+  describe('Topic Selection, Creation & Mastery', () => {
     it('selects and deselects topics', () => {
       expect(useStore.getState().selectedTopicId).toBeNull();
       useStore.getState().setSelectedTopicId('TOPIC-001');
@@ -30,6 +30,25 @@ describe('Zustand State Store (useStore)', () => {
       // Clamping low
       useStore.getState().updateTopicMastery(topicId, -20);
       expect(useStore.getState().topicNodes.find((n) => n.id === topicId)?.mastery).toBe(0);
+    });
+
+    it('adds a new topic node to the graph', () => {
+      const initialCount = useStore.getState().topicNodes.length;
+      useStore.getState().addTopicNode({
+        name: 'Quantum Teleportation & Entanglement',
+        category: 'PHYSICS',
+        mastery: 0,
+        status: 'LEARNING',
+        lastReviewed: '2026-08-23',
+        coordinates: [10, 10, 10],
+        prerequisites: [],
+        unlocks: [],
+        summary: 'Quantum entanglement state transfer protocols.'
+      });
+
+      expect(useStore.getState().topicNodes.length).toBe(initialCount + 1);
+      const added = useStore.getState().topicNodes.find((n) => n.name === 'Quantum Teleportation & Entanglement');
+      expect(added?.id).toMatch(/^TOPIC-/);
     });
 
     it('sets hovered topic and inspector open state', () => {
@@ -145,10 +164,18 @@ describe('Zustand State Store (useStore)', () => {
       expect(useStore.getState().selectedCategory).toBeNull();
     });
 
-    it('toggles HUD visibility', () => {
+    it('toggles HUD visibility and sets explicit HUD visibility', () => {
       const initialVisibility = useStore.getState().hudVisible;
       useStore.getState().toggleHudVisibility();
       expect(useStore.getState().hudVisible).toBe(!initialVisibility);
+
+      useStore.getState().setHudVisibility(false);
+      expect(useStore.getState().hudVisible).toBe(false);
+    });
+
+    it('manages bloom intensity setter', () => {
+      useStore.getState().setBloomIntensity(2.4);
+      expect(useStore.getState().bloomIntensity).toBe(2.4);
     });
 
     it('toggles overload mode and system status', () => {

@@ -1,6 +1,6 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import NoteViewerModal from '../../src/components/hud/NoteViewerModal';
 import { useStore } from '../../src/store/useStore';
 
@@ -48,6 +48,25 @@ describe('NoteViewerModal Component', () => {
     });
   });
 
+  it('copies entire note content in view mode when footer copy button is clicked', async () => {
+    const mockNote = {
+      id: 'NOTE-VIEW-1',
+      title: 'Full Note View',
+      content: 'Full body content to copy'
+    };
+
+    useStore.getState().setActiveNote(mockNote, false);
+    render(<NoteViewerModal />);
+
+    const copyFooterBtn = screen.getByTitle('Copy note content');
+    fireEvent.click(copyFooterBtn);
+
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith('Full body content to copy');
+    await waitFor(() => {
+      expect(screen.getByText('COPIED')).toBeInTheDocument();
+    });
+  });
+
   it('allows switching to edit mode and saving changes to topic note', async () => {
     const targetTopic = useStore.getState().topicNodes[0];
     useStore.getState().setSelectedTopicId(targetTopic.id);
@@ -64,6 +83,79 @@ describe('NoteViewerModal Component', () => {
     const topic = useStore.getState().topicNodes.find((n) => n.id === targetTopic.id);
     const added = topic?.notes?.find((n) => n.title === 'New Test Note');
     expect(added).toBeDefined();
+  });
+
+  it('switches between WRITE and PREVIEW tabs in edit mode', async () => {
+    const targetTopic = useStore.getState().topicNodes[0];
+    useStore.getState().setSelectedTopicId(targetTopic.id);
+    useStore.getState().setActiveNote({ id: 'NOTE-99', title: 'Preview Note', content: '### Live Markdown Header' }, true);
+
+    render(<NoteViewerModal />);
+
+    // Switch to PREVIEW tab
+    const previewTabBtn = screen.getByRole('button', { name: /PREVIEW/i });
+    fireEvent.click(previewTabBtn);
+
+    expect(screen.getByText('Live Markdown Header')).toBeInTheDocument();
+
+    // Switch back to WRITE tab
+    const writeTabBtn = screen.getByRole('button', { name: /WRITE/i });
+    fireEvent.click(writeTabBtn);
+
+    expect(screen.getByPlaceholderText('Start typing your note here...')).toBeInTheDocument();
+  });
+
+  it('deletes a note when user confirms deletion prompt', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const topic = useStore.getState().topicNodes[0];
+    const note = topic.notes?.[0];
+    expect(note).toBeDefined();
+
+    if (note) {
+      useStore.getState().setSelectedTopicId(topic.id);
+      useStore.getState().setActiveNote(note, true);
+
+      render(<NoteViewerModal />);
+
+      const deleteBtn = screen.getByTitle('Delete this note');
+      fireEvent.click(deleteBtn);
+
+      expect(confirmSpy).toHaveBeenCalledWith('Are you sure you want to delete this note?');
+      expect(useStore.getState().activeNote).toBeNull();
+    }
+    confirmSpy.mockRestore();
+  });
+
+  it('aborts note deletion when user cancels confirmation prompt', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const topic = useStore.getState().topicNodes[0];
+    const note = topic.notes?.[0];
+
+    if (note) {
+      useStore.getState().setSelectedTopicId(topic.id);
+      useStore.getState().setActiveNote(note, true);
+
+      render(<NoteViewerModal />);
+
+      const deleteBtn = screen.getByTitle('Delete this note');
+      fireEvent.click(deleteBtn);
+
+      expect(confirmSpy).toHaveBeenCalled();
+      expect(useStore.getState().activeNote?.id).toBe(note.id);
+    }
+    confirmSpy.mockRestore();
+  });
+
+  it('renders empty note fallback state with prompt to write content', () => {
+    useStore.getState().setActiveNote({ id: 'NOTE-EMPTY', title: 'Empty Note', content: '' }, true);
+    render(<NoteViewerModal />);
+
+    // Switch to PREVIEW tab to see empty placeholder
+    fireEvent.click(screen.getByRole('button', { name: /PREVIEW/i }));
+    expect(screen.getByText('This note file is currently empty.')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Write Some Content'));
+    expect(screen.getByPlaceholderText('Start typing your note here...')).toBeInTheDocument();
   });
 
   it('closes modal on Escape key press when not editing', () => {

@@ -100,7 +100,7 @@ describe('Graph Algorithms: calculateConnectedGraph', () => {
     expect(graph.connectedNodeIds).toEqual(new Set(['A', 'B', 'C']));
   });
 
-  it('handles multi-hop transitive paths', () => {
+  it('handles multi-hop transitive paths for upstream ancestors', () => {
     const nodeA = createMockNode('A', 'A', [], ['B']);
     const nodeB = createMockNode('B', 'B', ['A'], ['C']);
     const nodeC = createMockNode('C', 'C', ['B'], ['D']);
@@ -113,5 +113,44 @@ describe('Graph Algorithms: calculateConnectedGraph', () => {
     expect(graph.transitiveIncomingKeys.has('A->B')).toBe(true);
     expect(graph.directOutgoingKeys.has('C->D')).toBe(true);
     expect(graph.connectedNodeIds).toEqual(new Set(['A', 'B', 'C', 'D']));
+  });
+
+  it('correctly tracks multi-hop transitive outgoing (unlock) edges', () => {
+    // A -> B -> C -> D
+    const nodeA = createMockNode('A', 'A', [], ['B']);
+    const nodeB = createMockNode('B', 'B', ['A'], ['C']);
+    const nodeC = createMockNode('C', 'C', ['B'], ['D']);
+    const nodeD = createMockNode('D', 'D', ['C'], []);
+    const nodes = [nodeA, nodeB, nodeC, nodeD];
+
+    const graph = calculateConnectedGraph('A', nodes);
+
+    expect(graph.activeNode?.id).toBe('A');
+    expect(graph.directOutgoingKeys.has('A->B')).toBe(true);
+    expect(graph.transitiveOutgoingKeys.has('B->C')).toBe(true);
+    expect(graph.transitiveOutgoingKeys.has('C->D')).toBe(true);
+    expect(graph.connectedNodeIds).toEqual(new Set(['A', 'B', 'C', 'D']));
+  });
+
+  it('handles cyclic unlock relationships without infinite recursion', () => {
+    // A -> B -> C -> A
+    const nodeA = createMockNode('A', 'A', ['C'], ['B']);
+    const nodeB = createMockNode('B', 'B', ['A'], ['C']);
+    const nodeC = createMockNode('C', 'C', ['B'], ['A']);
+    const nodes = [nodeA, nodeB, nodeC];
+
+    const graph = calculateConnectedGraph('A', nodes);
+
+    expect(graph.directOutgoingKeys.has('A->B')).toBe(true);
+    expect(graph.transitiveOutgoingKeys.has('B->C')).toBe(true);
+    expect(graph.connectedNodeIds).toEqual(new Set(['A', 'B', 'C']));
+  });
+
+  it('safely skips non-existent unlock node references in graph', () => {
+    const nodeA = createMockNode('A', 'A', [], ['NON_EXISTENT_CHILD']);
+    const graph = calculateConnectedGraph('A', [nodeA]);
+
+    expect(graph.directOutgoingKeys.has('A->NON_EXISTENT_CHILD')).toBe(true);
+    expect(graph.connectedNodeIds.has('NON_EXISTENT_CHILD')).toBe(true);
   });
 });
