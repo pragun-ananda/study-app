@@ -42,7 +42,7 @@ The frontend operates on **four persistent domain entities**:
 
 ### 1.2. `TopicPrerequisite` (`topic_prerequisites`)
 * **Frontend Representation**: `prerequisites: string[]` and `unlocks: string[]`
-* **Purpose**: Represents directed prerequisite dependencies ($A \rightarrow B$) forming the knowledge Directed Acyclic Graph (DAG).
+* **Purpose**: Represents directed prerequisite dependencies ($A \rightarrow B$) forming the knowledge graph.
 * **Fields**:
   * `topic_id`: The downstream topic that requires prerequisite knowledge.
   * `prerequisite_id`: The upstream prerequisite topic.
@@ -94,7 +94,7 @@ CREATE TABLE topics (
 CREATE INDEX idx_topics_category ON topics(category);
 CREATE INDEX idx_topics_status ON topics(status);
 
--- 2. Topic Prerequisites Table (DAG Edges)
+-- 2. Topic Prerequisites Table (Directed Graph Edges)
 CREATE TABLE topic_prerequisites (
     topic_id VARCHAR(64) NOT NULL REFERENCES topics(id) ON DELETE CASCADE,
     prerequisite_id VARCHAR(64) NOT NULL REFERENCES topics(id) ON DELETE CASCADE,
@@ -138,17 +138,22 @@ CREATE INDEX idx_todos_topic_id ON study_todos(topic_id);
 
 ## 3. Entity Relationships & Design Justifications
 
-### 3.1. Prerequisite Graph via Join Table
-* **Why**: The frontend exposes both `prerequisites` (ancestors required before topic $X$) and `unlocks` (descendants unlocked by topic $X$). A single join table `topic_prerequisites` acts as the single source of truth for both directions without duplication.
-* **Integrity**: `ON DELETE CASCADE` cleans up all edge relationships if a node is removed. `CHECK (topic_id <> prerequisite_id)` prevents direct self-referential loops.
+### 3.1. Directed Knowledge Graph Structure & Cycle Tolerance
+* **Graph Nature**: The frontend model represents a **Directed Knowledge Graph** of conceptual connections. In the current seed dataset, certain tightly coupled concepts have mutual / bidirectional associations (e.g. `GANs` and `VAEs` unlock each other as alternative generative models).
+* **Schema Alignment**: The `topic_prerequisites` join table with `CHECK (topic_id <> prerequisite_id)` prevents direct self-loops ($A \rightarrow A$) while naturally accommodating valid directed and mutual concept edges without rejecting existing dataset records.
+* **Cycle Resilience in Traversals**: All traversal logic—both in the frontend (BFS queue with `visited` set in `SceneCanvas.tsx` and `TelemetryHUD.tsx`) and recursive SQL queries (using `UNION` deduplication or `CYCLE` guards)—is designed to be cycle-resilient so mutual connections never cause infinite loops.
 
-### 3.2. Separation of Notes from Topics
+### 3.2. Prerequisite Graph via Join Table
+* **Why**: The frontend exposes both `prerequisites` (ancestors required before topic $X$) and `unlocks` (descendants unlocked by topic $X$). A single join table `topic_prerequisites` acts as the single source of truth for both directions without duplication.
+* **Integrity**: `ON DELETE CASCADE` cleans up all edge relationships if a node is removed.
+
+### 3.3. Separation of Notes from Topics
 * **Why**: The 3D canvas requires only lightweight node metadata (`id`, `name`, `category`, `mastery`, coordinates) to render hundreds of nodes at 60 FPS. Markdown notes can be large (containing code and mathematical formulas) and are fetched on demand when opened in the inspector modal.
 
-### 3.3. Loose Coupling for Tasks (`ON DELETE SET NULL`)
+### 3.4. Loose Coupling for Tasks (`ON DELETE SET NULL`)
 * **Why**: Users can create general to-do tasks not attached to any topic (`topic_id = NULL`). If a topic is removed, the user's task history is preserved rather than accidentally deleted.
 
-### 3.4. Lightweight 3D Coordinates (`REAL` / `FLOAT4`)
+### 3.5. Lightweight 3D Coordinates (`REAL` / `FLOAT4`)
 * **Why**: Storing coordinates as 4-byte `REAL` values matches WebGL floating-point vertex buffers, avoids conversion overhead, and uses minimal storage.
 
 ---
