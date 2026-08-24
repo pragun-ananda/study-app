@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { newDb, IMemoryDb } from 'pg-mem';
 import * as fs from 'fs';
 import * as path from 'path';
+import { generateSeedSql } from '../scripts/generate_seed';
 
 describe('Seed Test Database (storage/seeds/seed_test_db.sql)', () => {
   let db: IMemoryDb;
@@ -19,6 +20,20 @@ describe('Seed Test Database (storage/seeds/seed_test_db.sql)', () => {
 
     // 2. Execute seed script
     db.public.none(seedSql);
+  });
+
+  describe('Deterministic Regeneration & Idempotency', () => {
+    it('produces byte-for-byte identical output across consecutive generation runs', () => {
+      const run1 = generateSeedSql();
+      const run2 = generateSeedSql();
+      expect(run1).toBe(run2);
+
+      const checkedInSql = fs.readFileSync(
+        path.resolve(__dirname, '../seeds/seed_test_db.sql'),
+        'utf8'
+      );
+      expect(run1).toBe(checkedInSql);
+    });
   });
 
   describe('Entity Ingestion & Row Counts', () => {

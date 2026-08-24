@@ -248,7 +248,7 @@ export function generateSeedSql(): string {
   const lines: string[] = [
     '--',
     '-- KNOWLEDGE GRAPH TEST DATABASE SEED',
-    `-- Generated on: ${new Date().toISOString()}`,
+    '-- Deterministically generated from frontend domain model',
     `-- Total Topics: ${topics.length} across 7 domain categories`,
     `-- Total Directed Prerequisite Edges: ${edges.length}`,
     `-- Total Markdown Notes: ${notes.length}`,

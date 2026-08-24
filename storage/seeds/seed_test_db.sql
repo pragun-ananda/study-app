@@ -1,6 +1,6 @@
 --
 -- KNOWLEDGE GRAPH TEST DATABASE SEED
--- Generated on: 2026-08-24T14:17:05.145Z
+-- Deterministically generated from frontend domain model
 -- Total Topics: 187 across 7 domain categories
 -- Total Directed Prerequisite Edges: 229
 -- Total Markdown Notes: 4
