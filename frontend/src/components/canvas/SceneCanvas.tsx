@@ -6,8 +6,10 @@ import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import { useStore } from '../../store/useStore';
 import { TopicNode } from '../../types/telemetry';
 import { getCategoryShade } from '../../utils/theme';
+import { calculateConnectedGraph, ConnectedGraphResult } from '../../utils/graph';
 import PostProcessing from './PostProcessing';
 
+// TODO(FRO-9): Implement Playwright browser-based E2E test suite for Three.js WebGL canvas, OrbitControls camera swoops, and post-processing shaders.
 // Derive distinct incoming (lighter/warmer) and outgoing (richer/electric) edge highlight shades correlated to the active node's color
 const getIncomingEdgeColor = (activeColorHex: string): string => {
   const col = new THREE.Color(activeColorHex);
@@ -47,7 +49,7 @@ function IntroAnimationController({ introRef }: { introRef: React.MutableRefObje
 }
 
 // Custom Hook: Full Transitive Connected Component Graph Traversal (Direct vs Transitive Paths)
-const useConnectedGraph = () => {
+const useConnectedGraph = (): ConnectedGraphResult => {
   const topicNodes = useStore((state) => state.topicNodes);
   const selectedTopicId = useStore((state) => state.selectedTopicId);
   const hoveredTopicId = useStore((state) => state.hoveredTopicId);
@@ -55,116 +57,9 @@ const useConnectedGraph = () => {
   const activeId = selectedTopicId || hoveredTopicId;
 
   return useMemo(() => {
-    const nodeMap = new Map<string, TopicNode>();
-    topicNodes.forEach((n) => nodeMap.set(n.id, n));
-
-    const directIn = new Set<string>();
-    const directOut = new Set<string>();
-    const transIn = new Set<string>();
-    const transOut = new Set<string>();
-    const connectedNodeIds = new Set<string>();
-
-    if (!activeId || !nodeMap.has(activeId)) {
-      return {
-        activeId,
-        nodeMap,
-        activeNode: null,
-        activeNodeColorHex: null,
-        directIncomingKeys: directIn,
-        directOutgoingKeys: directOut,
-        transitiveIncomingKeys: transIn,
-        transitiveOutgoingKeys: transOut,
-        connectedNodeIds
-      };
-    }
-
-    const activeNode = nodeMap.get(activeId)!;
-    const activeNodeColorHex = getCategoryShade(activeNode.id, activeNode.category);
-    connectedNodeIds.add(activeId);
-
-    // 1. Upstream Transitive Prerequisites (Ancestors)
-    const ancestorQueue = [...activeNode.prerequisites];
-    const visitedAncestors = new Set<string>();
-
-    ancestorQueue.forEach((prereqId) => {
-      directIn.add(`${prereqId}->${activeId}`);
-      visitedAncestors.add(prereqId);
-      connectedNodeIds.add(prereqId);
-    });
-
-    let head = 0;
-    while (head < ancestorQueue.length) {
-      const currId = ancestorQueue[head++];
-      const currNode = nodeMap.get(currId);
-      if (!currNode) continue;
-
-      currNode.prerequisites.forEach((parentPrereqId) => {
-        const edgeKey = `${parentPrereqId}->${currId}`;
-        if (!directIn.has(edgeKey) && !transIn.has(edgeKey)) {
-          transIn.add(edgeKey);
-        }
-        if (!visitedAncestors.has(parentPrereqId)) {
-          visitedAncestors.add(parentPrereqId);
-          ancestorQueue.push(parentPrereqId);
-          connectedNodeIds.add(parentPrereqId);
-        }
-      });
-    }
-
-    // 2. Downstream Transitive Unlocks (Descendants)
-    const descendantQueue = [...activeNode.unlocks];
-    const visitedDescendants = new Set<string>();
-
-    descendantQueue.forEach((unlockId) => {
-      directOut.add(`${activeId}->${unlockId}`);
-      visitedDescendants.add(unlockId);
-      connectedNodeIds.add(unlockId);
-    });
-
-    head = 0;
-    while (head < descendantQueue.length) {
-      const currId = descendantQueue[head++];
-      const currNode = nodeMap.get(currId);
-      if (!currNode) continue;
-
-      currNode.unlocks.forEach((childUnlockId) => {
-        const edgeKey = `${currId}->${childUnlockId}`;
-        if (!directOut.has(edgeKey) && !transOut.has(edgeKey)) {
-          transOut.add(edgeKey);
-        }
-        if (!visitedDescendants.has(childUnlockId)) {
-          visitedDescendants.add(childUnlockId);
-          descendantQueue.push(childUnlockId);
-          connectedNodeIds.add(childUnlockId);
-        }
-      });
-    }
-
-    return {
-      activeId,
-      activeNode,
-      activeNodeColorHex,
-      nodeMap,
-      directIncomingKeys: directIn,
-      directOutgoingKeys: directOut,
-      transitiveIncomingKeys: transIn,
-      transitiveOutgoingKeys: transOut,
-      connectedNodeIds
-    };
+    return calculateConnectedGraph(activeId, topicNodes);
   }, [topicNodes, activeId]);
 };
-
-interface ConnectedGraphResult {
-  activeId: string | null;
-  activeNode: TopicNode | null;
-  activeNodeColorHex: string | null;
-  nodeMap: Map<string, TopicNode>;
-  directIncomingKeys: Set<string>;
-  directOutgoingKeys: Set<string>;
-  transitiveIncomingKeys: Set<string>;
-  transitiveOutgoingKeys: Set<string>;
-  connectedNodeIds: Set<string>;
-}
 
 const ConnectedGraphContext = React.createContext<ConnectedGraphResult>({
   activeId: null,
