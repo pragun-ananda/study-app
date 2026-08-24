@@ -215,4 +215,26 @@ describe('Zustand State Store (useStore)', () => {
       expect(useStore.getState().systemStatus).toBe('OPTIMAL');
     });
   });
+
+  describe('Initial Test Data & Note Loading Integrity', () => {
+    it('hydrates all 187 topics and 5 initial todos seamlessly from data/test', () => {
+      const state = useStore.getState();
+      expect(state.topicNodes.length).toBe(187);
+      expect(state.todos.length).toBe(5);
+    });
+
+    it('attaches rich markdown and KaTeX note contents to topic nodes', () => {
+      const state = useStore.getState();
+      const backprop = state.topicNodes.find((n) => n.id === 'TOPIC-001');
+      expect(backprop).toBeDefined();
+      expect(backprop?.notes).toBeDefined();
+      expect(backprop?.notes?.length).toBe(1);
+
+      const note = backprop?.notes?.[0];
+      expect(note?.title).toBe('Backpropagation Derivation Notes');
+      expect(note?.content).toContain('$$ Z^{[l]} = W^{[l]} A^{[l-1]} + b^{[l]} $$');
+      expect(note?.content).toContain('\\nabla_A \\mathcal{L}');
+      expect(note?.content).toContain('def backward_propagation(dAL, caches):');
+    });
+  });
 });
