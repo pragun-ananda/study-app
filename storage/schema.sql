@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS topics (
     category VARCHAR(64) NOT NULL,
     summary TEXT NOT NULL,
     mastery NUMERIC(5,2) NOT NULL DEFAULT 0.00 CHECK (mastery >= 0 AND mastery <= 100),
-    status VARCHAR(32) NOT NULL DEFAULT 'NEW',
+    status VARCHAR(32) NOT NULL DEFAULT 'NEW' CHECK (status IN ('DUE', 'LEARNING', 'MASTERED', 'NEW')),
     coord_x DOUBLE PRECISION NOT NULL DEFAULT 0.0,
     coord_y DOUBLE PRECISION NOT NULL DEFAULT 0.0,
     coord_z DOUBLE PRECISION NOT NULL DEFAULT 0.0,
@@ -22,11 +22,13 @@ CREATE INDEX IF NOT EXISTS idx_topics_status ON topics(status);
 
 -- 2. Topic Prerequisites (Directed Knowledge Graph Edges)
 -- Represents downstream topic needing upstream prerequisite.
--- Cycle-tolerant design: supports complementary mutual relationships (e.g. GAN <-> VAE).
+-- Cycle-tolerant design: supports complementary mutual relationships (e.g. GAN <-> VAE)
+-- but prevents self-loops (topic_id <> prerequisite_id).
 CREATE TABLE IF NOT EXISTS topic_prerequisites (
     topic_id VARCHAR(64) NOT NULL REFERENCES topics(id) ON DELETE CASCADE,
     prerequisite_id VARCHAR(64) NOT NULL REFERENCES topics(id) ON DELETE CASCADE,
-    PRIMARY KEY (topic_id, prerequisite_id)
+    PRIMARY KEY (topic_id, prerequisite_id),
+    CONSTRAINT chk_no_self_prerequisite CHECK (topic_id <> prerequisite_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_topic_prerequisites_prereq ON topic_prerequisites(prerequisite_id);
@@ -51,7 +53,7 @@ CREATE TABLE IF NOT EXISTS study_todos (
     topic_id VARCHAR(64) REFERENCES topics(id) ON DELETE SET NULL,
     title TEXT NOT NULL,
     category VARCHAR(64) NOT NULL,
-    priority VARCHAR(16) NOT NULL DEFAULT 'HIGH',
+    priority VARCHAR(16) NOT NULL DEFAULT 'HIGH' CHECK (priority IN ('HIGH', 'MEDIUM', 'LOW')),
     completed BOOLEAN NOT NULL DEFAULT FALSE,
     due_date TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()

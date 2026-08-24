@@ -56,7 +56,21 @@ describe('PostgreSQL Storage Schema (storage/schema.sql)', () => {
       }).toThrow();
     });
 
-    it('enforces CHECK constraint on mastery (0 <= mastery <= 100)', () => {
+    it('accepts exact boundary values for mastery (0.00 and 100.00)', () => {
+      db.public.none(`
+        INSERT INTO topics (id, name, category, summary, mastery) VALUES
+        ('TOPIC-MIN', 'Zero Mastery', 'CS', 'Summary', 0.00),
+        ('TOPIC-MAX', 'Full Mastery', 'CS', 'Summary', 100.00);
+      `);
+
+      const minTopic = db.public.one("SELECT mastery FROM topics WHERE id = 'TOPIC-MIN'");
+      const maxTopic = db.public.one("SELECT mastery FROM topics WHERE id = 'TOPIC-MAX'");
+
+      expect(Number(minTopic.mastery)).toBe(0);
+      expect(Number(maxTopic.mastery)).toBe(100);
+    });
+
+    it('enforces CHECK constraint on mastery bounds (0 <= mastery <= 100)', () => {
       // Mastery > 100
       expect(() => {
         db.public.none(`
@@ -70,6 +84,15 @@ describe('PostgreSQL Storage Schema (storage/schema.sql)', () => {
         db.public.none(`
           INSERT INTO topics (id, name, category, summary, mastery)
           VALUES ('TOPIC-ERR-2', 'Under 0', 'CS', 'Summary', -10.00);
+        `);
+      }).toThrow();
+    });
+
+    it('enforces CHECK constraint on topic status enum values', () => {
+      expect(() => {
+        db.public.none(`
+          INSERT INTO topics (id, name, category, summary, status)
+          VALUES ('TOPIC-INVALID-STATUS', 'Invalid Status', 'CS', 'Summary', 'INVALID_STATUS_VALUE');
         `);
       }).toThrow();
     });
@@ -96,7 +119,7 @@ describe('PostgreSQL Storage Schema (storage/schema.sql)', () => {
       expect(edge.prerequisite_id).toBe('VAE');
     });
 
-    it('tolerates mutual/cyclic edges (e.g. GAN <-> VAE)', () => {
+    it('tolerates mutual/cyclic edges between distinct topics (e.g. GAN <-> VAE)', () => {
       db.public.none(`
         INSERT INTO topic_prerequisites (topic_id, prerequisite_id) VALUES
         ('GAN', 'VAE'),
@@ -105,6 +128,15 @@ describe('PostgreSQL Storage Schema (storage/schema.sql)', () => {
 
       const edges = db.public.many("SELECT * FROM topic_prerequisites");
       expect(edges.length).toBe(2);
+    });
+
+    it('rejects self-referential prerequisite loops (topic_id <> prerequisite_id)', () => {
+      expect(() => {
+        db.public.none(`
+          INSERT INTO topic_prerequisites (topic_id, prerequisite_id)
+          VALUES ('GAN', 'GAN');
+        `);
+      }).toThrow();
     });
 
     it('rejects duplicate edges between same pair (Composite PK)', () => {
@@ -216,6 +248,15 @@ describe('PostgreSQL Storage Schema (storage/schema.sql)', () => {
 
       const todo = db.public.one("SELECT * FROM study_todos WHERE id = 'TODO-002'");
       expect(todo.topic_id).toBeNull();
+    });
+
+    it('enforces CHECK constraint on todo priority enum values', () => {
+      expect(() => {
+        db.public.none(`
+          INSERT INTO study_todos (id, topic_id, title, category, priority)
+          VALUES ('TODO-ERR-PRIO', 'TOPIC-SYS', 'Title', 'SYSTEMS', 'URGENT');
+        `);
+      }).toThrow();
     });
 
     it('sets topic_id to NULL when linked topic is deleted (ON DELETE SET NULL)', () => {
