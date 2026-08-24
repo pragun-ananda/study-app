@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { DOMAIN_DATA, INITIAL_TODOS } from '../../frontend/src/store/useStore';
+import { DOMAIN_DATA, INITIAL_TODOS } from '../../frontend/src/data/domainData';
 import { TopicNode, NoteItem } from '../../frontend/src/types/telemetry';
 
 // Deterministic Mulberry32 Pseudo-Random Number Generator (PRNG)
