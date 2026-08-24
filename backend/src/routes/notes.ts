@@ -39,9 +39,16 @@ router.post('/topics/:topicId/notes', async (req: Request, res: Response) => {
 
     let id = req.body.id;
     if (!id || typeof id !== 'string') {
-      const countRes = await query<{ count: string }>('SELECT COUNT(*) as count FROM notes');
-      const nextNum = Number(countRes.rows[0].count) + 1;
-      id = `NOTE-${nextNum.toString().padStart(3, '0')}`;
+      const noteRows = await query<{ id: string }>("SELECT id FROM notes WHERE id LIKE 'NOTE-%'");
+      let maxNum = 0;
+      for (const r of noteRows.rows) {
+        const match = r.id.match(/^NOTE-(\d+)$/);
+        if (match) {
+          const num = parseInt(match[1], 10);
+          if (num > maxNum) maxNum = num;
+        }
+      }
+      id = `NOTE-${(maxNum + 1).toString().padStart(3, '0')}`;
     }
 
     const { title, content = '', filename = null } = req.body;

@@ -111,9 +111,16 @@ router.post('/', async (req: Request, res: Response) => {
 
     let id = req.body.id;
     if (!id || typeof id !== 'string') {
-      const countRes = await query<{ count: string }>('SELECT COUNT(*) as count FROM topics');
-      const nextNum = Number(countRes.rows[0].count) + 1;
-      id = `TOPIC-${nextNum.toString().padStart(3, '0')}`;
+      const topicRows = await query<{ id: string }>("SELECT id FROM topics WHERE id LIKE 'TOPIC-%'");
+      let maxNum = 0;
+      for (const r of topicRows.rows) {
+        const match = r.id.match(/^TOPIC-(\d+)$/);
+        if (match) {
+          const num = parseInt(match[1], 10);
+          if (num > maxNum) maxNum = num;
+        }
+      }
+      id = `TOPIC-${(maxNum + 1).toString().padStart(3, '0')}`;
     }
 
     const {
