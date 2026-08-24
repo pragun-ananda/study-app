@@ -20,28 +20,56 @@ function sqlString(val: string | undefined | null): string {
   return `'${val.replace(/'/g, "''")}'`;
 }
 
-// Relative / Date String Normalizer to valid ISO-8601 TIMESTAMPTZ
-function normalizeTimestamp(timeStr: string | undefined | null): string {
-  if (!timeStr || timeStr === 'Never') return 'NULL';
-  if (timeStr === '2 hours ago') return `'2026-08-24T08:00:00Z'`;
-  if (timeStr === 'Yesterday' || timeStr === '1 day ago') return `'2026-08-23T10:00:00Z'`;
-  if (timeStr === '3 days ago') return `'2026-08-21T10:00:00Z'`;
-  if (timeStr === '1 week ago') return `'2026-08-17T10:00:00Z'`;
-  if (timeStr === 'Aug 17, 2026') return `'2026-08-17T10:00:00Z'`;
-  if (timeStr === 'Aug 14, 2026') return `'2026-08-14T10:00:00Z'`;
-  if (timeStr === 'Aug 10, 2026') return `'2026-08-10T10:00:00Z'`;
-  if (timeStr === 'Aug 05, 2026') return `'2026-08-05T10:00:00Z'`;
-  if (timeStr === 'Aug 01, 2026') return `'2026-08-01T10:00:00Z'`;
-  if (timeStr === 'Jul 28, 2026') return `'2026-07-28T10:00:00Z'`;
-  if (timeStr === 'Jul 20, 2026') return `'2026-07-20T10:00:00Z'`;
+const ANCHOR_TIME_MS = Date.parse('2026-08-24T10:00:00.000Z');
 
-  // If already ISO format or date parseable
-  const parsed = new Date(timeStr);
-  if (!isNaN(parsed.getTime())) {
-    return `'${parsed.toISOString()}'`;
+// General Relative / Date String Normalizer to valid ISO-8601 TIMESTAMPTZ
+export function normalizeTimestamp(timeStr: string | undefined | null): string {
+  if (!timeStr || timeStr === 'Never' || timeStr.trim().toLowerCase() === 'never') {
+    return 'NULL';
   }
 
-  return `'2026-08-24T10:00:00Z'`;
+  const trimmed = timeStr.trim();
+
+  // Match relative expressions: e.g. "2 hours ago", "3 hours ago", "4 hours ago", "3 days ago", "1 week ago"
+  const relMatch = trimmed.match(/^(\d+)\s+(hour|hr|minute|min|day|week|month|year)s?\s+ago$/i);
+  if (relMatch) {
+    const count = parseInt(relMatch[1], 10);
+    const unit = relMatch[2].toLowerCase();
+
+    let offsetMs = 0;
+    if (unit.startsWith('min')) {
+      offsetMs = count * 60 * 1000;
+    } else if (unit.startsWith('h')) {
+      offsetMs = count * 60 * 60 * 1000;
+    } else if (unit.startsWith('day')) {
+      offsetMs = count * 24 * 60 * 60 * 1000;
+    } else if (unit.startsWith('week')) {
+      offsetMs = count * 7 * 24 * 60 * 60 * 1000;
+    } else if (unit.startsWith('month')) {
+      offsetMs = count * 30 * 24 * 60 * 60 * 1000;
+    } else if (unit.startsWith('year')) {
+      offsetMs = count * 365 * 24 * 60 * 60 * 1000;
+    }
+
+    const calculated = new Date(ANCHOR_TIME_MS - offsetMs);
+    return `'${calculated.toISOString()}'`;
+  }
+
+  if (/^yesterday$/i.test(trimmed) || /^1\s+day\s+ago$/i.test(trimmed)) {
+    return `'${new Date(ANCHOR_TIME_MS - 24 * 60 * 60 * 1000).toISOString()}'`;
+  }
+
+  if (/^today$/i.test(trimmed)) {
+    return `'${new Date(ANCHOR_TIME_MS).toISOString()}'`;
+  }
+
+  // Parse natural date strings (e.g. "Aug 17, 2026", "2026-08-18T04:00:00.000Z")
+  const parsed = Date.parse(trimmed);
+  if (!isNaN(parsed)) {
+    return `'${new Date(parsed).toISOString()}'`;
+  }
+
+  return `'${new Date(ANCHOR_TIME_MS).toISOString()}'`;
 }
 
 interface ProcessedTopic {

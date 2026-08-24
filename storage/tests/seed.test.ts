@@ -138,6 +138,14 @@ describe('Seed Test Database (storage/seeds/seed_test_db.sql)', () => {
       expect(svdNote.content).toContain('$$ A = U \\Sigma V^T $$');
       expect(svdNote.content).toContain('Eckart-Young-Mirsky Theorem');
     });
+
+    it('correctly normalizes relative updated_at timestamps maintaining true recency ordering', () => {
+      const notes = db.public.many('SELECT id, updated_at FROM notes ORDER BY updated_at DESC');
+      const noteIdsInRecencyOrder = notes.map((n: any) => n.id);
+
+      // NOTE-001 (2 hours ago) > NOTE-003 (3 hours ago) > NOTE-004 (4 hours ago) > NOTE-002 (1 day ago)
+      expect(noteIdsInRecencyOrder).toEqual(['NOTE-001', 'NOTE-003', 'NOTE-004', 'NOTE-002']);
+    });
   });
 
   describe('Frontend Graph Model Hydration Roundtrip', () => {
