@@ -13,7 +13,7 @@ import {
   MousePosition
 } from '../types/telemetry';
 
-interface RawTopic {
+export interface RawTopic {
   name: string;
   summary: string;
   prereqNames?: string[]; // Topics required BEFORE this topic (A -> X)
@@ -95,7 +95,7 @@ def backward_propagation(dAL, caches):
 - **Memory Overhead**: Activations $A^{[l]}$ must be retained in VRAM during forward pass for backward derivation. Solution: Activation checkpointing (rematerialization).
 `;
 
-const DOMAIN_DATA: { category: TopicNode['category']; topics: RawTopic[] }[] = [
+export const DOMAIN_DATA: { category: TopicNode['category']; topics: RawTopic[] }[] = [
   {
     category: 'AI & ML',
     topics: [
@@ -1379,7 +1379,7 @@ function generateCosmosNodes(): TopicNode[] {
 
 const INITIAL_TOPICS = generateCosmosNodes();
 
-const INITIAL_TODOS: StudyTodo[] = [
+export const INITIAL_TODOS: StudyTodo[] = [
   {
     id: 'TODO-001',
     title: 'Implement Backpropagation autograd engine from scratch',
