@@ -1,0 +1,432 @@
+import * as fs from 'fs';
+import * as path from 'path';
+import { fileURLToPath } from 'url';
+import { TopicNode, NoteItem, StudyTodo } from '../../frontend/src/types/telemetry';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const TEST_DATA_DIR = path.resolve(__dirname, '../../frontend/src/data/test');
+const DOMAIN_DATA_PATH = path.resolve(TEST_DATA_DIR, 'domainData.json');
+const TODOS_PATH = path.resolve(TEST_DATA_DIR, 'todos.json');
+const NOTES_DIR = path.resolve(TEST_DATA_DIR, 'notes');
+
+export function loadTestData() {
+  const domainDataJson: {
+    category: TopicNode['category'];
+    topics: {
+      name: string;
+      summary: string;
+      prereqNames?: string[];
+      unlockNames?: string[];
+      notes?: {
+        id: string;
+        title: string;
+        filename?: string;
+        createdAt?: string;
+        updatedAt?: string;
+      }[];
+    }[];
+  }[] = JSON.parse(fs.readFileSync(DOMAIN_DATA_PATH, 'utf8'));
+
+  const todosJson: StudyTodo[] = JSON.parse(fs.readFileSync(TODOS_PATH, 'utf8'));
+
+  // Load markdown notes from files
+  const domainData = domainDataJson.map((group) => ({
+    category: group.category,
+    topics: group.topics.map((topic) => ({
+      name: topic.name,
+      summary: topic.summary,
+      prereqNames: topic.prereqNames,
+      unlockNames: topic.unlockNames,
+      notes: topic.notes?.map((n) => {
+        let content = '';
+        if (n.filename) {
+          const noteFilePath = path.resolve(NOTES_DIR, n.filename);
+          if (fs.existsSync(noteFilePath)) {
+            content = fs.readFileSync(noteFilePath, 'utf8');
+          }
+        }
+        return {
+          id: n.id,
+          title: n.title,
+          filename: n.filename,
+          createdAt: n.createdAt,
+          updatedAt: n.updatedAt,
+          content
+        };
+      })
+    }))
+  }));
+
+  return { domainData, todos: todosJson };
+}
+
+// Deterministic Mulberry32 Pseudo-Random Number Generator (PRNG)
+function createPrng(seed: number) {
+  let a = seed;
+  return function () {
+    let t = (a += 0x6d2b79f5);
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// SQL String Escaping
+function sqlString(val: string | undefined | null): string {
+  if (val === undefined || val === null) return 'NULL';
+  return `'${val.replace(/'/g, "''")}'`;
+}
+
+const ANCHOR_TIME_MS = Date.parse('2026-08-24T10:00:00.000Z');
+
+// General Relative / Date String Normalizer to valid ISO-8601 TIMESTAMPTZ
+export function normalizeTimestamp(timeStr: string | undefined | null): string {
+  if (!timeStr || timeStr === 'Never' || timeStr.trim().toLowerCase() === 'never') {
+    return 'NULL';
+  }
+
+  const trimmed = timeStr.trim();
+
+  // Match relative expressions: e.g. "2 hours ago", "3 hours ago", "4 hours ago", "3 days ago", "1 week ago"
+  const relMatch = trimmed.match(/^(\d+)\s+(hour|hr|minute|min|day|week|month|year)s?\s+ago$/i);
+  if (relMatch) {
+    const count = parseInt(relMatch[1], 10);
+    const unit = relMatch[2].toLowerCase();
+
+    let offsetMs = 0;
+    if (unit.startsWith('min')) {
+      offsetMs = count * 60 * 1000;
+    } else if (unit.startsWith('h')) {
+      offsetMs = count * 60 * 60 * 1000;
+    } else if (unit.startsWith('day')) {
+      offsetMs = count * 24 * 60 * 60 * 1000;
+    } else if (unit.startsWith('week')) {
+      offsetMs = count * 7 * 24 * 60 * 60 * 1000;
+    } else if (unit.startsWith('month')) {
+      offsetMs = count * 30 * 24 * 60 * 60 * 1000;
+    } else if (unit.startsWith('year')) {
+      offsetMs = count * 365 * 24 * 60 * 60 * 1000;
+    }
+
+    const calculated = new Date(ANCHOR_TIME_MS - offsetMs);
+    return `'${calculated.toISOString()}'`;
+  }
+
+  if (/^yesterday$/i.test(trimmed) || /^1\s+day\s+ago$/i.test(trimmed)) {
+    return `'${new Date(ANCHOR_TIME_MS - 24 * 60 * 60 * 1000).toISOString()}'`;
+  }
+
+  if (/^today$/i.test(trimmed)) {
+    return `'${new Date(ANCHOR_TIME_MS).toISOString()}'`;
+  }
+
+  // Parse natural month-day-year strings deterministically in UTC (e.g. "Aug 17, 2026")
+  const dateMatch = trimmed.match(/^([A-Za-z]+)\s+(\d{1,2}),?\s+(\d{4})$/);
+  if (dateMatch) {
+    const months: Record<string, number> = {
+      jan: 0,
+      feb: 1,
+      mar: 2,
+      apr: 3,
+      may: 4,
+      jun: 5,
+      jul: 6,
+      aug: 7,
+      sep: 8,
+      oct: 9,
+      nov: 10,
+      dec: 11
+    };
+    const month = months[dateMatch[1].slice(0, 3).toLowerCase()] ?? 0;
+    const day = parseInt(dateMatch[2], 10);
+    const year = parseInt(dateMatch[3], 10);
+    const utcDate = new Date(Date.UTC(year, month, day, 10, 0, 0));
+    return `'${utcDate.toISOString()}'`;
+  }
+
+  // Parse ISO date strings (e.g. "2026-08-18T04:00:00.000Z")
+  const parsed = Date.parse(trimmed);
+  if (!isNaN(parsed)) {
+    return `'${new Date(parsed).toISOString()}'`;
+  }
+
+  return `'${new Date(ANCHOR_TIME_MS).toISOString()}'`;
+}
+
+interface ProcessedTopic {
+  id: string;
+  name: string;
+  category: string;
+  summary: string;
+  mastery: number;
+  status: 'DUE' | 'LEARNING' | 'MASTERED' | 'NEW';
+  coord_x: number;
+  coord_y: number;
+  coord_z: number;
+  last_reviewed: string;
+  notes: NoteItem[];
+}
+
+export function generateSeedData() {
+  const { domainData, todos } = loadTestData();
+  const prng = createPrng(42);
+  const topics: ProcessedTopic[] = [];
+  const nameToIdMap = new Map<string, string>();
+  let idCounter = 1;
+
+  // Step 1: Assign initial cluster sphere positions deterministically
+  domainData.forEach((domainGroup, domainIdx) => {
+    const clusterAngle = (domainIdx / domainData.length) * Math.PI * 2;
+    const clusterRadius = 18.0;
+    const clusterX = Math.cos(clusterAngle) * clusterRadius;
+    const clusterY = Math.sin(clusterAngle) * clusterRadius;
+    const clusterZ = (domainIdx % 2 === 0 ? 1.0 : -1.0) * (3.0 + prng() * 2.5);
+
+    domainGroup.topics.forEach((topic, topicIdx) => {
+      const id = `TOPIC-${idCounter.toString().padStart(3, '0')}`;
+      idCounter++;
+      nameToIdMap.set(topic.name, id);
+
+      const phi = Math.acos(1 - (2 * (topicIdx + 0.5)) / domainGroup.topics.length);
+      const theta = Math.PI * (1 + Math.sqrt(5)) * topicIdx;
+      const r = 5.0 + (topicIdx % 5) * 1.6;
+
+      const x = clusterX + r * Math.sin(phi) * Math.cos(theta);
+      const y = clusterY + r * Math.sin(phi) * Math.sin(theta);
+      const z = clusterZ + r * Math.cos(phi);
+
+      const mastery = Math.floor(prng() * 85) + 10;
+      const status: TopicNode['status'] =
+        mastery >= 80 ? 'MASTERED' : mastery >= 50 ? 'LEARNING' : mastery >= 30 ? 'DUE' : 'NEW';
+
+      const timeAgo = ['2 hours ago', 'Yesterday', '3 days ago', '1 week ago', 'Never'][topicIdx % 5];
+
+      topics.push({
+        id,
+        name: topic.name,
+        category: domainGroup.category,
+        summary: topic.summary,
+        mastery,
+        status,
+        last_reviewed: timeAgo,
+        coord_x: Number(x.toFixed(2)),
+        coord_y: Number(y.toFixed(2)),
+        coord_z: Number(z.toFixed(2)),
+        notes: topic.notes || []
+      });
+    });
+  });
+
+  // Step 2: Multi-Pass Iterative Collision Relaxation (50 iterations)
+  const MIN_DIST = 3.4;
+  for (let pass = 0; pass < 50; pass++) {
+    let moved = false;
+    for (let i = 0; i < topics.length; i++) {
+      for (let j = i + 1; j < topics.length; j++) {
+        const n1 = topics[i];
+        const n2 = topics[j];
+
+        let dx = n2.coord_x - n1.coord_x;
+        let dy = n2.coord_y - n1.coord_y;
+        let dz = n2.coord_z - n1.coord_z;
+        let dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+        if (dist < MIN_DIST) {
+          if (dist === 0) {
+            dx = (prng() - 0.5) * 0.2;
+            dy = (prng() - 0.5) * 0.2;
+            dz = (prng() - 0.5) * 0.2;
+            dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+          }
+
+          const overlap = (MIN_DIST - dist) / 2;
+          const nx = dx / dist;
+          const ny = dy / dist;
+          const nz = dz / dist;
+
+          n1.coord_x -= nx * overlap;
+          n1.coord_y -= ny * overlap;
+          n1.coord_z -= nz * overlap;
+
+          n2.coord_x += nx * overlap;
+          n2.coord_y += ny * overlap;
+          n2.coord_z += nz * overlap;
+
+          moved = true;
+        }
+      }
+    }
+    if (!moved) break;
+  }
+
+  topics.forEach((t) => {
+    t.coord_x = Number(t.coord_x.toFixed(2));
+    t.coord_y = Number(t.coord_y.toFixed(2));
+    t.coord_z = Number(t.coord_z.toFixed(2));
+  });
+
+  // Step 3: Extract & Deduplicate Directed Prerequisite Edges
+  const edgeSet = new Set<string>();
+  const edges: { topic_id: string; prerequisite_id: string }[] = [];
+
+  const addEdge = (topicId: string, prereqId: string) => {
+    if (topicId === prereqId) return; // Prevent self-loops
+    const key = `${topicId}->${prereqId}`;
+    if (!edgeSet.has(key)) {
+      edgeSet.add(key);
+      edges.push({ topic_id: topicId, prerequisite_id: prereqId });
+    }
+  };
+
+  domainData.forEach((domainGroup) => {
+    domainGroup.topics.forEach((topic) => {
+      const currentId = nameToIdMap.get(topic.name);
+      if (!currentId) return;
+
+      if (topic.prereqNames) {
+        topic.prereqNames.forEach((prereqName) => {
+          const prereqId = nameToIdMap.get(prereqName);
+          if (prereqId) {
+            addEdge(currentId, prereqId);
+          }
+        });
+      }
+
+      if (topic.unlockNames) {
+        topic.unlockNames.forEach((unlockName) => {
+          const unlockId = nameToIdMap.get(unlockName);
+          if (unlockId) {
+            addEdge(unlockId, currentId);
+          }
+        });
+      }
+    });
+  });
+
+  // Step 4: Extract Notes
+  const allNotes: {
+    id: string;
+    topic_id: string;
+    title: string;
+    filename: string | null;
+    content: string;
+    created_at: string;
+    updated_at: string;
+  }[] = [];
+
+  topics.forEach((t) => {
+    t.notes.forEach((note) => {
+      allNotes.push({
+        id: note.id,
+        topic_id: t.id,
+        title: note.title,
+        filename: note.filename || null,
+        content: note.content || '',
+        created_at: note.createdAt || '2026-08-24T10:00:00Z',
+        updated_at: note.updatedAt || '2026-08-24T10:00:00Z'
+      });
+    });
+  });
+
+  // Step 5: Extract Study Todos
+  const allTodos = todos.map((todo) => ({
+    id: todo.id,
+    topic_id: todo.topicId || null,
+    title: todo.title,
+    category: todo.category,
+    priority: todo.priority,
+    completed: todo.completed,
+    due_date: todo.dueDate
+  }));
+
+  return { topics, edges, notes: allNotes, todos: allTodos };
+}
+
+export function generateSeedSql(): string {
+  const { topics, edges, notes, todos } = generateSeedData();
+
+  const lines: string[] = [
+    '--',
+    '-- KNOWLEDGE GRAPH TEST DATABASE SEED',
+    '-- Deterministically generated from frontend domain model',
+    `-- Total Topics: ${topics.length} across 7 domain categories`,
+    `-- Total Directed Prerequisite Edges: ${edges.length}`,
+    `-- Total Markdown Notes: ${notes.length}`,
+    `-- Total Study Todos: ${todos.length}`,
+    '--',
+    '',
+    'BEGIN;',
+    '',
+    '-- 1. TOPICS',
+    'INSERT INTO topics (id, name, category, summary, mastery, status, coord_x, coord_y, coord_z, last_reviewed) VALUES'
+  ];
+
+  topics.forEach((t, idx) => {
+    const isLast = idx === topics.length - 1;
+    const row = `  (${sqlString(t.id)}, ${sqlString(t.name)}, ${sqlString(t.category)}, ${sqlString(
+      t.summary
+    )}, ${t.mastery.toFixed(2)}, ${sqlString(t.status)}, ${t.coord_x.toFixed(2)}, ${t.coord_y.toFixed(
+      2
+    )}, ${t.coord_z.toFixed(2)}, ${normalizeTimestamp(t.last_reviewed)})${isLast ? ';' : ','}`;
+    lines.push(row);
+  });
+
+  lines.push('');
+  lines.push('-- 2. TOPIC PREREQUISITES (Directed Graph Edges)');
+  lines.push('INSERT INTO topic_prerequisites (topic_id, prerequisite_id) VALUES');
+
+  edges.forEach((e, idx) => {
+    const isLast = idx === edges.length - 1;
+    lines.push(`  (${sqlString(e.topic_id)}, ${sqlString(e.prerequisite_id)})${isLast ? ';' : ','}`);
+  });
+
+  lines.push('');
+  lines.push('-- 3. NOTES (Markdown + KaTeX Math Payloads)');
+  lines.push('INSERT INTO notes (id, topic_id, title, filename, content, created_at, updated_at) VALUES');
+
+  notes.forEach((n, idx) => {
+    const isLast = idx === notes.length - 1;
+    lines.push(
+      `  (${sqlString(n.id)}, ${sqlString(n.topic_id)}, ${sqlString(n.title)}, ${sqlString(
+        n.filename
+      )}, ${sqlString(n.content)}, ${normalizeTimestamp(n.created_at)}, ${normalizeTimestamp(
+        n.updated_at
+      )})${isLast ? ';' : ','}`
+    );
+  });
+
+  lines.push('');
+  lines.push('-- 4. STUDY TODOS (Actionable Study Goals)');
+  lines.push('INSERT INTO study_todos (id, topic_id, title, category, priority, completed, due_date) VALUES');
+
+  todos.forEach((td, idx) => {
+    const isLast = idx === todos.length - 1;
+    lines.push(
+      `  (${sqlString(td.id)}, ${sqlString(td.topic_id)}, ${sqlString(td.title)}, ${sqlString(
+        td.category
+      )}, ${sqlString(td.priority)}, ${td.completed ? 'TRUE' : 'FALSE'}, ${sqlString(
+        td.due_date
+      )})${isLast ? ';' : ','}`
+    );
+  });
+
+  lines.push('');
+  lines.push('COMMIT;');
+  lines.push('');
+
+  return lines.join('\n');
+}
+
+// Direct execution via `tsx scripts/generate_seed.ts`
+if (import.meta.url === `file://${process.argv[1]}`) {
+  const sql = generateSeedSql();
+  const outputDir = path.resolve(process.cwd(), 'seeds');
+  if (!fs.existsSync(outputDir)) {
+    fs.mkdirSync(outputDir, { recursive: true });
+  }
+  const outputPath = path.resolve(outputDir, 'seed_test_db.sql');
+  fs.writeFileSync(outputPath, sql, 'utf8');
+  console.log(`Successfully generated seed file: ${outputPath} (${(sql.length / 1024).toFixed(1)} KB)`);
+}

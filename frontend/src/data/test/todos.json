@@ -1,0 +1,47 @@
+[
+  {
+    "id": "TODO-001",
+    "title": "Implement Backpropagation autograd engine from scratch",
+    "category": "AI & ML",
+    "priority": "HIGH",
+    "completed": false,
+    "dueDate": "Today",
+    "topicId": "TOPIC-001"
+  },
+  {
+    "id": "TODO-002",
+    "title": "Review 15 Spaced Repetition cards for Transformer Attention",
+    "category": "AI & ML",
+    "priority": "HIGH",
+    "completed": false,
+    "dueDate": "Today",
+    "topicId": "TOPIC-002"
+  },
+  {
+    "id": "TODO-003",
+    "title": "Complete Raft leader election failure scenario simulation",
+    "category": "SYSTEMS",
+    "priority": "MEDIUM",
+    "completed": true,
+    "dueDate": "Today",
+    "topicId": "TOPIC-034"
+  },
+  {
+    "id": "TODO-004",
+    "title": "Read SVD Chapter 4 in Linear Algebra for ML",
+    "category": "MATH",
+    "priority": "MEDIUM",
+    "completed": false,
+    "dueDate": "Tomorrow",
+    "topicId": "TOPIC-096"
+  },
+  {
+    "id": "TODO-005",
+    "title": "Build Toy Compiler LLVM SSA IR generator",
+    "category": "CS",
+    "priority": "LOW",
+    "completed": false,
+    "dueDate": "This Week",
+    "topicId": "TOPIC-035"
+  }
+]
