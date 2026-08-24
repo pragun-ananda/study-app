@@ -232,4 +232,107 @@ describe('PostgreSQL Storage Schema (storage/schema.sql)', () => {
       expect(todo.title).toBe('Linked Task');
     });
   });
+
+  describe('Frontend Data Model Compatibility & Hydration Roundtrip', () => {
+    it('stores and reconstructs frontend TopicNode entities with exact field parity', () => {
+      // 1. Ingest sample frontend knowledge entities
+      db.public.none(`
+        INSERT INTO topics (id, name, category, summary, mastery, status, coord_x, coord_y, coord_z, last_reviewed)
+        VALUES
+          ('T-NN', 'Neural Networks', 'AI & ML', 'Foundational deep learning.', 80.0, 'MASTERED', 10.5, 20.0, -5.2, '2026-08-20T10:00:00Z'),
+          ('T-BACKPROP', 'Backpropagation', 'AI & ML', 'Gradient computation.', 60.0, 'LEARNING', 15.0, 25.0, -3.0, '2026-08-22T14:30:00Z'),
+          ('T-AUTOENC', 'Autoencoders', 'AI & ML', 'Latent compression.', 45.0, 'LEARNING', 18.0, 30.0, -1.0, '2026-08-23T09:15:00Z');
+
+        -- T-BACKPROP requires T-NN (T-NN unlocks T-BACKPROP)
+        -- T-AUTOENC requires T-NN (T-NN unlocks T-AUTOENC)
+        -- T-AUTOENC and T-BACKPROP have mutual complementary association (cycle)
+        INSERT INTO topic_prerequisites (topic_id, prerequisite_id) VALUES
+          ('T-BACKPROP', 'T-NN'),
+          ('T-AUTOENC', 'T-NN'),
+          ('T-BACKPROP', 'T-AUTOENC'),
+          ('T-AUTOENC', 'T-BACKPROP');
+
+        INSERT INTO notes (id, topic_id, title, filename, content, created_at, updated_at)
+        VALUES
+          ('N-01', 'T-NN', 'Perceptron Notes', 'perceptron.md', '# Perceptron\n$f(x) = \\sigma(w^T x + b)$', '2026-08-20T10:00:00Z', '2026-08-21T11:00:00Z');
+
+        INSERT INTO study_todos (id, topic_id, title, category, priority, completed, due_date)
+        VALUES
+          ('TODO-01', 'T-BACKPROP', 'Derive matrix calculus rules', 'AI & ML', 'HIGH', false, 'Today');
+      `);
+
+      // 2. Query and hydrate TopicNode entities (as frontend API service does)
+      const rawTopics = db.public.many("SELECT * FROM topics ORDER BY id ASC");
+      const rawEdges = db.public.many("SELECT topic_id, prerequisite_id FROM topic_prerequisites");
+      const rawNotes = db.public.many("SELECT * FROM notes");
+
+      const hydratedTopicNodes = rawTopics.map((t: any) => {
+        // Prerequisites: nodes required BEFORE this topic (prerequisite_id where topic_id = this.id)
+        const prerequisites = rawEdges
+          .filter((e: any) => e.topic_id === t.id)
+          .map((e: any) => e.prerequisite_id);
+
+        // Unlocks: nodes unlocked AFTER this topic (topic_id where prerequisite_id = this.id)
+        const unlocks = rawEdges
+          .filter((e: any) => e.prerequisite_id === t.id)
+          .map((e: any) => e.topic_id);
+
+        const notes = rawNotes
+          .filter((n: any) => n.topic_id === t.id)
+          .map((n: any) => ({
+            id: n.id,
+            title: n.title,
+            filename: n.filename,
+            content: n.content,
+            createdAt: n.created_at,
+            updatedAt: n.updated_at
+          }));
+
+        return {
+          id: t.id,
+          name: t.name,
+          category: t.category,
+          mastery: Number(t.mastery),
+          status: t.status,
+          summary: t.summary,
+          coordinates: [t.coord_x, t.coord_y, t.coord_z],
+          lastReviewed: t.last_reviewed,
+          prerequisites,
+          unlocks,
+          notes: notes.length > 0 ? notes : undefined
+        };
+      });
+
+      // 3. Verify exact compatibility with frontend TopicNode interface
+      const backprop = hydratedTopicNodes.find((n) => n.id === 'T-BACKPROP')!;
+      expect(backprop).toBeDefined();
+      expect(backprop.name).toBe('Backpropagation');
+      expect(backprop.category).toBe('AI & ML');
+      expect(backprop.mastery).toBe(60);
+      expect(backprop.coordinates).toEqual([15.0, 25.0, -3.0]);
+      expect(backprop.prerequisites).toEqual(expect.arrayContaining(['T-NN', 'T-AUTOENC']));
+      expect(backprop.unlocks).toEqual(expect.arrayContaining(['T-AUTOENC']));
+
+      const nn = hydratedTopicNodes.find((n) => n.id === 'T-NN')!;
+      expect(nn.unlocks).toEqual(expect.arrayContaining(['T-BACKPROP', 'T-AUTOENC']));
+      expect(nn.notes?.length).toBe(1);
+      expect(nn.notes?.[0].title).toBe('Perceptron Notes');
+      expect(nn.notes?.[0].content).toContain('\\sigma(w^T x + b)');
+
+      // Verify study todo roundtrip
+      const rawTodo = db.public.one("SELECT * FROM study_todos WHERE id = 'TODO-01'");
+      const hydratedTodo = {
+        id: rawTodo.id,
+        topicId: rawTodo.topic_id,
+        title: rawTodo.title,
+        category: rawTodo.category,
+        priority: rawTodo.priority,
+        completed: rawTodo.completed,
+        dueDate: rawTodo.due_date
+      };
+      expect(hydratedTodo.title).toBe('Derive matrix calculus rules');
+      expect(hydratedTodo.topicId).toBe('T-BACKPROP');
+      expect(hydratedTodo.priority).toBe('HIGH');
+    });
+  });
 });
