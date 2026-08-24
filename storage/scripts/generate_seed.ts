@@ -63,7 +63,21 @@ export function normalizeTimestamp(timeStr: string | undefined | null): string {
     return `'${new Date(ANCHOR_TIME_MS).toISOString()}'`;
   }
 
-  // Parse natural date strings (e.g. "Aug 17, 2026", "2026-08-18T04:00:00.000Z")
+  // Parse natural month-day-year strings deterministically in UTC (e.g. "Aug 17, 2026")
+  const dateMatch = trimmed.match(/^([A-Za-z]+)\s+(\d{1,2}),?\s+(\d{4})$/);
+  if (dateMatch) {
+    const months: Record<string, number> = {
+      jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
+      jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11
+    };
+    const month = months[dateMatch[1].slice(0, 3).toLowerCase()] ?? 0;
+    const day = parseInt(dateMatch[2], 10);
+    const year = parseInt(dateMatch[3], 10);
+    const utcDate = new Date(Date.UTC(year, month, day, 10, 0, 0));
+    return `'${utcDate.toISOString()}'`;
+  }
+
+  // Parse ISO date strings (e.g. "2026-08-18T04:00:00.000Z")
   const parsed = Date.parse(trimmed);
   if (!isNaN(parsed)) {
     return `'${new Date(parsed).toISOString()}'`;
@@ -250,22 +264,16 @@ export function generateSeedData() {
     });
   });
 
-  // Step 5: Extract Study Todos with Bug Fix for TODO-002
-  const allTodos = INITIAL_TODOS.map((todo) => {
-    let resolvedTopicId = todo.topicId;
-    if (resolvedTopicId === 'TODO-002') {
-      resolvedTopicId = 'TOPIC-002'; // Correct known typo in frontend initial state
-    }
-    return {
-      id: todo.id,
-      topic_id: resolvedTopicId || null,
-      title: todo.title,
-      category: todo.category,
-      priority: todo.priority,
-      completed: todo.completed,
-      due_date: todo.dueDate
-    };
-  });
+  // Step 5: Extract Study Todos
+  const allTodos = INITIAL_TODOS.map((todo) => ({
+    id: todo.id,
+    topic_id: todo.topicId || null,
+    title: todo.title,
+    category: todo.category,
+    priority: todo.priority,
+    completed: todo.completed,
+    due_date: todo.dueDate
+  }));
 
   return { topics, edges, notes: allNotes, todos: allTodos };
 }

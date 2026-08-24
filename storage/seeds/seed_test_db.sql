@@ -505,7 +505,7 @@ def backward_propagation(dAL, caches):
 - **Vanishing Gradients**: When using sigmoids/tanh, gradients saturate near zero for large $|z|$. Solution: ReLU, GELU, residual skip connections (ResNets).
 - **Exploding Gradients**: Large weights lead to exponentially growing gradients. Solution: Gradient norm clipping, proper initialization (He / Xavier), LayerNorm.
 - **Memory Overhead**: Activations $A^{[l]}$ must be retained in VRAM during forward pass for backward derivation. Solution: Activation checkpointing (rematerialization).
-', '2026-08-17T04:00:00.000Z', '2026-08-24T08:00:00.000Z'),
+', '2026-08-17T10:00:00.000Z', '2026-08-24T08:00:00.000Z'),
   ('NOTE-002', 'TOPIC-034', 'BST Invariants & Traversal', NULL, '# Binary Search Trees (BST)
 
 A Binary Search Tree is a rooted binary tree data structure where each internal node stores a key greater than all keys in its left subtree and less than all keys in its right subtree.
@@ -523,7 +523,7 @@ A Binary Search Tree is a rooted binary tree data structure where each internal 
 
 ## 2. In-Order Traversal Invariant
 Performing an in-order traversal (Left $\to$ Node $\to$ Right) visits keys in strictly sorted ascending order.
-', '2026-08-14T04:00:00.000Z', '2026-08-23T10:00:00.000Z'),
+', '2026-08-14T10:00:00.000Z', '2026-08-23T10:00:00.000Z'),
   ('NOTE-003', 'TOPIC-067', 'Raft Consensus & Leader Election', NULL, '# Raft Distributed Consensus
 
 Raft decomposes consensus into explicit sub-problems: **Leader Election**, **Log Replication**, and **Safety**.
@@ -541,7 +541,7 @@ Raft decomposes consensus into explicit sub-problems: **Leader Election**, **Log
 1. **Election Safety**: At most one leader can be elected in a given term.
 2. **Leader Append-Only**: A leader never overwrites or truncates its own log entries.
 3. **Log Matching Property**: If two logs contain an entry with the same index and term, then the logs are identical in all entries up through the given index.
-', '2026-08-18T04:00:00.000Z', '2026-08-24T07:00:00.000Z'),
+', '2026-08-18T10:00:00.000Z', '2026-08-24T07:00:00.000Z'),
   ('NOTE-004', 'TOPIC-098', 'SVD Matrix Factorization', NULL, '# Singular Value Decomposition (SVD)
 
 Singular Value Decomposition (SVD) is a fundamental theorem in linear algebra stating that any $m \times n$ real matrix $A$ can be factorized into three matrices:
@@ -561,7 +561,7 @@ $$ A = U \Sigma V^T $$
 The optimal rank-$k$ approximation $\hat{A}_k$ in Frobenius and spectral norms is obtained by truncating to the top $k$ singular values:
 
 $$ \hat{A}_k = \sum_{i=1}^{k} \sigma_i u_i v_i^T $$
-', '2026-08-16T04:00:00.000Z', '2026-08-24T06:00:00.000Z');
+', '2026-08-16T10:00:00.000Z', '2026-08-24T06:00:00.000Z');
 
 -- 4. STUDY TODOS (Actionable Study Goals)
 INSERT INTO study_todos (id, topic_id, title, category, priority, completed, due_date) VALUES
