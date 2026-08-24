@@ -26,12 +26,6 @@ router.post('/topics/:topicId/notes', async (req: Request, res: Response) => {
   try {
     const { topicId } = req.params;
 
-    // Verify topic exists
-    const topicCheck = await query('SELECT id FROM topics WHERE id = $1', [topicId]);
-    if (topicCheck.rows.length === 0) {
-      return res.status(404).json({ error: `Topic with id '${topicId}' not found` });
-    }
-
     const validation = validateNoteInput(req.body);
     if (validation.error) {
       return res.status(400).json({ error: validation.error });
@@ -58,7 +52,7 @@ router.post('/topics/:topicId/notes', async (req: Request, res: Response) => {
       `INSERT INTO notes (id, topic_id, title, filename, content, created_at, updated_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING *`,
-      [id, topicId, title, filename, content, now, now]
+      [id, topicId, title.trim(), filename, content, now, now]
     );
 
     return res.status(201).json(toNoteDTO(insertResult.rows[0]));
@@ -86,11 +80,6 @@ router.patch('/notes/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 
-    const existing = await query<NoteRow>('SELECT * FROM notes WHERE id = $1', [id]);
-    if (existing.rows.length === 0) {
-      return res.status(404).json({ error: `Note with id '${id}' not found` });
-    }
-
     const updates: string[] = [];
     const params: any[] = [id];
 
@@ -112,6 +101,14 @@ router.patch('/notes/:id', async (req: Request, res: Response) => {
       updates.push(`filename = $${params.length}`);
     }
 
+    if (updates.length === 0) {
+      const existing = await query<NoteRow>('SELECT * FROM notes WHERE id = $1', [id]);
+      if (existing.rows.length === 0) {
+        return res.status(404).json({ error: `Note with id '${id}' not found` });
+      }
+      return res.json(toNoteDTO(existing.rows[0]));
+    }
+
     // Always bump updated_at on modification
     params.push(new Date().toISOString());
     updates.push(`updated_at = $${params.length}`);
@@ -124,6 +121,10 @@ router.patch('/notes/:id', async (req: Request, res: Response) => {
     `;
 
     const updatedResult = await query<NoteRow>(updateQuery, params);
+    if (updatedResult.rows.length === 0) {
+      return res.status(404).json({ error: `Note with id '${id}' not found` });
+    }
+
     return res.json(toNoteDTO(updatedResult.rows[0]));
   } catch (error) {
     return handleDatabaseError(res, error, 'Failed to update note');

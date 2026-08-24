@@ -56,6 +56,22 @@ describe('Unit: Database Error Translator (src/utils/errors.ts)', () => {
     );
   });
 
+  it('translates 22P02 (invalid_text_representation) to 400 Bad Request', () => {
+    const res = createMockResponse();
+    const error: DatabaseError = new Error('invalid input syntax for type numeric');
+    error.code = '22P02';
+    error.detail = 'invalid input syntax for type numeric: "abc"';
+
+    handleDatabaseError(res, error);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error: 'Invalid input syntax for data type',
+        detail: 'invalid input syntax for type numeric: "abc"'
+      })
+    );
+  });
+
   it('translates generic errors to 500 Internal Server Error', () => {
     const res = createMockResponse();
     const error = new Error('Connection timeout');

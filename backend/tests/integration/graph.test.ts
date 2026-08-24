@@ -31,6 +31,33 @@ describe('Integration: Prerequisites Graph REST API (/api/topics/:id/prerequisit
       expect(topic3.body.unlocks).toContain('TOPIC-002');
     });
 
+    it('handles duplicate edge creation idempotently without error', async () => {
+      // First creation
+      const res1 = await request(app)
+        .post('/api/topics/TOPIC-002/prerequisites')
+        .send({ prerequisiteId: 'TOPIC-003' });
+      expect(res1.status).toBe(201);
+
+      // Duplicate creation attempt
+      const res2 = await request(app)
+        .post('/api/topics/TOPIC-002/prerequisites')
+        .send({ prerequisiteId: 'TOPIC-003' });
+      expect(res2.status).toBe(201);
+
+      // Verify edge is present only once
+      const topic2 = await request(app).get('/api/topics/TOPIC-002');
+      const matches = topic2.body.prerequisites.filter((id: string) => id === 'TOPIC-003');
+      expect(matches.length).toBe(1);
+    });
+
+    it('rejects prerequisite creation when body is missing prerequisiteId', async () => {
+      const res = await request(app)
+        .post('/api/topics/TOPIC-001/prerequisites')
+        .send({});
+      expect(res.status).toBe(400);
+      expect(res.body.error).toContain('prerequisiteId is required');
+    });
+
     it('rejects self-referential prerequisite edges (self-loop prevention)', async () => {
       const res = await request(app)
         .post('/api/topics/TOPIC-001/prerequisites')
@@ -46,7 +73,7 @@ describe('Integration: Prerequisites Graph REST API (/api/topics/:id/prerequisit
         .send({ prerequisiteId: 'TOPIC-999' });
 
       expect(res.status).toBe(400);
-      expect(res.body.error).toContain('referenced topics do not exist');
+      expect(res.body.error).toContain('Foreign key constraint failed');
     });
 
     it('tolerates legitimate bidirectional/mutual cycles (e.g. GAN <-> VAE)', async () => {

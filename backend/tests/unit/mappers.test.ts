@@ -61,7 +61,7 @@ describe('Unit: DTO Mappers (src/utils/mappers.ts)', () => {
       expect(dto.coordinates).toEqual([0, 0, 0]);
       expect(dto.prerequisites).toEqual([]);
       expect(dto.unlocks).toEqual([]);
-      expect(dto.notes).toBeUndefined();
+      expect(dto.notes).toEqual([]);
     });
   });
 

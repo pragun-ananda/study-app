@@ -2,7 +2,13 @@ import { Router, Request, Response } from 'express';
 import { query } from '../db.js';
 import { TopicRow, NoteRow, TopicPrerequisiteRow } from '../types.js';
 import { toTopicDTO, toNoteDTO } from '../utils/mappers.js';
-import { validateTopicInput, isValidCategory, isValidStatus, isValidMastery } from '../utils/validation.js';
+import {
+  validateTopicInput,
+  isValidCategory,
+  isValidStatus,
+  isValidMastery,
+  parseDateOrNull
+} from '../utils/validation.js';
 import { handleDatabaseError } from '../utils/errors.js';
 
 const router = Router();
@@ -27,9 +33,21 @@ router.get('/', async (req: Request, res: Response) => {
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
-    // Fetch topics, edges, and notes in parallel to prevent N+1 queries
-    const [topicsResult, edgesResult, notesResult] = await Promise.all([
-      query<TopicRow>(`SELECT * FROM topics ${whereClause} ORDER BY id ASC`, params),
+    // Fetch topics
+    const topicsResult = await query<TopicRow>(
+      `SELECT * FROM topics ${whereClause} ORDER BY id ASC`,
+      params
+    );
+
+    const topicIds = topicsResult.rows.map((t) => t.id);
+
+    // If no topics found, return empty array immediately
+    if (topicIds.length === 0) {
+      return res.json([]);
+    }
+
+    // Fetch only edges and notes related to these topics in parallel
+    const [edgesResult, notesResult] = await Promise.all([
       query<TopicPrerequisiteRow>('SELECT topic_id, prerequisite_id FROM topic_prerequisites'),
       query<NoteRow>('SELECT * FROM notes ORDER BY updated_at DESC')
     ]);
@@ -136,12 +154,13 @@ router.post('/', async (req: Request, res: Response) => {
     const coordX = coordinates[0] ?? 0;
     const coordY = coordinates[1] ?? 0;
     const coordZ = coordinates[2] ?? 0;
+    const parsedLastReviewed = parseDateOrNull(lastReviewed);
 
     const insertResult = await query<TopicRow>(
       `INSERT INTO topics (id, name, category, summary, mastery, status, coord_x, coord_y, coord_z, last_reviewed)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING *`,
-      [id, name, category, summary, mastery, status, coordX, coordY, coordZ, lastReviewed]
+      [id, name, category, summary, mastery, status, coordX, coordY, coordZ, parsedLastReviewed]
     );
 
     const dto = toTopicDTO(insertResult.rows[0], [], [], []);
@@ -155,11 +174,6 @@ router.post('/', async (req: Request, res: Response) => {
 router.patch('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-
-    const existingRes = await query<TopicRow>('SELECT * FROM topics WHERE id = $1', [id]);
-    if (existingRes.rows.length === 0) {
-      return res.status(404).json({ error: `Topic with id '${id}' not found` });
-    }
 
     const updates: string[] = [];
     const params: any[] = [id];
@@ -218,33 +232,32 @@ router.patch('/:id', async (req: Request, res: Response) => {
     }
 
     if (req.body.lastReviewed !== undefined) {
-      params.push(req.body.lastReviewed ? new Date(req.body.lastReviewed).toISOString() : null);
+      params.push(parseDateOrNull(req.body.lastReviewed));
       updates.push(`last_reviewed = $${params.length}`);
     }
 
+    let updatedTopicRow: TopicRow;
+
     if (updates.length === 0) {
-      // Nothing to update, return current state
-      const [edgesResult, notesResult] = await Promise.all([
-        query<TopicPrerequisiteRow>(
-          'SELECT topic_id, prerequisite_id FROM topic_prerequisites WHERE topic_id = $1 OR prerequisite_id = $1',
-          [id]
-        ),
-        query<NoteRow>('SELECT * FROM notes WHERE topic_id = $1 ORDER BY updated_at DESC', [id])
-      ]);
-      const prerequisites = edgesResult.rows.filter((e) => e.topic_id === id).map((e) => e.prerequisite_id);
-      const unlocks = edgesResult.rows.filter((e) => e.prerequisite_id === id).map((e) => e.topic_id);
-      const notes = notesResult.rows.map(toNoteDTO);
-      return res.json(toTopicDTO(existingRes.rows[0], prerequisites, unlocks, notes));
+      // Empty PATCH payload: fetch existing
+      const existingRes = await query<TopicRow>('SELECT * FROM topics WHERE id = $1', [id]);
+      if (existingRes.rows.length === 0) {
+        return res.status(404).json({ error: `Topic with id '${id}' not found` });
+      }
+      updatedTopicRow = existingRes.rows[0];
+    } else {
+      const updateQuery = `
+        UPDATE topics
+        SET ${updates.join(', ')}
+        WHERE id = $1
+        RETURNING *
+      `;
+      const updatedRes = await query<TopicRow>(updateQuery, params);
+      if (updatedRes.rows.length === 0) {
+        return res.status(404).json({ error: `Topic with id '${id}' not found` });
+      }
+      updatedTopicRow = updatedRes.rows[0];
     }
-
-    const updateQuery = `
-      UPDATE topics
-      SET ${updates.join(', ')}
-      WHERE id = $1
-      RETURNING *
-    `;
-
-    const updatedRes = await query<TopicRow>(updateQuery, params);
 
     const [edgesResult, notesResult] = await Promise.all([
       query<TopicPrerequisiteRow>(
@@ -258,7 +271,7 @@ router.patch('/:id', async (req: Request, res: Response) => {
     const unlocks = edgesResult.rows.filter((e) => e.prerequisite_id === id).map((e) => e.topic_id);
     const notes = notesResult.rows.map(toNoteDTO);
 
-    return res.json(toTopicDTO(updatedRes.rows[0], prerequisites, unlocks, notes));
+    return res.json(toTopicDTO(updatedTopicRow, prerequisites, unlocks, notes));
   } catch (error) {
     return handleDatabaseError(res, error, 'Failed to update topic');
   }

@@ -88,19 +88,11 @@ router.post('/', async (req: Request, res: Response) => {
       topicId = null
     } = req.body;
 
-    // If topicId is supplied, verify topic exists
-    if (topicId) {
-      const topicCheck = await query('SELECT id FROM topics WHERE id = $1', [topicId]);
-      if (topicCheck.rows.length === 0) {
-        return res.status(400).json({ error: `Referenced topic '${topicId}' does not exist` });
-      }
-    }
-
     const insertResult = await query<StudyTodoRow>(
       `INSERT INTO study_todos (id, topic_id, title, category, priority, completed, due_date)
        VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING *`,
-      [id, topicId || null, title, category, priority, Boolean(completed), dueDate]
+      [id, topicId || null, title.trim(), category, priority, Boolean(completed), dueDate]
     );
 
     return res.status(201).json(toTodoDTO(insertResult.rows[0]));
@@ -113,11 +105,6 @@ router.post('/', async (req: Request, res: Response) => {
 router.patch('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-
-    const existing = await query<StudyTodoRow>('SELECT * FROM study_todos WHERE id = $1', [id]);
-    if (existing.rows.length === 0) {
-      return res.status(404).json({ error: `Todo with id '${id}' not found` });
-    }
 
     const updates: string[] = [];
     const params: any[] = [id];
@@ -158,17 +145,15 @@ router.patch('/:id', async (req: Request, res: Response) => {
 
     if (req.body.topicId !== undefined) {
       const targetTopicId = req.body.topicId ? String(req.body.topicId) : null;
-      if (targetTopicId) {
-        const topicCheck = await query('SELECT id FROM topics WHERE id = $1', [targetTopicId]);
-        if (topicCheck.rows.length === 0) {
-          return res.status(400).json({ error: `Referenced topic '${targetTopicId}' does not exist` });
-        }
-      }
       params.push(targetTopicId);
       updates.push(`topic_id = $${params.length}`);
     }
 
     if (updates.length === 0) {
+      const existing = await query<StudyTodoRow>('SELECT * FROM study_todos WHERE id = $1', [id]);
+      if (existing.rows.length === 0) {
+        return res.status(404).json({ error: `Todo with id '${id}' not found` });
+      }
       return res.json(toTodoDTO(existing.rows[0]));
     }
 
@@ -180,6 +165,10 @@ router.patch('/:id', async (req: Request, res: Response) => {
     `;
 
     const updatedResult = await query<StudyTodoRow>(updateQuery, params);
+    if (updatedResult.rows.length === 0) {
+      return res.status(404).json({ error: `Todo with id '${id}' not found` });
+    }
+
     return res.json(toTodoDTO(updatedResult.rows[0]));
   } catch (error) {
     return handleDatabaseError(res, error, 'Failed to update todo');

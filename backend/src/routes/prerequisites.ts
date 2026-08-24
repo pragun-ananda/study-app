@@ -18,12 +18,6 @@ router.post('/:id/prerequisites', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Self-loop detected: A topic cannot be a prerequisite of itself' });
     }
 
-    // Verify both topics exist
-    const checkTopics = await query('SELECT id FROM topics WHERE id IN ($1, $2)', [id, prerequisiteId]);
-    if (checkTopics.rows.length < 2) {
-      return res.status(400).json({ error: 'One or both referenced topics do not exist' });
-    }
-
     await query(
       `INSERT INTO topic_prerequisites (topic_id, prerequisite_id)
        VALUES ($1, $2)

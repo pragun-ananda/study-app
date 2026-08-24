@@ -54,13 +54,44 @@ describe('Integration: Notes REST API (/api/topics/:id/notes & /api/notes)', () 
       expect(topicNotes.body[0].id).toBe(res.body.id);
     });
 
-    it('returns 404 when attaching a note to non-existent topic', async () => {
+    it('preserves complex LaTeX equations with escapes, backslashes, and multiline markdown', async () => {
+      const complexMathContent = [
+        '# Loss Formulation',
+        '$$\\mathcal{L}_{\\text{total}} = \\frac{1}{N} \\sum_{i=1}^N \\left( y_i - \\hat{y}_i \\right)^2 + \\lambda \\|\\mathbf{w}\\|_2^2$$',
+        'Gradient step: $\\theta_{t+1} := \\theta_t - \\eta \\nabla_\\theta J(\\theta)$'
+      ].join('\n\n');
+
+      const createRes = await request(app)
+        .post('/api/topics/TOPIC-001/notes')
+        .send({
+          title: 'Loss Formulations & Regularization',
+          content: complexMathContent
+        });
+
+      expect(createRes.status).toBe(201);
+      expect(createRes.body.content).toBe(complexMathContent);
+
+      // Verify retrieval matches verbatim
+      const getRes = await request(app).get(`/api/notes/${createRes.body.id}`);
+      expect(getRes.status).toBe(200);
+      expect(getRes.body.content).toBe(complexMathContent);
+    });
+
+    it('rejects note creation with missing or empty title', async () => {
+      const res = await request(app)
+        .post('/api/topics/TOPIC-001/notes')
+        .send({ title: '   ', content: 'Some content' });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toContain('Note title is required');
+    });
+
+    it('returns 400 when attaching a note to non-existent topic (foreign key violation)', async () => {
       const res = await request(app)
         .post('/api/topics/TOPIC-999/notes')
         .send({ title: 'Orphan Note' });
 
-      expect(res.status).toBe(404);
-      expect(res.body.error).toContain('not found');
+      expect(res.status).toBe(400);
+      expect(res.body.error).toContain('Foreign key constraint failed');
     });
   });
 
@@ -95,6 +126,21 @@ describe('Integration: Notes REST API (/api/topics/:id/notes & /api/notes)', () 
       expect(res.body.content).toBe('New content with updated formulas.');
       expect(res.body.updatedAt).toBeDefined();
     });
+
+    it('rejects PATCH with empty title', async () => {
+      const res = await request(app)
+        .patch('/api/notes/NOTE-001')
+        .send({ title: '   ' });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toContain('Title must be a non-empty string');
+    });
+
+    it('returns 404 when patching non-existent note', async () => {
+      const res = await request(app)
+        .patch('/api/notes/NOTE-999')
+        .send({ title: 'Non-existent Note' });
+      expect(res.status).toBe(404);
+    });
   });
 
   describe('DELETE /api/notes/:id', () => {
@@ -104,6 +150,11 @@ describe('Integration: Notes REST API (/api/topics/:id/notes & /api/notes)', () 
 
       const check = await request(app).get('/api/notes/NOTE-001');
       expect(check.status).toBe(404);
+    });
+
+    it('returns 404 when deleting non-existent note', async () => {
+      const res = await request(app).delete('/api/notes/NOTE-999');
+      expect(res.status).toBe(404);
     });
   });
 });

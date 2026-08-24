@@ -40,6 +40,14 @@ export function isValidMastery(mastery: unknown): boolean {
   return mastery >= 0 && mastery <= 100;
 }
 
+export function parseDateOrNull(val: unknown): string | null {
+  if (!val || typeof val !== 'string' || val.toLowerCase() === 'never' || val.trim() === '') {
+    return null;
+  }
+  const d = new Date(val);
+  return isNaN(d.getTime()) ? null : d.toISOString();
+}
+
 export function validateTopicInput(data: Record<string, unknown>): { error?: string } {
   if (!data.name || typeof data.name !== 'string' || !data.name.trim()) {
     return { error: 'Topic name is required and must be a non-empty string' };

@@ -18,7 +18,7 @@ export function toTopicDTO(
     }
   }
 
-  const dto: TopicDTO = {
+  return {
     id: row.id,
     name: row.name,
     category: row.category,
@@ -28,14 +28,9 @@ export function toTopicDTO(
     coordinates: [coordX, coordY, coordZ],
     lastReviewed,
     prerequisites,
-    unlocks
+    unlocks,
+    notes
   };
-
-  if (notes.length > 0) {
-    dto.notes = notes;
-  }
-
-  return dto;
 }
 
 export function toNoteDTO(row: NoteRow): NoteDTO {

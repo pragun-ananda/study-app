@@ -4,6 +4,7 @@ import {
   isValidStatus,
   isValidPriority,
   isValidMastery,
+  parseDateOrNull,
   validateTopicInput,
   validateTodoInput,
   validateNoteInput
@@ -52,6 +53,18 @@ describe('Unit: Input Validation (src/utils/validation.ts)', () => {
       expect(isValidMastery(100.1)).toBe(false);
       expect(isValidMastery(NaN)).toBe(false);
       expect(isValidMastery('50')).toBe(false);
+    });
+
+    it('parses timestamps safely with parseDateOrNull', () => {
+      expect(parseDateOrNull('Never')).toBeNull();
+      expect(parseDateOrNull('never')).toBeNull();
+      expect(parseDateOrNull('')).toBeNull();
+      expect(parseDateOrNull(null)).toBeNull();
+      expect(parseDateOrNull(undefined)).toBeNull();
+      expect(parseDateOrNull('not-a-date')).toBeNull();
+
+      const iso = '2026-08-24T08:00:00.000Z';
+      expect(parseDateOrNull(iso)).toBe(iso);
     });
   });
 

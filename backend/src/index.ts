@@ -1,6 +1,6 @@
 import dotenv from 'dotenv';
 import { app } from './app.js';
-import { getPool } from './db.js';
+import { closePool } from './db.js';
 
 dotenv.config();
 
@@ -12,13 +12,19 @@ const server = app.listen(PORT, () => {
   console.log(`🧠 REST API endpoints mounted at http://localhost:${PORT}/api/topics, /api/notes, /api/todos`);
 });
 
-// Graceful shutdown
+// Graceful shutdown with forced fallback timeout
 async function gracefulShutdown(signal: string) {
   console.log(`\nReceived ${signal}. Gracefully shutting down...`);
+
+  const forceExitTimeout = setTimeout(() => {
+    console.error('Graceful shutdown timed out after 5s. Forcing process exit.');
+    process.exit(1);
+  }, 5000);
+  forceExitTimeout.unref();
+
   server.close(async () => {
     try {
-      const pool = getPool();
-      await pool.end();
+      await closePool();
       console.log('Database connection pool closed. Exiting process.');
       process.exit(0);
     } catch (err) {
