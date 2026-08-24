@@ -3,14 +3,9 @@ import {
   TelemetryStore,
   TelemetryState,
   SystemStatus,
-  StudyMode,
   TopicNode,
   NoteItem,
-  StudyTodo,
-  PomodoroState,
-  AudioFrequencyData,
-  SystemDiagnostics,
-  MousePosition
+  StudyTodo
 } from '../types/telemetry';
 
 import { RawTopic, DOMAIN_DATA, INITIAL_TODOS } from '../data/test';
@@ -34,7 +29,7 @@ function generateCosmosNodes(): TopicNode[] {
       idCounter++;
       nameToIdMap.set(topic.name, id);
 
-      const phi = Math.acos(1 - 2 * (topicIdx + 0.5) / domainGroup.topics.length);
+      const phi = Math.acos(1 - (2 * (topicIdx + 0.5)) / domainGroup.topics.length);
       const theta = Math.PI * (1 + Math.sqrt(5)) * topicIdx;
       const r = 5.0 + (topicIdx % 5) * 1.6;
 
@@ -162,46 +157,11 @@ function generateCosmosNodes(): TopicNode[] {
 
 const INITIAL_TOPICS = generateCosmosNodes();
 
-const INITIAL_POMODORO: PomodoroState = {
-  mode: 'FOCUS',
-  timeLeft: 25 * 60,
-  isRunning: false,
-  completedSessions: 3
-};
-
-const INITIAL_DIAGNOSTICS: SystemDiagnostics = {
-  cpuUsage: 14.2,
-  ramUsage: 3.8,
-  ramTotal: 16.0,
-  systemUptime: 7200,
-  gridFrequency: 60.0,
-  fps: 60,
-  masteryScore: 58.4,
-  streakDays: 14
-};
-
-const INITIAL_AUDIO: AudioFrequencyData = {
-  isPlaying: false,
-  volume: 0.75,
-  bass: 0.0,
-  mid: 0.0,
-  treble: 0.0,
-  bpm: 124,
-  rawFftData: new Uint8Array(64)
-};
-
 const INITIAL_STATE: TelemetryState = {
   systemStatus: 'OPTIMAL',
-  activeMode: 'EXPLORE',
   isOverloaded: false,
-  gridPowerLevel: 94.6,
-  particleDensity: 16000,
-  
-  mousePosition: { x: 0, y: 0, normalizedX: 0, normalizedY: 0 },
-  cameraFocus: false,
-  hudVisible: true,
   bloomIntensity: 1.5,
-  zoomLevel: 0.4,
+  hudVisible: true,
 
   searchQuery: '',
   selectedCategory: null,
@@ -212,37 +172,18 @@ const INITIAL_STATE: TelemetryState = {
   isInspectorOpen: false,
   activeNote: null,
   isNoteEditing: false,
-  todos: INITIAL_TODOS,
-  pomodoro: INITIAL_POMODORO,
-
-  diagnostics: INITIAL_DIAGNOSTICS,
-  audioData: INITIAL_AUDIO
+  todos: INITIAL_TODOS
 };
 
 export const useStore = create<TelemetryStore>((set) => ({
   ...INITIAL_STATE,
 
-  // Mode & System Setters
-  setActiveMode: (activeMode: StudyMode) => set({ activeMode }),
+  // System Setters
   setSystemStatus: (systemStatus: SystemStatus) => set({ systemStatus }),
-  setParticleDensity: (particleDensity: number) =>
-    set({ particleDensity: Math.max(2000, Math.min(50000, particleDensity)) }),
   setIsOverloaded: (isOverloaded: boolean) => set({ isOverloaded }),
-
-  // Viewport & Zoom Setters
-  setMousePosition: (mousePosition: MousePosition) => set({ mousePosition }),
-  toggleCameraFocus: () => set((state) => ({ cameraFocus: !state.cameraFocus })),
-  setCameraFocus: (cameraFocus: boolean) => set({ cameraFocus }),
-  toggleHudVisibility: () => set((state) => ({ hudVisible: !state.hudVisible })),
-  setHudVisibility: (hudVisible: boolean) => set({ hudVisible }),
   setBloomIntensity: (bloomIntensity: number) => set({ bloomIntensity }),
-  
-  setZoomLevel: (zoomLevel: number) =>
-    set({ zoomLevel: Math.max(0.2, Math.min(3.5, zoomLevel)) }),
-  zoomIn: () =>
-    set((state) => ({ zoomLevel: Math.min(3.5, state.zoomLevel + 0.3) })),
-  zoomOut: () =>
-    set((state) => ({ zoomLevel: Math.max(0.2, state.zoomLevel - 0.3) })),
+  setHudVisibility: (hudVisible: boolean) => set({ hudVisible }),
+  toggleHudVisibility: () => set((state) => ({ hudVisible: !state.hudVisible })),
 
   // Search & Filter Actions
   setSearchQuery: (searchQuery: string) => set({ searchQuery }),
@@ -250,13 +191,14 @@ export const useStore = create<TelemetryStore>((set) => ({
   setHoveredTopicId: (hoveredTopicId: string | null) => set({ hoveredTopicId }),
 
   // Knowledge Graph Actions
+  setSelectedTopicId: (selectedTopicId: string | null) => set({ selectedTopicId }),
   setIsInspectorOpen: (isInspectorOpen: boolean) => set({ isInspectorOpen }),
   setActiveNote: (activeNote: NoteItem | null, isNoteEditing = false) =>
     set({ activeNote, isNoteEditing }),
   setIsNoteEditing: (isNoteEditing: boolean) => set({ isNoteEditing }),
   addNoteToTopic: (topicId: string, note: Omit<NoteItem, 'id'>) =>
     set((state) => {
-      const newId = `NOTE-${Date.now().toString().slice(-4)}`;
+      const newId = `NOTE-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`.toUpperCase();
       const today = new Date().toLocaleDateString('en-US', {
         month: 'short',
         day: 'numeric',
@@ -298,27 +240,23 @@ export const useStore = create<TelemetryStore>((set) => ({
         return n;
       });
       const nextActive = state.activeNote?.id === noteId ? null : state.activeNote;
-      return { topicNodes: updated, activeNote: nextActive };
+      return {
+        topicNodes: updated,
+        activeNote: nextActive,
+        isNoteEditing: state.activeNote?.id === noteId ? false : state.isNoteEditing
+      };
     }),
-  setSelectedTopicId: (selectedTopicId: string | null) => set({ selectedTopicId }),
   addTopicNode: (node: Omit<TopicNode, 'id'>) =>
     set((state) => {
       const newId = `TOPIC-${(state.topicNodes.length + 1).toString().padStart(3, '0')}`;
       return { topicNodes: [...state.topicNodes, { ...node, id: newId }] };
     }),
   updateTopicMastery: (id: string, mastery: number) =>
-    set((state) => {
-      const updated = state.topicNodes.map((n) =>
+    set((state) => ({
+      topicNodes: state.topicNodes.map((n) =>
         n.id === id ? { ...n, mastery: Math.max(0, Math.min(100, mastery)) } : n
-      );
-      const avgMastery = Number(
-        (updated.reduce((acc, curr) => acc + curr.mastery, 0) / updated.length).toFixed(1)
-      );
-      return {
-        topicNodes: updated,
-        diagnostics: { ...state.diagnostics, masteryScore: avgMastery }
-      };
-    }),
+      )
+    })),
 
   // To-Do Actions
   toggleTodo: (id: string) =>
@@ -335,55 +273,6 @@ export const useStore = create<TelemetryStore>((set) => ({
   deleteTodo: (id: string) =>
     set((state) => ({
       todos: state.todos.filter((todo) => todo.id !== id)
-    })),
-
-  // Pomodoro Actions
-  togglePomodoro: () =>
-    set((state) => ({
-      pomodoro: { ...state.pomodoro, isRunning: !state.pomodoro.isRunning }
-    })),
-  resetPomodoro: (mode = 'FOCUS') =>
-    set((state) => ({
-      pomodoro: {
-        ...state.pomodoro,
-        mode,
-        timeLeft: mode === 'FOCUS' ? 25 * 60 : mode === 'SHORT_BREAK' ? 5 * 60 : 15 * 60,
-        isRunning: false
-      }
-    })),
-  tickPomodoro: () =>
-    set((state) => {
-      const { timeLeft, isRunning, completedSessions, mode } = state.pomodoro;
-      if (!isRunning) return state;
-
-      if (timeLeft <= 1) {
-        const nextMode = mode === 'FOCUS' ? 'SHORT_BREAK' : 'FOCUS';
-        const nextSessions = mode === 'FOCUS' ? completedSessions + 1 : completedSessions;
-        return {
-          pomodoro: {
-            mode: nextMode,
-            timeLeft: nextMode === 'FOCUS' ? 25 * 60 : 5 * 60,
-            isRunning: false,
-            completedSessions: nextSessions
-          }
-        };
-      }
-
-      return {
-        pomodoro: { ...state.pomodoro, timeLeft: timeLeft - 1 }
-      };
-    }),
-
-  // System Diagnostics Setters
-  updateDiagnostics: (metrics: Partial<SystemDiagnostics>) =>
-    set((state) => ({
-      diagnostics: { ...state.diagnostics, ...metrics }
-    })),
-
-  // Audio Actions
-  setAudioData: (data: Partial<AudioFrequencyData>) =>
-    set((state) => ({
-      audioData: { ...state.audioData, ...data }
     })),
 
   // Reset Action

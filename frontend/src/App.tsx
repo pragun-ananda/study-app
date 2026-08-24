@@ -1,34 +1,12 @@
 import React, { useEffect } from 'react';
 import SceneCanvas from './components/canvas/SceneCanvas';
-import PostProcessing from './components/canvas/PostProcessing';
 import TelemetryHUD from './components/hud/TelemetryHUD';
 import { useStore } from './store/useStore';
 
 export default function App() {
-  const store = useStore();
-
   useEffect(() => {
     document.title = 'Knowledge Graph';
   }, []);
-
-  // Mouse / Pointer tracker updating global normalized telemetry coordinates
-  useEffect(() => {
-    const handleMouseMove = (event: MouseEvent) => {
-      const { innerWidth, innerHeight } = window;
-      const normalizedX = (event.clientX / innerWidth) * 2 - 1;
-      const normalizedY = -(event.clientY / innerHeight) * 2 + 1;
-
-      store.setMousePosition({
-        x: event.clientX,
-        y: event.clientY,
-        normalizedX,
-        normalizedY
-      });
-    };
-
-    window.addEventListener('mousemove', handleMouseMove);
-    return () => window.removeEventListener('mousemove', handleMouseMove);
-  }, [store]);
 
   // Global Keyboard Shortcuts Listener
   useEffect(() => {
@@ -38,23 +16,20 @@ export default function App() {
         return;
       }
 
-      if (event.code === 'Space') {
-        event.preventDefault();
-        store.toggleCameraFocus();
-      } else if (event.code === 'KeyH') {
-        store.toggleHudVisibility();
+      if (event.code === 'KeyH') {
+        useStore.getState().toggleHudVisibility();
       } else if (event.code === 'KeyO') {
-        const nextState = !store.isOverloaded;
-        store.setIsOverloaded(nextState);
-        store.setSystemStatus(nextState ? 'OVERLOADED' : 'OPTIMAL');
+        const nextState = !useStore.getState().isOverloaded;
+        useStore.getState().setIsOverloaded(nextState);
+        useStore.getState().setSystemStatus(nextState ? 'OVERLOADED' : 'OPTIMAL');
       } else if (event.code === 'KeyR') {
-        store.resetState();
+        useStore.getState().resetState();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [store]);
+  }, []);
 
   return (
     <div className="relative w-full h-screen bg-[#050811] overflow-hidden select-none">
@@ -71,3 +46,4 @@ export default function App() {
     </div>
   );
 }
+
