@@ -433,7 +433,7 @@ INSERT INTO topic_prerequisites (topic_id, prerequisite_id) VALUES
 
 -- 3. NOTES (Markdown + KaTeX Math Payloads)
 INSERT INTO notes (id, topic_id, title, filename, content, created_at, updated_at) VALUES
-  ('NOTE-001', 'TOPIC-001', 'Backpropagation Derivation Notes', NULL, '# Neural Network Backpropagation
+  ('NOTE-001', 'TOPIC-001', 'Backpropagation Derivation Notes', 'backpropagation.md', '# Neural Network Backpropagation
 
 Backpropagation (short for *backward propagation of errors*) is the fundamental supervised learning algorithm for artificial neural networks. Given an error function, it calculates the analytical gradient of the loss with respect to all tunable parameters (weights and biases) across the computation graph.
 
@@ -506,7 +506,7 @@ def backward_propagation(dAL, caches):
 - **Exploding Gradients**: Large weights lead to exponentially growing gradients. Solution: Gradient norm clipping, proper initialization (He / Xavier), LayerNorm.
 - **Memory Overhead**: Activations $A^{[l]}$ must be retained in VRAM during forward pass for backward derivation. Solution: Activation checkpointing (rematerialization).
 ', '2026-08-17T10:00:00.000Z', '2026-08-24T08:00:00.000Z'),
-  ('NOTE-002', 'TOPIC-034', 'BST Invariants & Traversal', NULL, '# Binary Search Trees (BST)
+  ('NOTE-002', 'TOPIC-034', 'BST Invariants & Traversal', 'binary_search_trees.md', '# Binary Search Trees (BST)
 
 A Binary Search Tree is a rooted binary tree data structure where each internal node stores a key greater than all keys in its left subtree and less than all keys in its right subtree.
 
@@ -524,7 +524,7 @@ A Binary Search Tree is a rooted binary tree data structure where each internal 
 ## 2. In-Order Traversal Invariant
 Performing an in-order traversal (Left $\to$ Node $\to$ Right) visits keys in strictly sorted ascending order.
 ', '2026-08-14T10:00:00.000Z', '2026-08-23T10:00:00.000Z'),
-  ('NOTE-003', 'TOPIC-067', 'Raft Consensus & Leader Election', NULL, '# Raft Distributed Consensus
+  ('NOTE-003', 'TOPIC-067', 'Raft Consensus & Leader Election', 'raft_consensus.md', '# Raft Distributed Consensus
 
 Raft decomposes consensus into explicit sub-problems: **Leader Election**, **Log Replication**, and **Safety**.
 
@@ -542,7 +542,7 @@ Raft decomposes consensus into explicit sub-problems: **Leader Election**, **Log
 2. **Leader Append-Only**: A leader never overwrites or truncates its own log entries.
 3. **Log Matching Property**: If two logs contain an entry with the same index and term, then the logs are identical in all entries up through the given index.
 ', '2026-08-18T10:00:00.000Z', '2026-08-24T07:00:00.000Z'),
-  ('NOTE-004', 'TOPIC-098', 'SVD Matrix Factorization', NULL, '# Singular Value Decomposition (SVD)
+  ('NOTE-004', 'TOPIC-098', 'SVD Matrix Factorization', 'svd_matrix_factorization.md', '# Singular Value Decomposition (SVD)
 
 Singular Value Decomposition (SVD) is a fundamental theorem in linear algebra stating that any $m \times n$ real matrix $A$ can be factorized into three matrices:
 

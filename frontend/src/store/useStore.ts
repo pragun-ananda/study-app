@@ -13,7 +13,7 @@ import {
   MousePosition
 } from '../types/telemetry';
 
-import { RawTopic, DOMAIN_DATA, INITIAL_TODOS } from '../data/domainData';
+import { RawTopic, DOMAIN_DATA, INITIAL_TODOS } from '../data/test';
 
 // Robust 3D spatial layout generator with multi-pass iterative force-directed relaxation
 function generateCosmosNodes(): TopicNode[] {

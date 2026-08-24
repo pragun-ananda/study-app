@@ -1,7 +1,66 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { DOMAIN_DATA, INITIAL_TODOS } from '../../frontend/src/data/domainData';
-import { TopicNode, NoteItem } from '../../frontend/src/types/telemetry';
+import { fileURLToPath } from 'url';
+import { TopicNode, NoteItem, StudyTodo } from '../../frontend/src/types/telemetry';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const TEST_DATA_DIR = path.resolve(__dirname, '../../frontend/src/data/test');
+const DOMAIN_DATA_PATH = path.resolve(TEST_DATA_DIR, 'domainData.json');
+const TODOS_PATH = path.resolve(TEST_DATA_DIR, 'todos.json');
+const NOTES_DIR = path.resolve(TEST_DATA_DIR, 'notes');
+
+export function loadTestData() {
+  const domainDataJson: {
+    category: TopicNode['category'];
+    topics: {
+      name: string;
+      summary: string;
+      prereqNames?: string[];
+      unlockNames?: string[];
+      notes?: {
+        id: string;
+        title: string;
+        filename?: string;
+        createdAt?: string;
+        updatedAt?: string;
+      }[];
+    }[];
+  }[] = JSON.parse(fs.readFileSync(DOMAIN_DATA_PATH, 'utf8'));
+
+  const todosJson: StudyTodo[] = JSON.parse(fs.readFileSync(TODOS_PATH, 'utf8'));
+
+  // Load markdown notes from files
+  const domainData = domainDataJson.map((group) => ({
+    category: group.category,
+    topics: group.topics.map((topic) => ({
+      name: topic.name,
+      summary: topic.summary,
+      prereqNames: topic.prereqNames,
+      unlockNames: topic.unlockNames,
+      notes: topic.notes?.map((n) => {
+        let content = '';
+        if (n.filename) {
+          const noteFilePath = path.resolve(NOTES_DIR, n.filename);
+          if (fs.existsSync(noteFilePath)) {
+            content = fs.readFileSync(noteFilePath, 'utf8');
+          }
+        }
+        return {
+          id: n.id,
+          title: n.title,
+          filename: n.filename,
+          createdAt: n.createdAt,
+          updatedAt: n.updatedAt,
+          content
+        };
+      })
+    }))
+  }));
+
+  return { domainData, todos: todosJson };
+}
 
 // Deterministic Mulberry32 Pseudo-Random Number Generator (PRNG)
 function createPrng(seed: number) {
@@ -67,8 +126,18 @@ export function normalizeTimestamp(timeStr: string | undefined | null): string {
   const dateMatch = trimmed.match(/^([A-Za-z]+)\s+(\d{1,2}),?\s+(\d{4})$/);
   if (dateMatch) {
     const months: Record<string, number> = {
-      jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
-      jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11
+      jan: 0,
+      feb: 1,
+      mar: 2,
+      apr: 3,
+      may: 4,
+      jun: 5,
+      jul: 6,
+      aug: 7,
+      sep: 8,
+      oct: 9,
+      nov: 10,
+      dec: 11
     };
     const month = months[dateMatch[1].slice(0, 3).toLowerCase()] ?? 0;
     const day = parseInt(dateMatch[2], 10);
@@ -101,14 +170,15 @@ interface ProcessedTopic {
 }
 
 export function generateSeedData() {
+  const { domainData, todos } = loadTestData();
   const prng = createPrng(42);
   const topics: ProcessedTopic[] = [];
   const nameToIdMap = new Map<string, string>();
   let idCounter = 1;
 
   // Step 1: Assign initial cluster sphere positions deterministically
-  DOMAIN_DATA.forEach((domainGroup, domainIdx) => {
-    const clusterAngle = (domainIdx / DOMAIN_DATA.length) * Math.PI * 2;
+  domainData.forEach((domainGroup, domainIdx) => {
+    const clusterAngle = (domainIdx / domainData.length) * Math.PI * 2;
     const clusterRadius = 18.0;
     const clusterX = Math.cos(clusterAngle) * clusterRadius;
     const clusterY = Math.sin(clusterAngle) * clusterRadius;
@@ -198,7 +268,6 @@ export function generateSeedData() {
   });
 
   // Step 3: Extract & Deduplicate Directed Prerequisite Edges
-  // topic_id requires prerequisite_id (prerequisite_id -> topic_id)
   const edgeSet = new Set<string>();
   const edges: { topic_id: string; prerequisite_id: string }[] = [];
 
@@ -211,12 +280,11 @@ export function generateSeedData() {
     }
   };
 
-  DOMAIN_DATA.forEach((domainGroup) => {
+  domainData.forEach((domainGroup) => {
     domainGroup.topics.forEach((topic) => {
       const currentId = nameToIdMap.get(topic.name);
       if (!currentId) return;
 
-      // prereqNames: Topics required BEFORE this topic (prereq -> current)
       if (topic.prereqNames) {
         topic.prereqNames.forEach((prereqName) => {
           const prereqId = nameToIdMap.get(prereqName);
@@ -226,8 +294,6 @@ export function generateSeedData() {
         });
       }
 
-      // unlockNames: Topics UNLOCKED by this topic (current -> unlock)
-      // i.e., the unlocked topic requires current as prerequisite (current -> unlock)
       if (topic.unlockNames) {
         topic.unlockNames.forEach((unlockName) => {
           const unlockId = nameToIdMap.get(unlockName);
@@ -265,7 +331,7 @@ export function generateSeedData() {
   });
 
   // Step 5: Extract Study Todos
-  const allTodos = INITIAL_TODOS.map((todo) => ({
+  const allTodos = todos.map((todo) => ({
     id: todo.id,
     topic_id: todo.topicId || null,
     title: todo.title,
