@@ -61,8 +61,3 @@ cd storage
 npm install
 npm test
 ```
-
-Or run the shell test script:
-```bash
-./storage/test_schema.sh
-```
