@@ -1396,7 +1396,7 @@ export const INITIAL_TODOS: StudyTodo[] = [
     priority: 'HIGH',
     completed: false,
     dueDate: 'Today',
-    topicId: 'TODO-002'
+    topicId: 'TOPIC-002'
   },
   {
     id: 'TODO-003',
