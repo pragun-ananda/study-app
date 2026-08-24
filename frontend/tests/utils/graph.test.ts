@@ -66,6 +66,20 @@ describe('Graph Algorithms: getTopologicalPrerequisites', () => {
     expect(resultIds).not.toContain('C');
   });
 
+  it('handles disconnected cyclic clusters in prerequisites fallback branch', () => {
+    // Target D has prereq C; C has prereqs A and B which cycle together A <-> B
+    const nodeA = createMockNode('A', 'A', ['B'], ['B']);
+    const nodeB = createMockNode('B', 'B', ['A'], ['A']);
+    const nodeC = createMockNode('C', 'C', ['A', 'B'], ['D']);
+    const nodeD = createMockNode('D', 'D', ['C'], []);
+    const nodes = [nodeA, nodeB, nodeC, nodeD];
+
+    const result = getTopologicalPrerequisites('D', nodes);
+    const resultIds = result.map((n) => n.id);
+
+    expect(resultIds).toEqual(expect.arrayContaining(['A', 'B', 'C']));
+  });
+
   it('returns empty array when targetId does not exist in graph', () => {
     const nodes = [createMockNode('A', 'A')];
     expect(getTopologicalPrerequisites('NON_EXISTENT', nodes)).toEqual([]);
@@ -132,6 +146,21 @@ describe('Graph Algorithms: calculateConnectedGraph', () => {
     expect(graph.connectedNodeIds).toEqual(new Set(['A', 'B', 'C', 'D']));
   });
 
+  it('handles diamond paths with overlapping direct and transitive edges', () => {
+    // Node C has direct prereqs A and B, where B also has prereq A
+    const nodeA = createMockNode('A', 'A', [], ['B', 'C']);
+    const nodeB = createMockNode('B', 'B', ['A'], ['C']);
+    const nodeC = createMockNode('C', 'C', ['A', 'B'], []);
+    const nodes = [nodeA, nodeB, nodeC];
+
+    const graph = calculateConnectedGraph('C', nodes);
+
+    expect(graph.directIncomingKeys.has('A->C')).toBe(true);
+    expect(graph.directIncomingKeys.has('B->C')).toBe(true);
+    expect(graph.transitiveIncomingKeys.has('A->B')).toBe(true);
+    expect(graph.connectedNodeIds).toEqual(new Set(['A', 'B', 'C']));
+  });
+
   it('handles cyclic unlock relationships without infinite recursion', () => {
     // A -> B -> C -> A
     const nodeA = createMockNode('A', 'A', ['C'], ['B']);
@@ -146,11 +175,13 @@ describe('Graph Algorithms: calculateConnectedGraph', () => {
     expect(graph.connectedNodeIds).toEqual(new Set(['A', 'B', 'C']));
   });
 
-  it('safely skips non-existent unlock node references in graph', () => {
-    const nodeA = createMockNode('A', 'A', [], ['NON_EXISTENT_CHILD']);
+  it('safely skips non-existent unlock and prerequisite node references in graph', () => {
+    const nodeA = createMockNode('A', 'A', ['NON_EXISTENT_PARENT'], ['NON_EXISTENT_CHILD']);
     const graph = calculateConnectedGraph('A', [nodeA]);
 
+    expect(graph.directIncomingKeys.has('NON_EXISTENT_PARENT->A')).toBe(true);
     expect(graph.directOutgoingKeys.has('A->NON_EXISTENT_CHILD')).toBe(true);
+    expect(graph.connectedNodeIds.has('NON_EXISTENT_PARENT')).toBe(true);
     expect(graph.connectedNodeIds.has('NON_EXISTENT_CHILD')).toBe(true);
   });
 });

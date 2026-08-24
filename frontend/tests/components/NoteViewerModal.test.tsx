@@ -14,11 +14,11 @@ describe('NoteViewerModal Component', () => {
     expect(container.firstChild).toBeNull();
   });
 
-  it('renders note header, title, and formatted markdown content', async () => {
+  it('renders note header, title, formatted markdown, tables, blockquotes, and inline code', async () => {
     const mockNote = {
       id: 'NOTE-001',
       title: 'Neural Networks Note',
-      content: '# Heading 1\n\nInline math: $E=mc^2$\n\n```python\nprint("hello world")\n```'
+      content: '# Heading 1\n\n> Important quote block\n\nInline math: $E=mc^2$\n\nInline `variable_name` code.\n\n| Param | Value |\n| --- | --- |\n| lr | 0.001 |\n\n```python\nprint("hello world")\n```'
     };
 
     useStore.getState().setActiveNote(mockNote);
@@ -26,6 +26,9 @@ describe('NoteViewerModal Component', () => {
 
     expect(screen.getByText('Neural Networks Note')).toBeInTheDocument();
     expect(screen.getByText('Heading 1')).toBeInTheDocument();
+    expect(screen.getByText('Important quote block')).toBeInTheDocument();
+    expect(screen.getByText('variable_name')).toBeInTheDocument();
+    expect(screen.getByText('lr')).toBeInTheDocument();
     expect(screen.getByText('PYTHON')).toBeInTheDocument();
   });
 
@@ -67,7 +70,7 @@ describe('NoteViewerModal Component', () => {
     });
   });
 
-  it('allows switching to edit mode and saving changes to topic note', async () => {
+  it('allows switching to edit mode, typing in textarea, and saving changes to topic note', async () => {
     const targetTopic = useStore.getState().topicNodes[0];
     useStore.getState().setSelectedTopicId(targetTopic.id);
     useStore.getState().setActiveNote({ id: '', title: '', content: '' }, true);
@@ -77,12 +80,35 @@ describe('NoteViewerModal Component', () => {
     const titleInput = screen.getByPlaceholderText('Note title...');
     fireEvent.change(titleInput, { target: { value: 'New Test Note' } });
 
+    const contentTextarea = screen.getByPlaceholderText('Start typing your note here...');
+    fireEvent.change(contentTextarea, { target: { value: 'Body of the new test note.' } });
+
     const saveButton = screen.getByText('SAVE NOTE');
     fireEvent.click(saveButton);
 
     const topic = useStore.getState().topicNodes.find((n) => n.id === targetTopic.id);
     const added = topic?.notes?.find((n) => n.title === 'New Test Note');
     expect(added).toBeDefined();
+    expect(added?.content).toBe('Body of the new test note.');
+  });
+
+  it('updates an existing note in topic and persists changes on save', async () => {
+    const targetTopic = useStore.getState().topicNodes[0];
+    const existingNote = targetTopic.notes?.[0]!;
+    useStore.getState().setSelectedTopicId(targetTopic.id);
+    useStore.getState().setActiveNote(existingNote, true);
+
+    render(<NoteViewerModal />);
+
+    const titleInput = screen.getByPlaceholderText('Note title...');
+    fireEvent.change(titleInput, { target: { value: 'Modified Existing Note' } });
+
+    const saveButton = screen.getByText('SAVE NOTE');
+    fireEvent.click(saveButton);
+
+    const topic = useStore.getState().topicNodes.find((n) => n.id === targetTopic.id);
+    const updated = topic?.notes?.find((n) => n.id === existingNote.id);
+    expect(updated?.title).toBe('Modified Existing Note');
   });
 
   it('switches between WRITE and PREVIEW tabs in edit mode', async () => {
@@ -146,6 +172,30 @@ describe('NoteViewerModal Component', () => {
     confirmSpy.mockRestore();
   });
 
+  it('cancels edit mode on existing note by reverting to view mode', () => {
+    const note = { id: 'NOTE-1', title: 'Existing Note', content: 'Body' };
+    useStore.getState().setActiveNote(note, true);
+
+    render(<NoteViewerModal />);
+
+    const cancelBtn = screen.getByRole('button', { name: /CANCEL/i });
+    fireEvent.click(cancelBtn);
+
+    expect(useStore.getState().isNoteEditing).toBe(false);
+    expect(useStore.getState().activeNote?.id).toBe('NOTE-1');
+  });
+
+  it('cancels newly created note by dismissing modal completely', () => {
+    useStore.getState().setActiveNote({ id: '', title: '', content: '' }, true);
+
+    render(<NoteViewerModal />);
+
+    const cancelBtn = screen.getByRole('button', { name: /CANCEL/i });
+    fireEvent.click(cancelBtn);
+
+    expect(useStore.getState().activeNote).toBeNull();
+  });
+
   it('renders empty note fallback state with prompt to write content', () => {
     useStore.getState().setActiveNote({ id: 'NOTE-EMPTY', title: 'Empty Note', content: '' }, true);
     render(<NoteViewerModal />);
@@ -156,6 +206,16 @@ describe('NoteViewerModal Component', () => {
 
     fireEvent.click(screen.getByText('Write Some Content'));
     expect(screen.getByPlaceholderText('Start typing your note here...')).toBeInTheDocument();
+  });
+
+  it('closes modal when top right close button is clicked in view mode', () => {
+    useStore.getState().setActiveNote({ id: 'NOTE-1', title: 'Test Note', content: 'Body' }, false);
+    render(<NoteViewerModal />);
+
+    const closeBtn = screen.getByTitle('Close (ESC)');
+    fireEvent.click(closeBtn);
+
+    expect(useStore.getState().activeNote).toBeNull();
   });
 
   it('closes modal on Escape key press when not editing', () => {

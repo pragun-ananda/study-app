@@ -27,7 +27,7 @@ describe('TelemetryHUD Component', () => {
     expect(useStore.getState().hudVisible).toBe(true);
   });
 
-  it('opens subgraphs panel and allows selecting a domain category', async () => {
+  it('opens subgraphs panel and allows selecting a domain category, then closing it', async () => {
     render(<TelemetryHUD />);
 
     const subgraphsButton = screen.getByTitle('Open Subgraphs filter');
@@ -41,6 +41,9 @@ describe('TelemetryHUD Component', () => {
     fireEvent.click(csButton);
 
     expect(useStore.getState().selectedCategory).toBe('CS');
+
+    const minimizeBtn = screen.getByTitle('Minimize Subgraphs');
+    fireEvent.click(minimizeBtn);
   });
 
   it('dynamically computes mastery score for selected subgraph category', () => {
@@ -50,7 +53,7 @@ describe('TelemetryHUD Component', () => {
     expect(screen.getByText(/CS MASTERY/i)).toBeInTheDocument();
   });
 
-  it('opens search bar and updates store search query when typed', async () => {
+  it('opens search bar, updates query when typed, and closes search when X clicked', async () => {
     render(<TelemetryHUD />);
 
     const searchButton = screen.getByTitle('Open concept search');
@@ -64,6 +67,10 @@ describe('TelemetryHUD Component', () => {
     fireEvent.change(searchInput, { target: { value: 'Backpropagation' } });
 
     expect(useStore.getState().searchQuery).toBe('Backpropagation');
+
+    const closeSearchBtn = screen.getByTitle('Close search');
+    fireEvent.click(closeSearchBtn);
+    expect(useStore.getState().searchQuery).toBe('');
   });
 
   it('expands left sidebar and switches between TOPICS and TASKS tabs', () => {
@@ -78,6 +85,18 @@ describe('TelemetryHUD Component', () => {
     fireEvent.click(tasksTab);
 
     expect(screen.getByPlaceholderText('Add new study goal...')).toBeInTheDocument();
+  });
+
+  it('clicks a topic row in left sidebar list to select and focus it', () => {
+    render(<TelemetryHUD />);
+
+    fireEvent.click(screen.getByLabelText('Toggle study panel'));
+
+    const firstTopic = useStore.getState().topicNodes[0];
+    const topicRow = screen.getByText(firstTopic.name);
+    fireEvent.click(topicRow);
+
+    expect(useStore.getState().selectedTopicId).toBe(firstTopic.id);
   });
 
   it('adds a new todo from the HUD task panel', () => {
@@ -151,5 +170,50 @@ describe('TelemetryHUD Component', () => {
       fireEvent.click(unlockItems[0]);
       expect(useStore.getState().selectedTopicId).toBe(unlockNode.id);
     }
+  });
+
+  it('opens note editor when + ADD NOTE is clicked in inspector', () => {
+    const topic = useStore.getState().topicNodes[0];
+    useStore.getState().setSelectedTopicId(topic.id);
+    useStore.getState().setIsInspectorOpen(true);
+
+    render(<TelemetryHUD />);
+
+    const addNoteBtn = screen.getByRole('button', { name: /\+ ADD NOTE/i });
+    fireEvent.click(addNoteBtn);
+
+    expect(useStore.getState().isNoteEditing).toBe(true);
+    expect(useStore.getState().activeNote).toBeDefined();
+  });
+
+  it('opens note modal when an existing note card is clicked in inspector', () => {
+    const topic = useStore.getState().topicNodes[0];
+    const existingNote = topic.notes?.[0];
+    expect(existingNote).toBeDefined();
+
+    if (existingNote) {
+      useStore.getState().setSelectedTopicId(topic.id);
+      useStore.getState().setIsInspectorOpen(true);
+
+      render(<TelemetryHUD />);
+
+      const noteCard = screen.getByText(existingNote.title);
+      fireEvent.click(noteCard);
+
+      expect(useStore.getState().activeNote?.id).toBe(existingNote.id);
+    }
+  });
+
+  it('closes inspector when close X button is clicked', () => {
+    const topic = useStore.getState().topicNodes[0];
+    useStore.getState().setSelectedTopicId(topic.id);
+    useStore.getState().setIsInspectorOpen(true);
+
+    render(<TelemetryHUD />);
+
+    const closeBtn = screen.getByTitle('Close Inspector');
+    fireEvent.click(closeBtn);
+
+    expect(useStore.getState().isInspectorOpen).toBe(false);
   });
 });

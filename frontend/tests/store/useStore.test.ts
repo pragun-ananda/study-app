@@ -116,6 +116,23 @@ describe('Zustand State Store (useStore)', () => {
         expect(useStore.getState().isNoteEditing).toBe(false);
       }
     });
+
+    it('deletes a note while preserving activeNote when activeNote ID is different', () => {
+      const topic = useStore.getState().topicNodes[0];
+      useStore.getState().addNoteToTopic(topic.id, { title: 'First Note', content: 'C1' });
+      useStore.getState().addNoteToTopic(topic.id, { title: 'Second Note', content: 'C2' });
+
+      const updatedTopic = useStore.getState().topicNodes.find((n) => n.id === topic.id)!;
+      const firstNote = updatedTopic.notes?.find((n) => n.title === 'First Note')!;
+      const secondNote = updatedTopic.notes?.find((n) => n.title === 'Second Note')!;
+
+      useStore.getState().setActiveNote(secondNote, false);
+
+      // Delete firstNote while secondNote is active
+      useStore.getState().deleteNoteFromTopic(topic.id, firstNote.id);
+
+      expect(useStore.getState().activeNote?.id).toBe(secondNote.id);
+    });
   });
 
   describe('Todo CRUD Operations', () => {
