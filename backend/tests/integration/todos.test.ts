@@ -165,6 +165,10 @@ describe('Integration: Study Todos REST API (/api/todos)', () => {
       const resInvalidPriority = await request(app).patch('/api/todos/TODO-001').send({ priority: 'CRITICAL' });
       expect(resInvalidPriority.status).toBe(400);
       expect(resInvalidPriority.body.error).toContain('Invalid priority');
+
+      const resStringCompleted = await request(app).patch('/api/todos/TODO-001').send({ completed: 'false' });
+      expect(resStringCompleted.status).toBe(400);
+      expect(resStringCompleted.body.error).toContain('Completed must be a boolean value');
     });
 
     it('returns 404 when patching non-existent todo', async () => {

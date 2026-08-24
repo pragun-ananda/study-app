@@ -40,12 +40,21 @@ export function isValidMastery(mastery: unknown): boolean {
   return mastery >= 0 && mastery <= 100;
 }
 
-export function parseDateOrNull(val: unknown): string | null {
-  if (!val || typeof val !== 'string' || val.toLowerCase() === 'never' || val.trim() === '') {
-    return null;
+export function validateLastReviewed(val: unknown): { isValid: boolean; value: string | null; error?: string } {
+  if (val === undefined || val === null || val === '') {
+    return { isValid: true, value: null };
   }
-  const d = new Date(val);
-  return isNaN(d.getTime()) ? null : d.toISOString();
+  if (typeof val === 'string') {
+    if (val.toLowerCase() === 'never') {
+      return { isValid: true, value: null };
+    }
+    const d = new Date(val);
+    if (isNaN(d.getTime())) {
+      return { isValid: false, value: null, error: 'lastReviewed must be a valid ISO date string or "Never"' };
+    }
+    return { isValid: true, value: d.toISOString() };
+  }
+  return { isValid: false, value: null, error: 'lastReviewed must be a string or null' };
 }
 
 export function validateTopicInput(data: Record<string, unknown>): { error?: string } {
@@ -70,6 +79,12 @@ export function validateTopicInput(data: Record<string, unknown>): { error?: str
       return { error: 'Coordinates must be an array of three numbers [x, y, z]' };
     }
   }
+  if (data.lastReviewed !== undefined) {
+    const check = validateLastReviewed(data.lastReviewed);
+    if (!check.isValid) {
+      return { error: check.error };
+    }
+  }
   return {};
 }
 
@@ -82,6 +97,9 @@ export function validateTodoInput(data: Record<string, unknown>): { error?: stri
   }
   if (data.priority !== undefined && !isValidPriority(data.priority)) {
     return { error: `Invalid priority. Must be one of: ${VALID_PRIORITIES.join(', ')}` };
+  }
+  if (data.completed !== undefined && typeof data.completed !== 'boolean') {
+    return { error: 'Completed must be a boolean value' };
   }
   return {};
 }

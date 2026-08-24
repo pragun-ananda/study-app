@@ -3,6 +3,7 @@ import { query } from '../db.js';
 import { StudyTodoRow } from '../types.js';
 import { toTodoDTO } from '../utils/mappers.js';
 import { validateTodoInput, isValidCategory, isValidPriority } from '../utils/validation.js';
+import { generateEntityId } from '../utils/id.js';
 import { handleDatabaseError } from '../utils/errors.js';
 
 const router = Router();
@@ -65,19 +66,7 @@ router.post('/', async (req: Request, res: Response) => {
       return res.status(400).json({ error: validation.error });
     }
 
-    let id = req.body.id;
-    if (!id || typeof id !== 'string') {
-      const todoRows = await query<{ id: string }>("SELECT id FROM study_todos WHERE id LIKE 'TODO-%'");
-      let maxNum = 0;
-      for (const r of todoRows.rows) {
-        const match = r.id.match(/^TODO-(\d+)$/);
-        if (match) {
-          const num = parseInt(match[1], 10);
-          if (num > maxNum) maxNum = num;
-        }
-      }
-      id = `TODO-${(maxNum + 1).toString().padStart(3, '0')}`;
-    }
+    const id = req.body.id && typeof req.body.id === 'string' ? req.body.id : generateEntityId('TODO');
 
     const {
       title,
@@ -134,7 +123,10 @@ router.patch('/:id', async (req: Request, res: Response) => {
     }
 
     if (req.body.completed !== undefined) {
-      params.push(Boolean(req.body.completed));
+      if (typeof req.body.completed !== 'boolean') {
+        return res.status(400).json({ error: 'Completed must be a boolean value' });
+      }
+      params.push(req.body.completed);
       updates.push(`completed = $${params.length}`);
     }
 

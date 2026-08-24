@@ -7,8 +7,9 @@ import {
   isValidCategory,
   isValidStatus,
   isValidMastery,
-  parseDateOrNull
+  validateLastReviewed
 } from '../utils/validation.js';
+import { generateEntityId } from '../utils/id.js';
 import { handleDatabaseError } from '../utils/errors.js';
 
 const router = Router();
@@ -33,7 +34,6 @@ router.get('/', async (req: Request, res: Response) => {
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
-    // Fetch topics
     const topicsResult = await query<TopicRow>(
       `SELECT * FROM topics ${whereClause} ORDER BY id ASC`,
       params
@@ -41,12 +41,10 @@ router.get('/', async (req: Request, res: Response) => {
 
     const topicIds = topicsResult.rows.map((t) => t.id);
 
-    // If no topics found, return empty array immediately
     if (topicIds.length === 0) {
       return res.json([]);
     }
 
-    // Fetch only edges and notes related to these topics in parallel
     const [edgesResult, notesResult] = await Promise.all([
       query<TopicPrerequisiteRow>('SELECT topic_id, prerequisite_id FROM topic_prerequisites'),
       query<NoteRow>('SELECT * FROM notes ORDER BY updated_at DESC')
@@ -56,11 +54,9 @@ router.get('/', async (req: Request, res: Response) => {
     const unlockMap = new Map<string, string[]>();
 
     edgesResult.rows.forEach((edge) => {
-      // topic_id requires prerequisite_id (upstream)
       if (!prereqMap.has(edge.topic_id)) prereqMap.set(edge.topic_id, []);
       prereqMap.get(edge.topic_id)!.push(edge.prerequisite_id);
 
-      // prerequisite_id unlocks topic_id (downstream)
       if (!unlockMap.has(edge.prerequisite_id)) unlockMap.set(edge.prerequisite_id, []);
       unlockMap.get(edge.prerequisite_id)!.push(edge.topic_id);
     });
@@ -127,19 +123,7 @@ router.post('/', async (req: Request, res: Response) => {
       return res.status(400).json({ error: validation.error });
     }
 
-    let id = req.body.id;
-    if (!id || typeof id !== 'string') {
-      const topicRows = await query<{ id: string }>("SELECT id FROM topics WHERE id LIKE 'TOPIC-%'");
-      let maxNum = 0;
-      for (const r of topicRows.rows) {
-        const match = r.id.match(/^TOPIC-(\d+)$/);
-        if (match) {
-          const num = parseInt(match[1], 10);
-          if (num > maxNum) maxNum = num;
-        }
-      }
-      id = `TOPIC-${(maxNum + 1).toString().padStart(3, '0')}`;
-    }
+    const id = req.body.id && typeof req.body.id === 'string' ? req.body.id : generateEntityId('TOPIC');
 
     const {
       name,
@@ -154,13 +138,13 @@ router.post('/', async (req: Request, res: Response) => {
     const coordX = coordinates[0] ?? 0;
     const coordY = coordinates[1] ?? 0;
     const coordZ = coordinates[2] ?? 0;
-    const parsedLastReviewed = parseDateOrNull(lastReviewed);
+    const parsedLastReviewed = validateLastReviewed(lastReviewed).value;
 
     const insertResult = await query<TopicRow>(
       `INSERT INTO topics (id, name, category, summary, mastery, status, coord_x, coord_y, coord_z, last_reviewed)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING *`,
-      [id, name, category, summary, mastery, status, coordX, coordY, coordZ, parsedLastReviewed]
+      [id, name.trim(), category, summary, mastery, status, coordX, coordY, coordZ, parsedLastReviewed]
     );
 
     const dto = toTopicDTO(insertResult.rows[0], [], [], []);
@@ -232,14 +216,17 @@ router.patch('/:id', async (req: Request, res: Response) => {
     }
 
     if (req.body.lastReviewed !== undefined) {
-      params.push(parseDateOrNull(req.body.lastReviewed));
+      const reviewCheck = validateLastReviewed(req.body.lastReviewed);
+      if (!reviewCheck.isValid) {
+        return res.status(400).json({ error: reviewCheck.error });
+      }
+      params.push(reviewCheck.value);
       updates.push(`last_reviewed = $${params.length}`);
     }
 
     let updatedTopicRow: TopicRow;
 
     if (updates.length === 0) {
-      // Empty PATCH payload: fetch existing
       const existingRes = await query<TopicRow>('SELECT * FROM topics WHERE id = $1', [id]);
       if (existingRes.rows.length === 0) {
         return res.status(404).json({ error: `Topic with id '${id}' not found` });

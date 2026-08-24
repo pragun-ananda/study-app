@@ -3,6 +3,7 @@ import { query } from '../db.js';
 import { NoteRow } from '../types.js';
 import { toNoteDTO } from '../utils/mappers.js';
 import { validateNoteInput } from '../utils/validation.js';
+import { generateEntityId } from '../utils/id.js';
 import { handleDatabaseError } from '../utils/errors.js';
 
 const router = Router();
@@ -31,19 +32,7 @@ router.post('/topics/:topicId/notes', async (req: Request, res: Response) => {
       return res.status(400).json({ error: validation.error });
     }
 
-    let id = req.body.id;
-    if (!id || typeof id !== 'string') {
-      const noteRows = await query<{ id: string }>("SELECT id FROM notes WHERE id LIKE 'NOTE-%'");
-      let maxNum = 0;
-      for (const r of noteRows.rows) {
-        const match = r.id.match(/^NOTE-(\d+)$/);
-        if (match) {
-          const num = parseInt(match[1], 10);
-          if (num > maxNum) maxNum = num;
-        }
-      }
-      id = `NOTE-${(maxNum + 1).toString().padStart(3, '0')}`;
-    }
+    const id = req.body.id && typeof req.body.id === 'string' ? req.body.id : generateEntityId('NOTE');
 
     const { title, content = '', filename = null } = req.body;
     const now = new Date().toISOString();
@@ -109,7 +98,6 @@ router.patch('/notes/:id', async (req: Request, res: Response) => {
       return res.json(toNoteDTO(existing.rows[0]));
     }
 
-    // Always bump updated_at on modification
     params.push(new Date().toISOString());
     updates.push(`updated_at = $${params.length}`);
 

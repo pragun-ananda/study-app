@@ -211,6 +211,10 @@ describe('Integration: Topics REST API (/api/topics)', () => {
 
       const resCoords = await request(app).patch('/api/topics/TOPIC-001').send({ coordinates: [1, 2] });
       expect(resCoords.status).toBe(400);
+
+      const resDate = await request(app).patch('/api/topics/TOPIC-001').send({ lastReviewed: 'not-a-valid-date' });
+      expect(resDate.status).toBe(400);
+      expect(resDate.body.error).toContain('lastReviewed must be a valid ISO date string');
     });
 
     it('returns 404 when patching non-existent topic', async () => {
