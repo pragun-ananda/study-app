@@ -23,7 +23,7 @@ if [ -n "${DATABASE_URL:-}" ] || command -v psql >/dev/null 2>&1; then
     echo "-> Validating schema against live PostgreSQL..."
     PG_CONN="${DATABASE_URL:-postgresql://postgres:postgres@localhost:5432/study_app_test}"
     if psql "${PG_CONN}" -c "SELECT 1" >/dev/null 2>&1; then
-        psql "${PG_CONN}" -f "${SCHEMA_FILE}"
+        psql "${PG_CONN}" -v ON_ERROR_STOP=1 -f "${SCHEMA_FILE}"
         echo "-> Live PostgreSQL schema initialization verified successfully!"
     else
         echo "-> Notice: Live PostgreSQL instance not reachable at ${PG_CONN}; in-memory verification passed."
