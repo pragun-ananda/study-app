@@ -86,10 +86,12 @@ describe('NoteViewerModal Component', () => {
     const saveButton = screen.getByText('SAVE NOTE');
     fireEvent.click(saveButton);
 
-    const topic = useStore.getState().topicNodes.find((n) => n.id === targetTopic.id);
-    const added = topic?.notes?.find((n) => n.title === 'New Test Note');
-    expect(added).toBeDefined();
-    expect(added?.content).toBe('Body of the new test note.');
+    await waitFor(() => {
+      const topic = useStore.getState().topicNodes.find((n) => n.id === targetTopic.id);
+      const added = topic?.notes?.find((n) => n.title === 'New Test Note');
+      expect(added).toBeDefined();
+      expect(added?.content).toBe('Body of the new test note.');
+    });
   });
 
   it('updates an existing note in topic and persists changes on save', async () => {
@@ -106,9 +108,11 @@ describe('NoteViewerModal Component', () => {
     const saveButton = screen.getByText('SAVE NOTE');
     fireEvent.click(saveButton);
 
-    const topic = useStore.getState().topicNodes.find((n) => n.id === targetTopic.id);
-    const updated = topic?.notes?.find((n) => n.id === existingNote.id);
-    expect(updated?.title).toBe('Modified Existing Note');
+    await waitFor(() => {
+      const topic = useStore.getState().topicNodes.find((n) => n.id === targetTopic.id);
+      const updated = topic?.notes?.find((n) => n.id === existingNote.id);
+      expect(updated?.title).toBe('Modified Existing Note');
+    });
   });
 
   it('switches between WRITE and PREVIEW tabs in edit mode', async () => {
@@ -147,7 +151,7 @@ describe('NoteViewerModal Component', () => {
       fireEvent.click(deleteBtn);
 
       expect(confirmSpy).toHaveBeenCalledWith('Are you sure you want to delete this note?');
-      expect(useStore.getState().activeNote).toBeNull();
+      await waitFor(() => expect(useStore.getState().activeNote).toBeNull());
     }
     confirmSpy.mockRestore();
   });

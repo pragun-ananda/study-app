@@ -12,13 +12,13 @@ export function createApp(): Express {
   app.use(cors());
   app.use(express.json());
 
-  // Health Check
-  const startTime = Date.now();
+  // GET /health - Service health and liveness probe
   app.get('/health', (_req: Request, res: Response) => {
     res.json({
       status: 'ok',
-      uptime: Number(((Date.now() - startTime) / 1000).toFixed(2)),
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      uptime: Number(process.uptime().toFixed(2)),
+      environment: process.env.NODE_ENV || 'development'
     });
   });
 

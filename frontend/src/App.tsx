@@ -6,6 +6,7 @@ import { useStore } from './store/useStore';
 export default function App() {
   useEffect(() => {
     document.title = 'Knowledge Graph';
+    useStore.getState().loadInitialData();
   }, []);
 
   // Global Keyboard Shortcuts Listener

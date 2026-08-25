@@ -1,5 +1,11 @@
 export type SystemStatus = 'OPTIMAL' | 'DEGRADED' | 'OVERLOADED' | 'OFFLINE' | 'STANDBY';
 
+export type DomainCategory = 'CS' | 'AI & ML' | 'MATH' | 'PHYSICS' | 'SYSTEMS' | 'CYBERSECURITY' | 'ARCH';
+
+export type TopicStatus = 'DUE' | 'LEARNING' | 'MASTERED' | 'NEW';
+
+export type TodoPriority = 'HIGH' | 'MEDIUM' | 'LOW';
+
 export interface NoteItem {
   id: string;
   title: string;
@@ -12,9 +18,9 @@ export interface NoteItem {
 export interface TopicNode {
   id: string;
   name: string;
-  category: 'CS' | 'AI & ML' | 'MATH' | 'PHYSICS' | 'SYSTEMS' | 'CYBERSECURITY' | 'ARCH';
+  category: DomainCategory;
   mastery: number; // 0 - 100%
-  status: 'DUE' | 'LEARNING' | 'MASTERED' | 'NEW';
+  status: TopicStatus;
   lastReviewed: string;
   coordinates: [number, number, number];
   prerequisites: string[]; // Node IDs required BEFORE learning this topic (A -> X)
@@ -27,8 +33,8 @@ export interface StudyTodo {
   id: string;
   title: string;
   completed: boolean;
-  category: string;
-  priority: 'HIGH' | 'MEDIUM' | 'LOW';
+  category: DomainCategory;
+  priority: TodoPriority;
   dueDate: string;
   topicId?: string;
 }
@@ -52,6 +58,10 @@ export interface TelemetryState {
   activeNote: NoteItem | null;
   isNoteEditing: boolean;
   todos: StudyTodo[];
+
+  // Server Synchronization State
+  isLoading: boolean;
+  error: string | null;
 }
 
 export interface TelemetryActions {
@@ -67,25 +77,32 @@ export interface TelemetryActions {
   setSelectedCategory: (category: string | null) => void;
   setHoveredTopicId: (id: string | null) => void;
 
+  // Server Hydration & Direct State Injection
+  loadInitialData: () => Promise<void>;
+  fetchTopics: () => Promise<void>;
+  fetchTodos: () => Promise<void>;
+  hydrate: (topics: TopicNode[], todos: StudyTodo[]) => void;
+
   // Knowledge Graph Actions
   setSelectedTopicId: (id: string | null) => void;
   setIsInspectorOpen: (open: boolean) => void;
   setActiveNote: (note: NoteItem | null, isEditing?: boolean) => void;
   setIsNoteEditing: (isEditing: boolean) => void;
-  addNoteToTopic: (topicId: string, note: Omit<NoteItem, 'id'>) => void;
-  updateNoteInTopic: (topicId: string, note: NoteItem) => void;
-  deleteNoteFromTopic: (topicId: string, noteId: string) => void;
-  addTopicNode: (node: Omit<TopicNode, 'id'>) => void;
-  updateTopicMastery: (id: string, mastery: number) => void;
+  addNoteToTopic: (topicId: string, note: Omit<NoteItem, 'id'>) => Promise<NoteItem | void>;
+  updateNoteInTopic: (topicId: string, note: NoteItem) => Promise<NoteItem | void>;
+  deleteNoteFromTopic: (topicId: string, noteId: string) => Promise<void>;
+  addTopicNode: (node: Omit<TopicNode, 'id'>) => Promise<TopicNode | void>;
+  updateTopicMastery: (id: string, mastery: number) => Promise<void>;
+  addPrerequisiteEdge: (topicId: string, prerequisiteId: string) => Promise<void>;
+  removePrerequisiteEdge: (topicId: string, prerequisiteId: string) => Promise<void>;
 
   // To-Do List Actions
-  toggleTodo: (id: string) => void;
-  addTodo: (todo: Omit<StudyTodo, 'id'>) => void;
-  deleteTodo: (id: string) => void;
+  toggleTodo: (id: string) => Promise<void>;
+  addTodo: (todo: Omit<StudyTodo, 'id'>) => Promise<StudyTodo | void>;
+  deleteTodo: (id: string) => Promise<void>;
 
   // Reset Action
   resetState: () => void;
 }
 
 export type TelemetryStore = TelemetryState & TelemetryActions;
-

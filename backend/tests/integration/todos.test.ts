@@ -157,6 +157,27 @@ describe('Integration: Study Todos REST API (/api/todos)', () => {
       expect(unlinkRes.body.topicId).toBeUndefined();
     });
 
+    it('updates todo title, category, priority, and dueDate', async () => {
+      const res = await request(app).patch('/api/todos/TODO-001').send({
+        title: 'Updated Todo Title',
+        category: 'SYSTEMS',
+        priority: 'LOW',
+        dueDate: 'Next Week'
+      });
+
+      expect(res.status).toBe(200);
+      expect(res.body.title).toBe('Updated Todo Title');
+      expect(res.body.category).toBe('SYSTEMS');
+      expect(res.body.priority).toBe('LOW');
+      expect(res.body.dueDate).toBe('Next Week');
+    });
+
+    it('handles empty PATCH payload gracefully without altering todo', async () => {
+      const res = await request(app).patch('/api/todos/TODO-001').send({});
+      expect(res.status).toBe(200);
+      expect(res.body.id).toBe('TODO-001');
+    });
+
     it('rejects PATCH with non-existent topicId or invalid priority', async () => {
       const resInvalidTopic = await request(app).patch('/api/todos/TODO-001').send({ topicId: 'TOPIC-999' });
       expect(resInvalidTopic.status).toBe(400);
