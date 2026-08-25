@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { useStore, INITIAL_TOPICS } from '../../src/store/useStore';
-import { INITIAL_TODOS } from '../../src/data/test';
+import { useStore, INITIAL_TOPICS, INITIAL_TODOS, generateCosmosNodes } from '../../src/store/useStore';
 import * as api from '../../src/api/client';
 
 describe('Zustand State Store (useStore)', () => {
@@ -191,6 +190,47 @@ describe('Zustand State Store (useStore)', () => {
 
       expect(useStore.getState().todos.some((t) => t.id === todoToDelete.id)).toBe(false);
     });
+
+    it('rolls back only the affected todo item when deleteTodo fails', async () => {
+      const todos = useStore.getState().todos;
+      const firstTodo = todos[0];
+      const secondTodo = todos[1];
+
+      // Mock delete failure for firstTodo
+      const deleteSpy = vi.spyOn(api, 'deleteTodo').mockRejectedValueOnce(new Error('Network error on delete'));
+
+      await useStore.getState().deleteTodo(firstTodo.id);
+
+      // firstTodo should be restored without wiping out secondTodo
+      const currentTodos = useStore.getState().todos;
+      expect(currentTodos.some((t) => t.id === firstTodo.id)).toBe(true);
+      expect(currentTodos.some((t) => t.id === secondTodo.id)).toBe(true);
+      expect(useStore.getState().error).toBe('Network error on delete');
+
+      deleteSpy.mockRestore();
+    });
+  });
+
+  describe('Fallback Graph Reciprocal Consistency (generateCosmosNodes)', () => {
+    it('verifies all prerequisite relationships are reciprocally mirrored in unlocks', () => {
+      const nodes = generateCosmosNodes();
+
+      nodes.forEach((node) => {
+        // Every prerequisite must list this node in its unlocks array
+        node.prerequisites.forEach((prereqId) => {
+          const prereqNode = nodes.find((n) => n.id === prereqId);
+          expect(prereqNode).toBeDefined();
+          expect(prereqNode?.unlocks).toContain(node.id);
+        });
+
+        // Every unlock must list this node in its prerequisites array
+        node.unlocks.forEach((unlockId) => {
+          const unlockedNode = nodes.find((n) => n.id === unlockId);
+          expect(unlockedNode).toBeDefined();
+          expect(unlockedNode?.prerequisites).toContain(node.id);
+        });
+      });
+    });
   });
 
   describe('Prerequisites Graph Actions', () => {
@@ -232,6 +272,7 @@ describe('Zustand State Store (useStore)', () => {
 
     it('sets error when loadInitialData fails', async () => {
       const fetchTopicsSpy = vi.spyOn(api, 'fetchTopics').mockRejectedValueOnce(new Error('Connection refused'));
+      const fetchTodosSpy = vi.spyOn(api, 'fetchTodos').mockResolvedValueOnce([]);
 
       await useStore.getState().loadInitialData();
 
@@ -239,6 +280,7 @@ describe('Zustand State Store (useStore)', () => {
       expect(useStore.getState().error).toBe('Connection refused');
 
       fetchTopicsSpy.mockRestore();
+      fetchTodosSpy.mockRestore();
     });
   });
 

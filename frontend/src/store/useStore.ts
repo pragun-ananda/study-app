@@ -105,8 +105,14 @@ export function generateCosmosNodes(): TopicNode[] {
       if (rawTopic.prereqNames) {
         rawTopic.prereqNames.forEach((prereqName) => {
           const prereqId = nameToIdMap.get(prereqName);
-          if (prereqId && !node.prerequisites.includes(prereqId)) {
-            node.prerequisites.push(prereqId);
+          if (prereqId) {
+            if (!node.prerequisites.includes(prereqId)) {
+              node.prerequisites.push(prereqId);
+            }
+            const prereqNode = nodes.find((n) => n.id === prereqId);
+            if (prereqNode && !prereqNode.unlocks.includes(currentId)) {
+              prereqNode.unlocks.push(currentId);
+            }
           }
         });
       }
@@ -114,8 +120,14 @@ export function generateCosmosNodes(): TopicNode[] {
       if (rawTopic.unlockNames) {
         rawTopic.unlockNames.forEach((unlockName) => {
           const unlockId = nameToIdMap.get(unlockName);
-          if (unlockId && !node.unlocks.includes(unlockId)) {
-            node.unlocks.push(unlockId);
+          if (unlockId) {
+            if (!node.unlocks.includes(unlockId)) {
+              node.unlocks.push(unlockId);
+            }
+            const unlockedNode = nodes.find((n) => n.id === unlockId);
+            if (unlockedNode && !unlockedNode.prerequisites.includes(currentId)) {
+              unlockedNode.prerequisites.push(currentId);
+            }
           }
         });
       }
@@ -126,6 +138,7 @@ export function generateCosmosNodes(): TopicNode[] {
 }
 
 export const INITIAL_TOPICS = generateCosmosNodes();
+export { INITIAL_TODOS };
 
 export const INITIAL_STATE: TelemetryState = {
   systemStatus: 'OPTIMAL',
@@ -392,18 +405,27 @@ export const useStore = create<TelemetryStore>((set, get) => ({
   },
 
   deleteTodo: async (id: string) => {
-    const previous = get().todos;
+    const todoToDelete = get().todos.find((t) => t.id === id);
+    if (!todoToDelete) return;
+
     // 1. Optimistic delete
     set((state) => ({
       todos: state.todos.filter((t) => t.id !== id),
       error: null
     }));
 
-    // 2. Persist with rollback on failure
+    // 2. Persist with item-specific rollback on failure
     try {
       await api.deleteTodo(id);
     } catch (err: any) {
-      set({ todos: previous, error: err.message || 'Failed to delete todo' });
+      set((state) => {
+        // Only re-insert if it isn't already present
+        if (state.todos.some((t) => t.id === id)) return state;
+        return {
+          todos: [...state.todos, todoToDelete],
+          error: err.message || 'Failed to delete todo'
+        };
+      });
     }
   },
 
