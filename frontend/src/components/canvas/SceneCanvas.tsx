@@ -9,7 +9,6 @@ import { getCategoryShade } from '../../utils/theme';
 import { calculateConnectedGraph, ConnectedGraphResult } from '../../utils/graph';
 import PostProcessing from './PostProcessing';
 
-// TODO(FRO-9): Implement Playwright browser-based E2E test suite for Three.js WebGL canvas, OrbitControls camera swoops, and post-processing shaders.
 // Derive distinct incoming (lighter/warmer) and outgoing (richer/electric) edge highlight shades correlated to the active node's color
 const getIncomingEdgeColor = (activeColorHex: string): string => {
   const col = new THREE.Color(activeColorHex);

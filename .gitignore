@@ -15,7 +15,11 @@ dist/
 postgres_data/
 **/postgres_data/
 
-# Coverage
+# Coverage & Test Artifacts
 coverage/
 **/coverage/
+test-results/
+**/test-results/
+playwright-report/
+**/playwright-report/
 
