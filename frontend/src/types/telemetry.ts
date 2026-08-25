@@ -1,5 +1,11 @@
 export type SystemStatus = 'OPTIMAL' | 'DEGRADED' | 'OVERLOADED' | 'OFFLINE' | 'STANDBY';
 
+export type DomainCategory = 'CS' | 'AI & ML' | 'MATH' | 'PHYSICS' | 'SYSTEMS' | 'CYBERSECURITY' | 'ARCH';
+
+export type TopicStatus = 'DUE' | 'LEARNING' | 'MASTERED' | 'NEW';
+
+export type TodoPriority = 'HIGH' | 'MEDIUM' | 'LOW';
+
 export interface NoteItem {
   id: string;
   title: string;
@@ -12,9 +18,9 @@ export interface NoteItem {
 export interface TopicNode {
   id: string;
   name: string;
-  category: 'CS' | 'AI & ML' | 'MATH' | 'PHYSICS' | 'SYSTEMS' | 'CYBERSECURITY' | 'ARCH';
+  category: DomainCategory;
   mastery: number; // 0 - 100%
-  status: 'DUE' | 'LEARNING' | 'MASTERED' | 'NEW';
+  status: TopicStatus;
   lastReviewed: string;
   coordinates: [number, number, number];
   prerequisites: string[]; // Node IDs required BEFORE learning this topic (A -> X)
@@ -27,8 +33,8 @@ export interface StudyTodo {
   id: string;
   title: string;
   completed: boolean;
-  category: string;
-  priority: 'HIGH' | 'MEDIUM' | 'LOW';
+  category: DomainCategory;
+  priority: TodoPriority;
   dueDate: string;
   topicId?: string;
 }

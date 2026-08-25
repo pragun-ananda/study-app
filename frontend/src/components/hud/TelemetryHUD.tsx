@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import NoteViewerModal from './NoteViewerModal';
 import { useStore } from '../../store/useStore';
-import { TopicNode } from '../../types/telemetry';
+import { TopicNode, DomainCategory, TodoPriority } from '../../types/telemetry';
 import { DOMAIN_BASE_COLORS, getCategoryShade } from '../../utils/theme';
 import { getTopologicalPrerequisites } from '../../utils/graph';
 
@@ -49,8 +49,8 @@ export default function TelemetryHUD() {
   const [isSubgraphsOpen, setIsSubgraphsOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [newTodoTitle, setNewTodoTitle] = useState('');
-  const [newTodoCategory, setNewTodoCategory] = useState('AI & ML');
-  const [newTodoPriority, setNewTodoPriority] = useState<'HIGH' | 'MEDIUM' | 'LOW'>('HIGH');
+  const [newTodoCategory, setNewTodoCategory] = useState<DomainCategory>('AI & ML');
+  const [newTodoPriority, setNewTodoPriority] = useState<TodoPriority>('HIGH');
 
   const handleAddTodo = (e: React.FormEvent) => {
     e.preventDefault();

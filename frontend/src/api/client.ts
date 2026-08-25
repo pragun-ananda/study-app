@@ -24,6 +24,9 @@ export function setCustomFetch(fn: typeof fetch | null) {
 
 export function getApiBaseUrl(): string {
   if (customBaseUrl !== null) return customBaseUrl;
+  if (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_API_BASE_URL) {
+    return (import.meta as any).env.VITE_API_BASE_URL;
+  }
   if (typeof process !== 'undefined' && process.env?.VITE_API_BASE_URL) {
     return process.env.VITE_API_BASE_URL;
   }
@@ -87,7 +90,7 @@ export async function fetchTopicById(id: string): Promise<TopicNode> {
   return request<TopicNode>(`/api/topics/${encodeURIComponent(id)}`);
 }
 
-export async function createTopic(topic: Partial<TopicNode>): Promise<TopicNode> {
+export async function createTopic(topic: Partial<TopicNode> & { name: string; category?: TopicNode['category'] }): Promise<TopicNode> {
   return request<TopicNode>('/api/topics', {
     method: 'POST',
     body: JSON.stringify(topic)

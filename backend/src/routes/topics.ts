@@ -135,9 +135,9 @@ router.post('/', async (req: Request, res: Response) => {
       lastReviewed = null
     } = req.body;
 
-    const coordX = coordinates[0] ?? 0;
-    const coordY = coordinates[1] ?? 0;
-    const coordZ = coordinates[2] ?? 0;
+    const coordX = Number(coordinates[0] ?? 0);
+    const coordY = Number(coordinates[1] ?? 0);
+    const coordZ = Number(coordinates[2] ?? 0);
     const parsedLastReviewed = validateLastReviewed(lastReviewed).value;
 
     const insertResult = await query<TopicRow>(
