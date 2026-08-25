@@ -14,3 +14,8 @@ dist/
 # Database Data Volumes
 postgres_data/
 **/postgres_data/
+
+# Coverage
+coverage/
+**/coverage/
+
