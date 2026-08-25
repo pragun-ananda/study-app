@@ -99,7 +99,7 @@ describe('TelemetryHUD Component', () => {
     expect(useStore.getState().selectedTopicId).toBe(firstTopic.id);
   });
 
-  it('adds a new todo from the HUD task panel', () => {
+  it('adds a new todo from the HUD task panel', async () => {
     render(<TelemetryHUD />);
 
     // Expand sidebar
@@ -116,10 +116,12 @@ describe('TelemetryHUD Component', () => {
     // Submit form by triggering submit on input's form
     fireEvent.submit(input.closest('form')!);
 
-    expect(useStore.getState().todos.some((t) => t.title === 'Review Vector Embeddings')).toBe(true);
+    await waitFor(() => {
+      expect(useStore.getState().todos.some((t) => t.title === 'Review Vector Embeddings')).toBe(true);
+    });
   });
 
-  it('toggles task completion and deletes tasks from HUD', () => {
+  it('toggles task completion and deletes tasks from HUD', async () => {
     render(<TelemetryHUD />);
 
     // Expand sidebar and go to TASKS
@@ -135,7 +137,9 @@ describe('TelemetryHUD Component', () => {
     const checkboxBtn = todoCard?.parentElement?.querySelector('button');
     if (checkboxBtn) fireEvent.click(checkboxBtn);
 
-    expect(useStore.getState().todos.find((t) => t.id === firstTodo.id)?.completed).toBe(!initialCompleted);
+    await waitFor(() => {
+      expect(useStore.getState().todos.find((t) => t.id === firstTodo.id)?.completed).toBe(!initialCompleted);
+    });
   });
 
   it('renders inspector card and increments mastery when recall button is clicked', () => {
