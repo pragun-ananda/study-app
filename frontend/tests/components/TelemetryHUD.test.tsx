@@ -150,7 +150,7 @@ describe('TelemetryHUD Component', () => {
 
     render(<TelemetryHUD />);
 
-    expect(screen.getAllByText(new RegExp(topic.name, 'i')).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(new RegExp(topic.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i')).length).toBeGreaterThan(0);
     expect(screen.getByText('CATEGORY')).toBeInTheDocument();
     expect(screen.getByText(topic.category)).toBeInTheDocument();
 

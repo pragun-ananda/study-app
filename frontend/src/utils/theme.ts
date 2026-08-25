@@ -1,18 +1,18 @@
 import * as THREE from 'three';
 
 export const DOMAIN_BASE_COLORS: Record<string, string> = {
-  'AI & ML': '#00f0ff',       // Laser Cyan
-  'CS': '#ff007f',            // Neon Hot Pink
-  'SYSTEMS': '#a855f7',       // Synapse Purple
-  'MATH': '#ffd600',          // Overclock Laser Yellow
-  'PHYSICS': '#00ff66',       // Tritium Green
-  'CYBERSECURITY': '#ff1744', // Hazard Plasma Red
-  'ARCH': '#0088ff'           // Ion Engine Blue
+  'MATH': '#facc15',          // Solar Sunlight Gold
+  'ARCH': '#fb923c',          // Sunburst Amber
+  'PHYSICS': '#f59e0b',       // Molten Topaz
+  'SYSTEMS': '#ea580c',       // Copper Orange
+  'CS': '#ef4444',            // Mars Crimson
+  'AI & ML': '#f43f5e',       // Solar Prominence Rose
+  'CYBERSECURITY': '#e11d48'  // Corona Ruby
 };
 
 
 export const getCategoryShade = (id: string, category: string): string => {
-  const baseColorHex = DOMAIN_BASE_COLORS[category] || '#00f0ff';
+  const baseColorHex = DOMAIN_BASE_COLORS[category] || '#f59e0b';
   const color = new THREE.Color(baseColorHex);
 
   let hash = 0;
