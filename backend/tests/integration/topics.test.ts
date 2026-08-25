@@ -190,6 +190,19 @@ describe('Integration: Topics REST API (/api/topics)', () => {
       expect(res.body.lastReviewed).toBe('2026-08-24T12:00:00.000Z');
     });
 
+    it('updates topic name, category, and coordinates', async () => {
+      const res = await request(app).patch('/api/topics/TOPIC-002').send({
+        name: 'Transformer Architecture & Attention',
+        category: 'SYSTEMS',
+        coordinates: [15.2, -4.5, 8.1]
+      });
+
+      expect(res.status).toBe(200);
+      expect(res.body.name).toBe('Transformer Architecture & Attention');
+      expect(res.body.category).toBe('SYSTEMS');
+      expect(res.body.coordinates).toEqual([15.2, -4.5, 8.1]);
+    });
+
     it('handles empty PATCH body gracefully without modifying topic', async () => {
       const res = await request(app).patch('/api/topics/TOPIC-001').send({});
       expect(res.status).toBe(200);

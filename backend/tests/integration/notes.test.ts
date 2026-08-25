@@ -127,6 +127,20 @@ describe('Integration: Notes REST API (/api/topics/:id/notes & /api/notes)', () 
       expect(res.body.updatedAt).toBeDefined();
     });
 
+    it('updates note filename and handles empty update payload', async () => {
+      const resFilename = await request(app)
+        .patch('/api/notes/NOTE-001')
+        .send({ filename: 'new_filename.md' });
+      expect(resFilename.status).toBe(200);
+      expect(resFilename.body.filename).toBe('new_filename.md');
+
+      const resEmpty = await request(app)
+        .patch('/api/notes/NOTE-001')
+        .send({});
+      expect(resEmpty.status).toBe(200);
+      expect(resEmpty.body.id).toBe('NOTE-001');
+    });
+
     it('rejects PATCH with empty title', async () => {
       const res = await request(app)
         .patch('/api/notes/NOTE-001')
