@@ -33,8 +33,8 @@ describe('Perfect Geometric Sphere Layout (generateCelestialPlanetNodes)', () =>
     expect(edgeCount).toBeGreaterThan(50);
   });
 
-  it('maintains collision-free separation between all node pairs (min distance >= 2.5)', () => {
-    const MIN_DISTANCE_THRESHOLD = 2.5;
+  it('maintains collision-free separation between all node pairs (min distance >= 3.2)', () => {
+    const MIN_DISTANCE_THRESHOLD = 3.2;
     for (let i = 0; i < nodes.length; i++) {
       for (let j = i + 1; j < nodes.length; j++) {
         const [x1, y1, z1] = nodes[i].coordinates;

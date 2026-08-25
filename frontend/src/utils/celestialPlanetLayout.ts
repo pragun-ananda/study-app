@@ -12,61 +12,58 @@ export function generateCelestialPlanetNodes(): TopicNode[] {
   let idCounter = 1;
 
   const SPHERE_RADIUS = 18.0;
-
-  const categorySectorMap: Record<DomainCategory, number> = {
-    'MATH': 0,          // North Polar Cap
-    'ARCH': 1,          // Equatorial Wedge 0
-    'CS': 2,            // Equatorial Wedge 1
-    'PHYSICS': 3,       // Equatorial Wedge 2
-    'SYSTEMS': 4,       // Equatorial Wedge 3
-    'AI & ML': 5,       // Equatorial Wedge 4
-    'CYBERSECURITY': 6  // South Polar Cap
-  };
-
+  const totalCount = 187;
   const goldenAngle = Math.PI * (3 - Math.sqrt(5)); // ~2.399963 rad (137.5 deg)
 
-  // 2. Map topics directly into 7 contiguous spherical continental sectors in DOMAIN_DATA order
+  // 1. Generate 187 mathematically uniform Fibonacci Spherical Lattice points
+  // Guaranteed equidistant packing across the entire spherical surface with zero arbitrary gaps
+  const uniformLatticePoints: {
+    id: number;
+    coord: [number, number, number];
+    assigned: boolean;
+  }[] = [];
+
+  for (let i = 0; i < totalCount; i++) {
+    const yNorm = 1 - (2 * (i + 0.5)) / totalCount;
+    const rAtY = Math.sqrt(Math.max(0, 1 - yNorm * yNorm));
+    const theta = i * goldenAngle;
+
+    const x = rAtY * Math.cos(theta) * SPHERE_RADIUS;
+    const y = yNorm * SPHERE_RADIUS;
+    const z = rAtY * Math.sin(theta) * SPHERE_RADIUS;
+
+    uniformLatticePoints.push({ id: i, coord: [x, y, z], assigned: false });
+  }
+
+  // 2. Separate points into North Polar Cap (MATH: 31), South Polar Cap (CYBERSECURITY: 18), and Equatorial Band (138)
+  const northPoints = uniformLatticePoints.slice(0, 31); // 31 points (MATH)
+  const southPoints = uniformLatticePoints.slice(187 - 18, 187); // 18 points (CYBERSECURITY)
+  const equatorialPoints = uniformLatticePoints.slice(31, 187 - 18); // 138 points
+
+  // Sort equatorial points strictly by azimuthal angle theta in [-PI, PI)
+  equatorialPoints.sort((a, b) => {
+    const thetaA = Math.atan2(a.coord[2], a.coord[0]);
+    const thetaB = Math.atan2(b.coord[2], b.coord[0]);
+    return thetaA - thetaB;
+  });
+
+  const categoryBuckets: Record<DomainCategory, (typeof uniformLatticePoints)[0][]> = {
+    'MATH': northPoints,
+    'ARCH': equatorialPoints.slice(0, 12),          // 12 points
+    'CS': equatorialPoints.slice(12, 45),           // 33 points
+    'PHYSICS': equatorialPoints.slice(45, 74),      // 29 points
+    'SYSTEMS': equatorialPoints.slice(74, 105),     // 31 points
+    'AI & ML': equatorialPoints.slice(105, 138),    // 33 points
+    'CYBERSECURITY': southPoints                   // 18 points
+  };
+
+  // 3. Assign in DOMAIN_DATA order to guarantee exact topic ID preservation
   DOMAIN_DATA.forEach((group) => {
     const cat = group.category as DomainCategory;
-    const sIdx = categorySectorMap[cat] ?? 1;
-    const topics = group.topics;
-    const N = topics.length;
+    const assignedPoints = categoryBuckets[cat];
 
-    topics.forEach((topic, k) => {
-      let x = 0, y = 0, z = 0;
-
-      if (sIdx === 0) {
-        // MATH: North Polar Cap
-        const yNorm = 1 - (0.42 * (k + 0.5)) / N;
-        const rAtY = Math.sqrt(Math.max(0, 1 - yNorm * yNorm));
-        const theta = k * goldenAngle;
-        x = rAtY * Math.cos(theta) * SPHERE_RADIUS;
-        y = yNorm * SPHERE_RADIUS;
-        z = rAtY * Math.sin(theta) * SPHERE_RADIUS;
-      } else if (sIdx === 6) {
-        // CYBERSECURITY: South Polar Cap
-        const yNorm = -1 + (0.42 * (k + 0.5)) / N;
-        const rAtY = Math.sqrt(Math.max(0, 1 - yNorm * yNorm));
-        const theta = k * goldenAngle;
-        x = rAtY * Math.cos(theta) * SPHERE_RADIUS;
-        y = yNorm * SPHERE_RADIUS;
-        z = rAtY * Math.sin(theta) * SPHERE_RADIUS;
-      } else {
-        // Equatorial Sectors (ARCH, CS, PHYSICS, SYSTEMS, AI & ML)
-        const eqIdx = sIdx - 1; // 0 to 4
-        const wedgeWidth = (2 * Math.PI) / 5;
-        const baseTheta = eqIdx * wedgeWidth;
-
-        const yNorm = 0.55 - (1.10 * (k + 0.5)) / N;
-        const rAtY = Math.sqrt(Math.max(0, 1 - yNorm * yNorm));
-        const subFrac = ((k * goldenAngle) / (2 * Math.PI)) % 1.0;
-        const theta = baseTheta + (subFrac < 0 ? subFrac + 1.0 : subFrac) * (wedgeWidth * 0.88) + wedgeWidth * 0.06;
-
-        x = rAtY * Math.cos(theta) * SPHERE_RADIUS;
-        y = yNorm * SPHERE_RADIUS;
-        z = rAtY * Math.sin(theta) * SPHERE_RADIUS;
-      }
-
+    group.topics.forEach((topic, k) => {
+      const point = assignedPoints[k];
       const id = `TOPIC-${idCounter.toString().padStart(3, '0')}`;
       idCounter++;
       nameToIdMap.set(topic.name, id);
@@ -84,7 +81,7 @@ export function generateCelestialPlanetNodes(): TopicNode[] {
         mastery,
         status,
         lastReviewed: timeAgo,
-        coordinates: [Number(x.toFixed(2)), Number(y.toFixed(2)), Number(z.toFixed(2))],
+        coordinates: [Number(point.coord[0].toFixed(2)), Number(point.coord[1].toFixed(2)), Number(point.coord[2].toFixed(2))],
         prerequisites: [],
         unlocks: [],
         summary: topic.summary,
@@ -93,9 +90,9 @@ export function generateCelestialPlanetNodes(): TopicNode[] {
     });
   });
 
-  // 5. Spherical Surface Force-Directed Smoothing (maintains strict global spherical manifold and spacing)
-  const MIN_DIST = 3.2;
-  for (let pass = 0; pass < 45; pass++) {
+  // 4. Uniform Spherical Surface Force-Directed Relaxation
+  const MIN_DIST = 3.4;
+  for (let pass = 0; pass < 40; pass++) {
     for (let i = 0; i < nodes.length; i++) {
       for (let j = i + 1; j < nodes.length; j++) {
         const n1 = nodes[i];
