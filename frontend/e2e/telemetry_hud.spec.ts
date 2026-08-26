@@ -25,12 +25,12 @@ test.describe('Telemetry HUD & User Controls (FRO-9)', () => {
     await searchInput.fill('Raft');
 
     // Matching topic card in search/sidebar appears
-    const raftNode = page.locator('.overflow-y-auto').getByText('Distributed Consensus (Raft)').first();
+    const raftNode = page.getByTestId('sidebar-topic-card').filter({ hasText: 'Distributed Consensus (Raft)' }).first();
     await expect(raftNode).toBeVisible();
     await raftNode.click();
 
     // Verify Floating EXPLORE action button appears on bottom right
-    const exploreBtn = page.locator('button:has-text("EXPLORE:")');
+    const exploreBtn = page.getByTestId('explore-topic-btn');
     await expect(exploreBtn).toBeVisible();
     await exploreBtn.click();
 
