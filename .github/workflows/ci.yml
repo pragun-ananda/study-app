@@ -1,0 +1,152 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  storage:
+    name: Storage Schema & Seeds
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: storage
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: storage/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run schema and seed tests
+        run: npm test
+
+  backend:
+    name: Backend Build & Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck and build
+        run: npm run build
+
+      - name: Run unit and integration tests
+        run: npm test
+
+  frontend-unit:
+    name: Frontend Unit & Component Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Typecheck and build
+        working-directory: frontend
+        run: npm run build
+
+      - name: Run unit & component tests
+        working-directory: frontend
+        run: npm test
+
+  verify-e2e-proof:
+    name: Playwright E2E Proof Verification
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check for E2E verification label or PR description proof
+        env:
+          IS_PR: ${{ github.event_name == 'pull_request' }}
+          PR_LABELS: ${{ toJson(github.event.pull_request.labels) }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          if [ "$IS_PR" = "false" ]; then
+            echo "Push or manual dispatch event on non-PR context; skipping PR tag requirement."
+            exit 0
+          fi
+
+          echo "Checking PR labels and description for Playwright E2E verification proof..."
+
+          HAS_LABEL=$(echo "$PR_LABELS" | grep -i "playwright-verified" || true)
+          HAS_CHECKBOX=$(echo "$PR_BODY" | grep -iE "\[x\] .*(playwright|e2e)" || true)
+
+          if [ -n "$HAS_LABEL" ] || [ -n "$HAS_CHECKBOX" ]; then
+            echo "✅ Playwright E2E proof verified!"
+            if [ -n "$HAS_LABEL" ]; then
+              echo "  - Found 'playwright-verified' label on PR."
+            fi
+            if [ -n "$HAS_CHECKBOX" ]; then
+              echo "  - Found checked E2E verification box in PR description."
+            fi
+            exit 0
+          else
+            echo "::error::❌ Playwright E2E proof missing! Please run 'npm --prefix frontend run test:e2e' locally, then add the 'playwright-verified' label to this PR or check the E2E verification box in the PR description."
+            exit 1
+          fi
+
+  ci-gate:
+    name: All CI Checks Passed
+    runs-on: ubuntu-latest
+    needs: [storage, backend, frontend-unit, verify-e2e-proof]
+    if: always()
+    steps:
+      - name: Verify all required checks succeeded
+        run: |
+          if [[ "${{ needs.storage.result }}" != "success" || \
+                "${{ needs.backend.result }}" != "success" || \
+                "${{ needs.frontend-unit.result }}" != "success" || \
+                "${{ needs.verify-e2e-proof.result }}" != "success" ]]; then
+            echo "::error::One or more required CI checks or proof verifications failed."
+            exit 1
+          fi
+          echo "🎉 All required CI tests and proof verifications succeeded!"

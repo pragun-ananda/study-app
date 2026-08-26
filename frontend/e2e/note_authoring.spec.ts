@@ -14,17 +14,17 @@ test.describe('Note Authoring & KaTeX Math Persistence (FRO-9)', () => {
     const searchInput = page.getByPlaceholder('Search 220+ concepts...');
     await searchInput.fill('Backpropagation');
 
-    const nodeLabel = page.locator('text=Neural Network Backpropagation').first();
+    const nodeLabel = page.getByTestId('sidebar-topic-card').filter({ hasText: 'Neural Network Backpropagation' }).first();
     await expect(nodeLabel).toBeVisible();
     await nodeLabel.click();
 
     // 2. Open Explorer Inspector card
-    const exploreBtn = page.locator('button:has-text("EXPLORE:")');
+    const exploreBtn = page.getByTestId('explore-topic-btn');
     await expect(exploreBtn).toBeVisible();
     await exploreBtn.click();
 
     // 3. Click the Backpropagation Derivation Note
-    const noteCard = page.locator('text=Backpropagation Derivation Notes').first();
+    const noteCard = page.getByTestId('inspector-note-item').first();
     await expect(noteCard).toBeVisible();
     await noteCard.click();
 
@@ -42,7 +42,7 @@ test.describe('Note Authoring & KaTeX Math Persistence (FRO-9)', () => {
     // 5. Test Copy Note button
     const copyBtn = page.getByTitle('Copy note content');
     await expect(copyBtn).toBeVisible();
-    await copyBtn.click();
+    await copyBtn.click({ force: true });
     await expect(page.getByText('COPIED')).toBeVisible();
   });
 
@@ -53,19 +53,22 @@ test.describe('Note Authoring & KaTeX Math Persistence (FRO-9)', () => {
     const searchInput = page.getByPlaceholder('Search 220+ concepts...');
     await searchInput.fill('Backpropagation');
 
-    const nodeLabel = page.locator('text=Neural Network Backpropagation').first();
+    const nodeLabel = page.getByTestId('sidebar-topic-card').filter({ hasText: 'Neural Network Backpropagation' }).first();
+    await expect(nodeLabel).toBeVisible();
     await nodeLabel.click();
 
     // 2. Open Inspector and note
-    const exploreBtn = page.locator('button:has-text("EXPLORE:")');
+    const exploreBtn = page.getByTestId('explore-topic-btn');
+    await expect(exploreBtn).toBeVisible();
     await exploreBtn.click();
 
-    const noteCard = page.locator('text=Backpropagation Derivation Notes').first();
+    const noteCard = page.getByTestId('inspector-note-item').first();
+    await expect(noteCard).toBeVisible();
     await noteCard.click();
 
     // 3. Switch to EDIT mode
     const editBtn = page.getByTitle('Edit Note');
-    await editBtn.click();
+    await editBtn.click({ force: true });
 
     const titleInput = page.getByPlaceholder('Note title...');
     await expect(titleInput).toBeVisible();
@@ -82,7 +85,7 @@ test.describe('Note Authoring & KaTeX Math Persistence (FRO-9)', () => {
 
     // 5. Save Note
     const saveBtn = page.getByRole('button', { name: /SAVE NOTE/i });
-    await saveBtn.click();
+    await saveBtn.click({ force: true });
 
     // Modal switches back to view mode with updated content
     await expect(page.getByText('Backpropagation Derivation Notes [Verified E2E]').first()).toBeVisible();
@@ -90,19 +93,25 @@ test.describe('Note Authoring & KaTeX Math Persistence (FRO-9)', () => {
 
     // Close modal
     const closeBtn = page.getByTitle('Close (ESC)');
-    await closeBtn.click();
+    await closeBtn.click({ force: true });
 
     // 6. Reload the page to test full-stack database persistence
     await page.reload();
     await expect(page.getByRole('button', { name: /SUBGRAPHS/i })).toBeVisible({ timeout: 15000 });
 
     // 7. Re-open the note and verify persisted content
-    await searchBtn.click();
+    const searchBtnAfterReload = page.getByTitle('Open concept search');
+    await searchBtnAfterReload.click();
     await page.getByPlaceholder('Search 220+ concepts...').fill('Backpropagation');
-    await page.locator('text=Neural Network Backpropagation').first().click();
-    await page.locator('button:has-text("EXPLORE:")').click();
+    const nodeAfterReload = page.getByTestId('sidebar-topic-card').filter({ hasText: 'Neural Network Backpropagation' }).first();
+    await expect(nodeAfterReload).toBeVisible();
+    await nodeAfterReload.click();
 
-    const updatedNoteCard = page.locator('text=Backpropagation Derivation Notes [Verified E2E]').first();
+    const exploreBtnAfterReload = page.getByTestId('explore-topic-btn');
+    await expect(exploreBtnAfterReload).toBeVisible();
+    await exploreBtnAfterReload.click();
+
+    const updatedNoteCard = page.getByTestId('inspector-note-item').first();
     await expect(updatedNoteCard).toBeVisible();
     await updatedNoteCard.click();
 

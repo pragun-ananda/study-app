@@ -22,7 +22,9 @@ export default defineConfig({
         '--enable-webgl',
         '--use-gl=angle',
         '--ignore-gpu-blocklist',
-        '--enable-gpu-rasterization'
+        '--enable-gpu-rasterization',
+        '--disable-dev-shm-usage',
+        '--no-sandbox'
       ]
     }
   },

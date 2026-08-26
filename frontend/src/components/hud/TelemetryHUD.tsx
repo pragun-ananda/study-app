@@ -302,6 +302,7 @@ export default function TelemetryHUD() {
                     {filteredTopics.map((topic) => (
                       <div
                         key={topic.id}
+                        data-testid="sidebar-topic-card"
                         onClick={() => setSelectedTopicId(topic.id)}
                         className={`p-2.5 rounded-lg border text-xs cursor-pointer transition-all ${
                           selectedTopicId === topic.id
@@ -366,6 +367,7 @@ export default function TelemetryHUD() {
                     {todos.map((todo) => (
                       <div
                         key={todo.id}
+                        data-testid="sidebar-todo-item"
                         className={`p-2.5 rounded-lg border text-xs transition-all flex items-start justify-between gap-2 ${
                           todo.completed
                             ? 'bg-slate-950/30 border-white/5 opacity-60'
@@ -374,6 +376,7 @@ export default function TelemetryHUD() {
                       >
                         <div className="flex items-start gap-2 flex-1">
                           <button
+                            type="button"
                             onClick={() => toggleTodo(todo.id)}
                             className="mt-0.5 text-slate-400 hover:text-[#00f0ff] transition-colors"
                           >
@@ -433,6 +436,7 @@ export default function TelemetryHUD() {
               className="pointer-events-auto fixed bottom-6 right-6 z-30"
             >
               <button
+                data-testid="explore-topic-btn"
                 onClick={() => setIsInspectorOpen(true)}
                 style={{
                   borderColor: selectedNodeColor,
@@ -568,6 +572,7 @@ export default function TelemetryHUD() {
                       selectedNode.notes.map((note) => (
                         <div
                           key={note.id}
+                          data-testid="inspector-note-item"
                           onClick={() => setActiveNote(note)}
                           style={{
                             borderColor: `${selectedNodeColor}40`
