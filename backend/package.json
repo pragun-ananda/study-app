@@ -2,6 +2,7 @@
   "name": "study-app-backend",
   "version": "1.0.0",
   "description": "Minimal TypeScript backend server exposing REST APIs for knowledge graph topics, notes, prerequisites, and study todos",
+  "type": "module",
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
