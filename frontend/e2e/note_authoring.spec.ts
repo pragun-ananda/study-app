@@ -97,14 +97,15 @@ test.describe('Note Authoring & KaTeX Math Persistence (FRO-9)', () => {
     await expect(page.getByRole('button', { name: /SUBGRAPHS/i })).toBeVisible({ timeout: 15000 });
 
     // 7. Re-open the note and verify persisted content
-    await searchBtn.click();
+    const searchBtnAfterReload = page.getByTitle('Open concept search');
+    await searchBtnAfterReload.click();
     await page.getByPlaceholder('Search 220+ concepts...').fill('Backpropagation');
-    await page.locator('text=Neural Network Backpropagation').first().click({ force: true });
-    await page.locator('button:has-text("EXPLORE:")').click({ force: true });
+    await page.getByText('Neural Network Backpropagation').first().click();
+    await page.locator('button:has-text("EXPLORE:")').click();
 
-    const updatedNoteCard = page.locator('text=Backpropagation Derivation Notes [Verified E2E]').first();
+    const updatedNoteCard = page.getByText('Backpropagation Derivation Notes [Verified E2E]').first();
     await expect(updatedNoteCard).toBeVisible();
-    await updatedNoteCard.click({ force: true });
+    await updatedNoteCard.click();
 
     await expect(page.getByText('Updated via automated Playwright E2E full-stack test.').first()).toBeVisible();
   });
