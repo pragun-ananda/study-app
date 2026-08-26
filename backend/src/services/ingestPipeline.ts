@@ -142,7 +142,7 @@ export async function cleanFetchedContentStep(
 ): Promise<CleanContentResult> {
   return {
     cleanedContent: rawContent,
-    cleanedLength: rawContent.length
+    cleanedLength: Buffer.byteLength(rawContent, 'utf8')
   };
 }
 

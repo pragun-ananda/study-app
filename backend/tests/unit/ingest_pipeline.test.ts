@@ -162,11 +162,17 @@ describe("Unit: Ingestion Pipeline Service (src/services/ingestPipeline.ts)", ()
   });
 
   describe("Pipeline Sub-Steps (Clean, Extract, Generate, Review, Queue)", () => {
-    it("cleanFetchedContentStep returns raw content as no-op placeholder", async () => {
-      const input = "<h1>Article</h1>";
-      const result = await cleanFetchedContentStep(input);
-      expect(result.cleanedContent).toBe(input);
-      expect(result.cleanedLength).toBe(input.length);
+    it("cleanFetchedContentStep returns raw content as no-op placeholder and calculates UTF-8 byte length", async () => {
+      const asciiInput = "<h1>Article</h1>";
+      const asciiResult = await cleanFetchedContentStep(asciiInput);
+      expect(asciiResult.cleanedContent).toBe(asciiInput);
+      expect(asciiResult.cleanedLength).toBe(Buffer.byteLength(asciiInput, "utf8"));
+
+      const multiByteInput = "<h1>Neural 神经网络 ∇ ∫ 🚀</h1>";
+      const multiByteResult = await cleanFetchedContentStep(multiByteInput);
+      expect(multiByteResult.cleanedContent).toBe(multiByteInput);
+      expect(multiByteResult.cleanedLength).toBe(Buffer.byteLength(multiByteInput, "utf8"));
+      expect(multiByteResult.cleanedLength).toBeGreaterThan(multiByteInput.length);
     });
 
     it("extractTopicsStep returns empty topics list", async () => {
