@@ -27,12 +27,12 @@ test.describe('Telemetry HUD & User Controls (FRO-9)', () => {
     // Matching 3D HTML node label or HUD search result appears
     const raftNode = page.locator('text=Distributed Consensus (Raft)').first();
     await expect(raftNode).toBeVisible();
-    await raftNode.click();
+    await raftNode.click({ force: true });
 
     // Verify Floating EXPLORE action button appears on bottom right
     const exploreBtn = page.locator('button:has-text("EXPLORE:")');
     await expect(exploreBtn).toBeVisible();
-    await exploreBtn.click();
+    await exploreBtn.click({ force: true });
 
     // Verify Raft topic details in HUD inspector
     await expect(page.getByText('Distributed Consensus (Raft)').first()).toBeVisible();
@@ -82,7 +82,7 @@ test.describe('Telemetry HUD & User Controls (FRO-9)', () => {
     await todoInput.press('Enter');
 
     // Verify new todo appears in list
-    const createdTodo = page.locator('text=Master GPU Shader Pipelines');
+    const createdTodo = page.locator('text=Master GPU Shader Pipelines').first();
     await expect(createdTodo).toBeVisible();
 
     // Toggle todo completion

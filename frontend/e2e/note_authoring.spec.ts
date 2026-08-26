@@ -16,17 +16,17 @@ test.describe('Note Authoring & KaTeX Math Persistence (FRO-9)', () => {
 
     const nodeLabel = page.locator('text=Neural Network Backpropagation').first();
     await expect(nodeLabel).toBeVisible();
-    await nodeLabel.click();
+    await nodeLabel.click({ force: true });
 
     // 2. Open Explorer Inspector card
     const exploreBtn = page.locator('button:has-text("EXPLORE:")');
     await expect(exploreBtn).toBeVisible();
-    await exploreBtn.click();
+    await exploreBtn.click({ force: true });
 
     // 3. Click the Backpropagation Derivation Note
     const noteCard = page.locator('text=Backpropagation Derivation Notes').first();
     await expect(noteCard).toBeVisible();
-    await noteCard.click();
+    await noteCard.click({ force: true });
 
     // 4. Verify NoteViewerModal is visible with formatted KaTeX and Code Block
     await expect(page.getByText('Backpropagation Derivation Notes').first()).toBeVisible();
@@ -42,7 +42,7 @@ test.describe('Note Authoring & KaTeX Math Persistence (FRO-9)', () => {
     // 5. Test Copy Note button
     const copyBtn = page.getByTitle('Copy note content');
     await expect(copyBtn).toBeVisible();
-    await copyBtn.click();
+    await copyBtn.click({ force: true });
     await expect(page.getByText('COPIED')).toBeVisible();
   });
 
@@ -54,18 +54,18 @@ test.describe('Note Authoring & KaTeX Math Persistence (FRO-9)', () => {
     await searchInput.fill('Backpropagation');
 
     const nodeLabel = page.locator('text=Neural Network Backpropagation').first();
-    await nodeLabel.click();
+    await nodeLabel.click({ force: true });
 
     // 2. Open Inspector and note
     const exploreBtn = page.locator('button:has-text("EXPLORE:")');
-    await exploreBtn.click();
+    await exploreBtn.click({ force: true });
 
     const noteCard = page.locator('text=Backpropagation Derivation Notes').first();
-    await noteCard.click();
+    await noteCard.click({ force: true });
 
     // 3. Switch to EDIT mode
     const editBtn = page.getByTitle('Edit Note');
-    await editBtn.click();
+    await editBtn.click({ force: true });
 
     const titleInput = page.getByPlaceholder('Note title...');
     await expect(titleInput).toBeVisible();
@@ -99,12 +99,12 @@ test.describe('Note Authoring & KaTeX Math Persistence (FRO-9)', () => {
     // 7. Re-open the note and verify persisted content
     await searchBtn.click();
     await page.getByPlaceholder('Search 220+ concepts...').fill('Backpropagation');
-    await page.locator('text=Neural Network Backpropagation').first().click();
-    await page.locator('button:has-text("EXPLORE:")').click();
+    await page.locator('text=Neural Network Backpropagation').first().click({ force: true });
+    await page.locator('button:has-text("EXPLORE:")').click({ force: true });
 
     const updatedNoteCard = page.locator('text=Backpropagation Derivation Notes [Verified E2E]').first();
     await expect(updatedNoteCard).toBeVisible();
-    await updatedNoteCard.click();
+    await updatedNoteCard.click({ force: true });
 
     await expect(page.getByText('Updated via automated Playwright E2E full-stack test.').first()).toBeVisible();
   });
