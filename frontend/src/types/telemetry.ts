@@ -39,6 +39,39 @@ export interface StudyTodo {
   topicId?: string;
 }
 
+export type IngestPipelineStep =
+  | 'fetch_url'
+  | 'clean_content'
+  | 'extract_topics'
+  | 'generate_content'
+  | 'review_content'
+  | 'add_to_review_queue';
+
+export interface IngestRequestOptions {
+  timeoutMs?: number;
+}
+
+export interface IngestRequestPayload {
+  url: string;
+  options?: IngestRequestOptions;
+}
+
+export interface IngestPipelineResult {
+  status: 'success' | 'error';
+  url: string;
+  executedSteps: IngestPipelineStep[];
+  message: string;
+  details?: {
+    fetchStatus?: number;
+    contentLength?: number;
+    cleanedLength?: number;
+    extractedTopicsCount?: number;
+    generatedNotesCount?: number;
+    reviewPassed?: boolean;
+    queueId?: string | null;
+  };
+}
+
 export interface TelemetryState {
   // System State & Shaders
   systemStatus: SystemStatus;

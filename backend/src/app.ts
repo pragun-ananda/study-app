@@ -4,6 +4,7 @@ import topicsRouter from './routes/topics.js';
 import prerequisitesRouter from './routes/prerequisites.js';
 import notesRouter from './routes/notes.js';
 import todosRouter from './routes/todos.js';
+import ingestRouter from './routes/ingest.js';
 
 export function createApp(): Express {
   const app = express();
@@ -27,6 +28,8 @@ export function createApp(): Express {
   app.use('/api/topics', prerequisitesRouter);
   app.use('/api', notesRouter);
   app.use('/api/todos', todosRouter);
+  app.use('/api/ingest', ingestRouter);
+  app.use('/ingest', ingestRouter);
 
   // 404 Handler
   app.use((_req: Request, res: Response) => {

@@ -242,4 +242,32 @@ describe('Frontend API Client (src/api/client.ts)', () => {
       });
     });
   });
+
+  describe('Ingestion Pipeline API Endpoints (BAC-1 / BAC-2)', () => {
+    it('calls ingestFromUrl with payload and options', async () => {
+      const mockResponse = {
+        status: 'success',
+        url: 'https://example.com/article',
+        executedSteps: ['fetch_url', 'clean_content', 'extract_topics', 'generate_content', 'review_content', 'add_to_review_queue'],
+        message: 'Ingestion pipeline executed successfully',
+        details: { fetchStatus: 200, contentLength: 1024 }
+      };
+
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => mockResponse
+      });
+      setCustomFetch(mockFetch as any);
+
+      const result = await (await import('../../src/api/client')).ingestFromUrl('https://example.com/article', { timeoutMs: 3000 });
+      expect(result.status).toBe('success');
+      expect(result.executedSteps.length).toBe(6);
+      expect(mockFetch).toHaveBeenCalledWith('/api/ingest', {
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+        body: JSON.stringify({ url: 'https://example.com/article', options: { timeoutMs: 3000 } })
+      });
+    });
+  });
 });

@@ -88,3 +88,68 @@ export interface StudyTodoDTO {
   dueDate: string;
   createdAt?: string;
 }
+
+// Ingestion Pipeline Types (BAC-1 / BAC-2)
+export type IngestPipelineStep =
+  | 'fetch_url'
+  | 'clean_content'
+  | 'extract_topics'
+  | 'generate_content'
+  | 'review_content'
+  | 'add_to_review_queue';
+
+export interface IngestRequestOptions {
+  timeoutMs?: number;
+}
+
+export interface IngestRequestPayload {
+  url: string;
+  options?: IngestRequestOptions;
+}
+
+export interface FetchUrlResult {
+  content: string;
+  status: number;
+  contentType?: string;
+  contentLength: number;
+}
+
+export interface CleanContentResult {
+  cleanedContent: string;
+  cleanedLength: number;
+}
+
+export interface ExtractTopicsResult {
+  topics: Array<{ name: string; category?: DomainCategory; summary?: string }>;
+}
+
+export interface GenerateContentResult {
+  notes: Array<{ title: string; content?: string; topicName?: string }>;
+}
+
+export interface ReviewContentResult {
+  passed: boolean;
+  notes?: string;
+}
+
+export interface AddToReviewQueueResult {
+  queueId: string | null;
+  status: 'queued' | 'bypassed';
+}
+
+export interface IngestPipelineResult {
+  status: 'success' | 'error';
+  url: string;
+  executedSteps: IngestPipelineStep[];
+  message: string;
+  details: {
+    fetchStatus?: number;
+    contentLength?: number;
+    cleanedLength?: number;
+    extractedTopicsCount?: number;
+    generatedNotesCount?: number;
+    reviewPassed?: boolean;
+    queueId?: string | null;
+  };
+}
+
