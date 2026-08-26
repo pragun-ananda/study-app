@@ -11,6 +11,11 @@ import {
   AddToReviewQueueResult
 } from "../types.js";
 
+export const MAX_CONTENT_BYTES = 10 * 1024 * 1024; // 10 MB maximum payload size
+export const MIN_TIMEOUT_MS = 500;
+export const MAX_TIMEOUT_MS = 30000;
+export const DEFAULT_TIMEOUT_MS = 8000;
+
 export class IngestFetchError extends Error {
   constructor(
     public statusCode: number,
@@ -25,7 +30,7 @@ export class IngestFetchError extends Error {
 /**
  * Step 1: Fetch from URL (BAC-2)
  * Validates and retrieves raw content from a given HTTP/HTTPS URL.
- * Handles timeouts, unreachable hosts, and invalid URL protocols with clear error codes.
+ * Handles timeouts, unreachable hosts, large payloads, and invalid URL protocols with clear error codes.
  */
 export async function fetchUrlStep(
   rawUrl: string,
@@ -49,7 +54,11 @@ export async function fetchUrlStep(
     );
   }
 
-  const timeoutMs = options?.timeoutMs ?? 8000;
+  const rawTimeout = options?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const timeoutMs = Number.isFinite(rawTimeout)
+    ? Math.max(MIN_TIMEOUT_MS, Math.min(rawTimeout, MAX_TIMEOUT_MS))
+    : DEFAULT_TIMEOUT_MS;
+
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -62,8 +71,6 @@ export async function fetchUrlStep(
       }
     });
 
-    clearTimeout(timeoutId);
-
     if (!response.ok) {
       throw new IngestFetchError(
         response.status >= 500 ? 502 : response.status,
@@ -71,23 +78,42 @@ export async function fetchUrlStep(
       );
     }
 
+    // Check Content-Length header if available before buffering body
+    const contentLengthHeader = response.headers.get("content-length");
+    if (contentLengthHeader) {
+      const declaredLength = parseInt(contentLengthHeader, 10);
+      if (!isNaN(declaredLength) && declaredLength > MAX_CONTENT_BYTES) {
+        throw new IngestFetchError(
+          413,
+          `Content length (${declaredLength} bytes) exceeds maximum allowable limit of ${MAX_CONTENT_BYTES} bytes`
+        );
+      }
+    }
+
     const contentType = response.headers.get("content-type") || undefined;
     const content = await response.text();
+
+    const actualByteLength = Buffer.byteLength(content, "utf8");
+    if (actualByteLength > MAX_CONTENT_BYTES) {
+      throw new IngestFetchError(
+        413,
+        `Response body (${actualByteLength} bytes) exceeds maximum allowable limit of ${MAX_CONTENT_BYTES} bytes`
+      );
+    }
 
     return {
       content,
       status: response.status,
       contentType,
-      contentLength: Buffer.byteLength(content, "utf8")
+      contentLength: actualByteLength
     };
-  } catch (error: any) {
-    clearTimeout(timeoutId);
-
+  } catch (error: unknown) {
     if (error instanceof IngestFetchError) {
       throw error;
     }
 
-    if (error.name === "AbortError" || error.message?.includes("aborted")) {
+    const err = error as Error;
+    if (err?.name === "AbortError" || err?.message?.includes("aborted")) {
       throw new IngestFetchError(
         504,
         `Request to upstream URL ${rawUrl} timed out after ${timeoutMs}ms`,
@@ -96,12 +122,14 @@ export async function fetchUrlStep(
     }
 
     // Network error / connection refused / DNS lookup failure
-    const msg = error.message || "Host server for URL is unavailable";
+    const msg = err?.message || "Host server for URL is unavailable";
     throw new IngestFetchError(
       502,
       `Failed to fetch from URL ${rawUrl}: ${msg}`,
       error
     );
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 
@@ -159,7 +187,7 @@ export async function reviewGeneratedContentStep(
  * Placeholder no-op for diff-based human review staging.
  */
 export async function addToReviewQueueStep(
-  _reviewData: any
+  _reviewData: { reviewPassed: boolean }
 ): Promise<AddToReviewQueueResult> {
   return {
     queueId: null,

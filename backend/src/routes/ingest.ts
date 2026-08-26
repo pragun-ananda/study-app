@@ -23,7 +23,7 @@ router.post("/", async (req: Request, res: Response) => {
 
     const result = await runIngestionPipeline(payload);
     return res.status(200).json(result);
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (error instanceof IngestFetchError) {
       return res.status(error.statusCode).json({
         status: "error",
@@ -31,11 +31,12 @@ router.post("/", async (req: Request, res: Response) => {
       });
     }
 
+    const err = error as Error;
     console.error("[INGEST_PIPELINE_ERROR]:", error);
     return res.status(500).json({
       status: "error",
       error: "Internal server error during ingestion pipeline execution",
-      message: error.message || "An unexpected error occurred"
+      message: err?.message || "An unexpected error occurred"
     });
   }
 });

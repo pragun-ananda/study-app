@@ -8,7 +8,8 @@ import {
   reviewGeneratedContentStep,
   addToReviewQueueStep,
   runIngestionPipeline,
-  IngestFetchError
+  IngestFetchError,
+  MAX_CONTENT_BYTES
 } from "../../src/services/ingestPipeline.js";
 
 describe("Unit: Ingestion Pipeline Service (src/services/ingestPipeline.ts)", () => {
@@ -30,7 +31,19 @@ describe("Unit: Ingestion Pipeline Service (src/services/ingestPipeline.ts)", ()
         setTimeout(() => {
           res.writeHead(200, { "Content-Type": "text/plain" });
           res.end("Delayed Response");
-        }, 300);
+        }, 1500);
+      } else if (req.url === "/large-header") {
+        res.writeHead(200, {
+          "Content-Type": "text/plain",
+          "Content-Length": String(MAX_CONTENT_BYTES + 1024)
+        });
+        res.end("Dummy");
+      } else if (req.url === "/trickle-slow-body") {
+        res.writeHead(200, { "Content-Type": "text/plain" });
+        res.write("Start of body...");
+        setTimeout(() => {
+          res.end("End of body");
+        }, 1500);
       } else {
         res.writeHead(400, { "Content-Type": "text/plain" });
         res.end("Unknown Route");
@@ -70,7 +83,7 @@ describe("Unit: Ingestion Pipeline Service (src/services/ingestPipeline.ts)", ()
 
     it("rejects unsupported protocols (e.g. ftp://, file://) with 400", async () => {
       await expect(fetchUrlStep("ftp://example.com/file")).rejects.toThrowError(
-        /Unsupported URL protocol: ftp:\. Only http: and https: are supported/
+        /Unsupported URL protocol: ftp:. Only http: and https: are supported/
       );
       await expect(fetchUrlStep("file:///tmp/test")).rejects.toThrowError(/Unsupported URL protocol/);
     });
@@ -99,20 +112,43 @@ describe("Unit: Ingestion Pipeline Service (src/services/ingestPipeline.ts)", ()
       }
     });
 
-    it("handles request timeout with 504 Gateway Timeout", async () => {
+    it("handles request timeout with 504 Gateway Timeout during initial connect", async () => {
       const url = `http://127.0.0.1:${mockServerPort}/slow`;
       try {
-        await fetchUrlStep(url, { timeoutMs: 50 });
+        await fetchUrlStep(url, { timeoutMs: 500 });
         expect.unreachable("Should have timed out");
       } catch (err: any) {
         expect(err).toBeInstanceOf(IngestFetchError);
         expect(err.statusCode).toBe(504);
-        expect(err.message).toContain("timed out after 50ms");
+        expect(err.message).toContain("timed out after 500ms");
+      }
+    });
+
+    it("handles request timeout covering body streaming (Slowloris protection)", async () => {
+      const url = `http://127.0.0.1:${mockServerPort}/trickle-slow-body`;
+      try {
+        await fetchUrlStep(url, { timeoutMs: 500 });
+        expect.unreachable("Should have timed out while streaming body");
+      } catch (err: any) {
+        expect(err).toBeInstanceOf(IngestFetchError);
+        expect(err.statusCode).toBe(504);
+        expect(err.message).toContain("timed out after 500ms");
+      }
+    });
+
+    it("rejects payloads exceeding MAX_CONTENT_BYTES with 413 Payload Too Large via header", async () => {
+      const url = `http://127.0.0.1:${mockServerPort}/large-header`;
+      try {
+        await fetchUrlStep(url);
+        expect.unreachable("Should have thrown 413");
+      } catch (err: any) {
+        expect(err).toBeInstanceOf(IngestFetchError);
+        expect(err.statusCode).toBe(413);
+        expect(err.message).toContain("exceeds maximum allowable limit");
       }
     });
 
     it("handles unreachable host servers with 502 Bad Gateway", async () => {
-      // Connect to an unused random high port
       const url = "http://127.0.0.1:59991/nonexistent";
       try {
         await fetchUrlStep(url, { timeoutMs: 500 });
@@ -149,7 +185,7 @@ describe("Unit: Ingestion Pipeline Service (src/services/ingestPipeline.ts)", ()
     });
 
     it("addToReviewQueueStep returns bypassed status", async () => {
-      const result = await addToReviewQueueStep({});
+      const result = await addToReviewQueueStep({ reviewPassed: true });
       expect(result.status).toBe("bypassed");
       expect(result.queueId).toBeNull();
     });
