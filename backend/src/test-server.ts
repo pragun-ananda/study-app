@@ -8,9 +8,6 @@ import { setPool, closePool } from './db.js';
 
 dotenv.config();
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
 // Initialize in-memory postgres with schema & seeds
 const db = newDb();
 db.public.registerFunction({
@@ -22,11 +19,15 @@ db.public.registerFunction({
   implementation: () => 'study_app_test'
 });
 
-const schemaPath = path.resolve(__dirname, '../../storage/schema.sql');
+const storageDir = fs.existsSync(path.resolve(process.cwd(), 'storage'))
+  ? path.resolve(process.cwd(), 'storage')
+  : path.resolve(process.cwd(), '../storage');
+
+const schemaPath = path.resolve(storageDir, 'schema.sql');
 const schemaSql = fs.readFileSync(schemaPath, 'utf8');
 db.public.none(schemaSql);
 
-const seedPath = path.resolve(__dirname, '../../storage/seeds/seed_test_db.sql');
+const seedPath = path.resolve(storageDir, 'seeds/seed_test_db.sql');
 const seedSql = fs.readFileSync(seedPath, 'utf8');
 db.public.none(seedSql);
 
