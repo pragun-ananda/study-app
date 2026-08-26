@@ -16,6 +16,24 @@ export const MIN_TIMEOUT_MS = 500;
 export const MAX_TIMEOUT_MS = 30000;
 export const DEFAULT_TIMEOUT_MS = 8000;
 
+export const UNSUPPORTED_BINARY_MIME_PREFIXES = [
+  "image/",
+  "video/",
+  "audio/",
+  "application/pdf",
+  "application/zip",
+  "application/x-zip",
+  "application/x-tar",
+  "application/gzip",
+  "application/x-bzip",
+  "application/x-7z-compressed",
+  "application/x-rar-compressed",
+  "application/octet-stream",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument",
+  "application/msword"
+];
+
 export class IngestFetchError extends Error {
   constructor(
     public statusCode: number,
@@ -30,7 +48,7 @@ export class IngestFetchError extends Error {
 /**
  * Step 1: Fetch from URL (BAC-2)
  * Validates and retrieves raw content from a given HTTP/HTTPS URL.
- * Handles timeouts, unreachable hosts, large payloads, and invalid URL protocols with clear error codes.
+ * Handles timeouts, unreachable hosts, large payloads, binary media types, and invalid URL protocols with clear error codes.
  */
 export async function fetchUrlStep(
   rawUrl: string,
@@ -65,9 +83,11 @@ export async function fetchUrlStep(
   try {
     const response = await fetch(parsedUrl.toString(), {
       signal: controller.signal,
+      redirect: "follow",
       headers: {
         "User-Agent": "StudyApp-Ingestion-Bot/1.0 (+https://github.com/pragun-ananda/study-app)",
-        Accept: "text/html,application/xhtml+xml,application/xml,text/plain,text/markdown;q=0.9,*/*;q=0.8"
+        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,text/plain;q=0.8,text/markdown;q=0.8,*/*;q=0.5",
+        "Accept-Language": "en-US,en;q=0.9"
       }
     });
 
@@ -76,6 +96,24 @@ export async function fetchUrlStep(
         response.status >= 500 ? 502 : response.status,
         `Upstream server returned HTTP ${response.status}: ${response.statusText}`
       );
+    }
+
+    const rawContentType = response.headers.get("content-type");
+    const normalizedContentType = rawContentType
+      ? rawContentType.split(";")[0].trim().toLowerCase()
+      : undefined;
+
+    // Check for unsupported binary media types upfront before reading body stream
+    if (normalizedContentType) {
+      const isBinary = UNSUPPORTED_BINARY_MIME_PREFIXES.some((prefix) =>
+        normalizedContentType.startsWith(prefix)
+      );
+      if (isBinary) {
+        throw new IngestFetchError(
+          415,
+          `Unsupported media type: ${normalizedContentType}. Only text, HTML, and markdown documents are supported for ingestion.`
+        );
+      }
     }
 
     // Check Content-Length header if available before buffering body
@@ -90,7 +128,6 @@ export async function fetchUrlStep(
       }
     }
 
-    const contentType = response.headers.get("content-type") || undefined;
     const content = await response.text();
 
     const actualByteLength = Buffer.byteLength(content, "utf8");
@@ -101,11 +138,14 @@ export async function fetchUrlStep(
       );
     }
 
+    const finalUrl = response.url || parsedUrl.toString();
+
     return {
       content,
       status: response.status,
-      contentType,
-      contentLength: actualByteLength
+      contentType: rawContentType || undefined,
+      contentLength: actualByteLength,
+      finalUrl
     };
   } catch (error: unknown) {
     if (error instanceof IngestFetchError) {
@@ -142,7 +182,7 @@ export async function cleanFetchedContentStep(
 ): Promise<CleanContentResult> {
   return {
     cleanedContent: rawContent,
-    cleanedLength: Buffer.byteLength(rawContent, 'utf8')
+    cleanedLength: Buffer.byteLength(rawContent, "utf8")
   };
 }
 
@@ -240,6 +280,7 @@ export async function runIngestionPipeline(
     executedSteps,
     message: "Ingestion pipeline executed successfully",
     details: {
+      finalUrl: fetchResult.finalUrl,
       fetchStatus: fetchResult.status,
       contentLength: fetchResult.contentLength,
       cleanedLength: cleanResult.cleanedLength,

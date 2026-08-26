@@ -15,12 +15,27 @@ import {
 describe("Unit: Ingestion Pipeline Service (src/services/ingestPipeline.ts)", () => {
   let mockServer: http.Server;
   let mockServerPort: number;
+  let lastReceivedHeaders: http.IncomingHttpHeaders = {};
 
   beforeAll(async () => {
     mockServer = http.createServer((req, res) => {
+      lastReceivedHeaders = req.headers;
+
       if (req.url === "/article") {
         res.writeHead(200, { "Content-Type": "text/html" });
         res.end("<html><body><h1>Neural Networks</h1><p>Deep Learning Concepts.</p></body></html>");
+      } else if (req.url === "/redirect-source") {
+        res.writeHead(302, { Location: "/article" });
+        res.end();
+      } else if (req.url === "/image.png") {
+        res.writeHead(200, { "Content-Type": "image/png" });
+        res.end(Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+      } else if (req.url === "/document.pdf") {
+        res.writeHead(200, { "Content-Type": "application/pdf" });
+        res.end(Buffer.from("%PDF-1.4"));
+      } else if (req.url === "/archive.zip") {
+        res.writeHead(200, { "Content-Type": "application/zip" });
+        res.end(Buffer.from("PK"));
       } else if (req.url === "/not-found") {
         res.writeHead(404, { "Content-Type": "text/plain" });
         res.end("Page Not Found");
@@ -64,7 +79,7 @@ describe("Unit: Ingestion Pipeline Service (src/services/ingestPipeline.ts)", ()
   });
 
   describe("fetchUrlStep (BAC-2)", () => {
-    it("successfully fetches content from a valid URL", async () => {
+    it("successfully fetches content from a valid URL and sends browser headers", async () => {
       const url = `http://127.0.0.1:${mockServerPort}/article`;
       const result = await fetchUrlStep(url);
 
@@ -72,6 +87,53 @@ describe("Unit: Ingestion Pipeline Service (src/services/ingestPipeline.ts)", ()
       expect(result.content).toContain("<h1>Neural Networks</h1>");
       expect(result.contentLength).toBeGreaterThan(0);
       expect(result.contentType).toContain("text/html");
+      expect(result.finalUrl).toBe(url);
+      expect(lastReceivedHeaders["accept-language"]).toContain("en-US");
+    });
+
+    it("tracks canonical finalUrl across HTTP 302 redirects", async () => {
+      const initialUrl = `http://127.0.0.1:${mockServerPort}/redirect-source`;
+      const result = await fetchUrlStep(initialUrl);
+
+      expect(result.status).toBe(200);
+      expect(result.content).toContain("<h1>Neural Networks</h1>");
+      expect(result.finalUrl).toBe(`http://127.0.0.1:${mockServerPort}/article`);
+    });
+
+    it("rejects binary image media types (e.g. image/png) with 415 Unsupported Media Type", async () => {
+      const url = `http://127.0.0.1:${mockServerPort}/image.png`;
+      try {
+        await fetchUrlStep(url);
+        expect.unreachable("Should have thrown 415 error");
+      } catch (err: any) {
+        expect(err).toBeInstanceOf(IngestFetchError);
+        expect(err.statusCode).toBe(415);
+        expect(err.message).toContain("Unsupported media type: image/png");
+      }
+    });
+
+    it("rejects binary PDF media types (application/pdf) with 415 Unsupported Media Type", async () => {
+      const url = `http://127.0.0.1:${mockServerPort}/document.pdf`;
+      try {
+        await fetchUrlStep(url);
+        expect.unreachable("Should have thrown 415 error");
+      } catch (err: any) {
+        expect(err).toBeInstanceOf(IngestFetchError);
+        expect(err.statusCode).toBe(415);
+        expect(err.message).toContain("Unsupported media type: application/pdf");
+      }
+    });
+
+    it("rejects binary archive media types (application/zip) with 415 Unsupported Media Type", async () => {
+      const url = `http://127.0.0.1:${mockServerPort}/archive.zip`;
+      try {
+        await fetchUrlStep(url);
+        expect.unreachable("Should have thrown 415 error");
+      } catch (err: any) {
+        expect(err).toBeInstanceOf(IngestFetchError);
+        expect(err.statusCode).toBe(415);
+        expect(err.message).toContain("Unsupported media type: application/zip");
+      }
     });
 
     it("rejects empty, null, or invalid URLs with 400 Bad Request", async () => {
@@ -212,6 +274,7 @@ describe("Unit: Ingestion Pipeline Service (src/services/ingestPipeline.ts)", ()
         "review_content",
         "add_to_review_queue"
       ]);
+      expect(result.details.finalUrl).toBe(url);
       expect(result.details.fetchStatus).toBe(200);
       expect(result.details.contentLength).toBeGreaterThan(0);
       expect(result.details.cleanedLength).toBeGreaterThan(0);

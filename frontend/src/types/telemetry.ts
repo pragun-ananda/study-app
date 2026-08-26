@@ -62,6 +62,7 @@ export interface IngestPipelineResult {
   executedSteps: IngestPipelineStep[];
   message: string;
   details?: {
+    finalUrl?: string;
     fetchStatus?: number;
     contentLength?: number;
     cleanedLength?: number;

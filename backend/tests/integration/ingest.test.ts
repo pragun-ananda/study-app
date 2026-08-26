@@ -13,6 +13,9 @@ describe("Integration: Ingestion API (POST /api/ingest & POST /ingest)", () => {
       if (req.url === "/valid-source") {
         res.writeHead(200, { "Content-Type": "text/html" });
         res.end("<!DOCTYPE html><html><body><h1>Attention Is All You Need</h1><p>Transformer paper text.</p></body></html>");
+      } else if (req.url === "/photo.jpg") {
+        res.writeHead(200, { "Content-Type": "image/jpeg" });
+        res.end(Buffer.from([0xff, 0xd8, 0xff]));
       } else if (req.url === "/not-found") {
         res.writeHead(404, { "Content-Type": "text/plain" });
         res.end("Resource Not Found");
@@ -59,6 +62,7 @@ describe("Integration: Ingestion API (POST /api/ingest & POST /ingest)", () => {
       "add_to_review_queue"
     ]);
     expect(res.body.details).toBeDefined();
+    expect(res.body.details.finalUrl).toBe(targetUrl);
     expect(res.body.details.fetchStatus).toBe(200);
     expect(res.body.details.contentLength).toBeGreaterThan(0);
     expect(res.body.details.cleanedLength).toBe(res.body.details.contentLength);
@@ -79,6 +83,18 @@ describe("Integration: Ingestion API (POST /api/ingest & POST /ingest)", () => {
     expect(res.body.status).toBe("success");
     expect(res.body.url).toBe(targetUrl);
     expect(res.body.executedSteps.length).toBe(6);
+  });
+
+  it("POST /api/ingest returns 415 Unsupported Media Type when target is binary media (e.g. image/jpeg)", async () => {
+    const targetUrl = `http://127.0.0.1:${mockServerPort}/photo.jpg`;
+
+    const res = await request(app)
+      .post("/api/ingest")
+      .send({ url: targetUrl });
+
+    expect(res.status).toBe(415);
+    expect(res.body.status).toBe("error");
+    expect(res.body.error).toContain("Unsupported media type: image/jpeg");
   });
 
   it("POST /api/ingest returns 400 Bad Request when URL is missing or empty", async () => {
