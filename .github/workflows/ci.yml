@@ -69,9 +69,6 @@ jobs:
     name: Frontend Unit & Component Tests
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    defaults:
-      run:
-        working-directory: frontend
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -81,15 +78,24 @@ jobs:
         with:
           node-version: 20
           cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
 
-      - name: Install dependencies
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Install frontend dependencies
+        working-directory: frontend
         run: npm ci
 
       - name: Typecheck and build
+        working-directory: frontend
         run: npm run build
 
       - name: Run unit & component tests
+        working-directory: frontend
         run: npm test
 
   frontend-e2e:
