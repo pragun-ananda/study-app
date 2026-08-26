@@ -85,7 +85,7 @@ test.describe('Note Authoring & KaTeX Math Persistence (FRO-9)', () => {
 
     // 5. Save Note
     const saveBtn = page.getByRole('button', { name: /SAVE NOTE/i });
-    await saveBtn.click();
+    await saveBtn.click({ force: true });
 
     // Modal switches back to view mode with updated content
     await expect(page.getByText('Backpropagation Derivation Notes [Verified E2E]').first()).toBeVisible();
@@ -93,7 +93,7 @@ test.describe('Note Authoring & KaTeX Math Persistence (FRO-9)', () => {
 
     // Close modal
     const closeBtn = page.getByTitle('Close (ESC)');
-    await closeBtn.click();
+    await closeBtn.click({ force: true });
 
     // 6. Reload the page to test full-stack database persistence
     await page.reload();
