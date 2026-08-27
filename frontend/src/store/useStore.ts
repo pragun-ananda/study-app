@@ -5,9 +5,12 @@ import {
   SystemStatus,
   TopicNode,
   NoteItem,
-  StudyTodo
+  StudyTodo,
+  LineReviewComment,
+  GraphUpdate
 } from '../types/telemetry';
 import { DOMAIN_DATA, INITIAL_TODOS } from '../data/test';
+import { INITIAL_UPDATES } from '../data/test/updates';
 import * as api from '../api/client';
 
 // Deterministic 3D spatial layout generator for initial fallback / offline testing
@@ -156,6 +159,11 @@ export const INITIAL_STATE: TelemetryState = {
   activeNote: null,
   isNoteEditing: false,
   todos: INITIAL_TODOS,
+
+  // Review & Diff Updates (FRO-11)
+  graphUpdates: INITIAL_UPDATES,
+  activeDiffUpdateId: null,
+  isNotificationsOpen: false,
 
   isLoading: false,
   error: null
@@ -428,6 +436,115 @@ export const useStore = create<TelemetryStore>((set, get) => ({
       });
     }
   },
+
+  // Diff Review Actions (FRO-11)
+  setIsNotificationsOpen: (isNotificationsOpen: boolean) => set({ isNotificationsOpen }),
+  setActiveDiffUpdateId: (activeDiffUpdateId: string | null) => set({ activeDiffUpdateId }),
+
+  approveGraphUpdate: (id: string) => {
+    set((state) => {
+      const update = state.graphUpdates.find((u) => u.id === id);
+      if (!update) return state;
+
+      let nextTopics = [...state.topicNodes];
+      let targetSelectedId = state.selectedTopicId;
+
+      if (update.type === 'TOPIC_UPDATE') {
+        const topicId = update.payload?.topicId || update.targetId;
+        targetSelectedId = topicId;
+        nextTopics = nextTopics.map((t) =>
+          t.id === topicId ? { ...t, ...(update.payload?.patch || { summary: update.newContent }) } : t
+        );
+      } else if (update.type === 'NOTE_UPDATE') {
+        const topicId = update.payload?.topicId;
+        const noteId = update.payload?.noteId || update.targetId;
+        if (topicId) {
+          targetSelectedId = topicId;
+          nextTopics = nextTopics.map((t) => {
+            if (t.id !== topicId) return t;
+            const notes = (t.notes || []).map((n) =>
+              n.id === noteId ? { ...n, content: update.newContent, updatedAt: 'Just now' } : n
+            );
+            return { ...t, notes };
+          });
+        }
+      } else if (update.type === 'EDGE_UPDATE' && update.payload?.edge) {
+        const { fromId, toId } = update.payload.edge;
+        targetSelectedId = toId;
+        nextTopics = nextTopics.map((t) => {
+          if (t.id === toId && !t.prerequisites.includes(fromId)) {
+            return { ...t, prerequisites: [...t.prerequisites, fromId] };
+          }
+          if (t.id === fromId && !t.unlocks.includes(toId)) {
+            return { ...t, unlocks: [...t.unlocks, toId] };
+          }
+          return t;
+        });
+      }
+
+      const nextUpdates = state.graphUpdates.map((u) =>
+        u.id === id ? { ...u, status: 'APPROVED' as const } : u
+      );
+
+      return {
+        topicNodes: nextTopics,
+        graphUpdates: nextUpdates,
+        activeDiffUpdateId: null,
+        selectedTopicId: targetSelectedId || state.selectedTopicId,
+        isInspectorOpen: targetSelectedId ? true : state.isInspectorOpen
+      };
+    });
+  },
+
+  rejectGraphUpdate: (id: string) => {
+    set((state) => ({
+      graphUpdates: state.graphUpdates.map((u) =>
+        u.id === id ? { ...u, status: 'REJECTED' as const } : u
+      ),
+      activeDiffUpdateId: null
+    }));
+  },
+
+  requestChangesGraphUpdate: (id: string, comments: LineReviewComment[], generalFeedback?: string) => {
+    set((state) => ({
+      graphUpdates: state.graphUpdates.map((u) =>
+        u.id === id
+          ? {
+              ...u,
+              status: 'CHANGES_REQUESTED' as const,
+              comments: comments.length > 0 ? comments : u.comments,
+              generalFeedback: generalFeedback ?? u.generalFeedback
+            }
+          : u
+      ),
+      activeDiffUpdateId: null
+    }));
+  },
+
+  addCommentToUpdate: (updateId: string, commentData: Omit<LineReviewComment, 'id' | 'createdAt'>) => {
+    const newComment: LineReviewComment = {
+      id: `COMM-${Date.now()}`,
+      createdAt: 'Just now',
+      ...commentData
+    };
+    set((state) => ({
+      graphUpdates: state.graphUpdates.map((u) =>
+        u.id === updateId ? { ...u, comments: [...(u.comments || []), newComment] } : u
+      )
+    }));
+  },
+
+  deleteCommentFromUpdate: (updateId: string, commentId: string) => {
+    set((state) => ({
+      graphUpdates: state.graphUpdates.map((u) =>
+        u.id === updateId
+          ? { ...u, comments: (u.comments || []).filter((c) => c.id !== commentId) }
+          : u
+      )
+    }));
+  },
+
+  resetGraphUpdates: () => set({ graphUpdates: INITIAL_UPDATES, activeDiffUpdateId: null }),
 
   // Reset Action
   resetState: () => set(INITIAL_STATE)
