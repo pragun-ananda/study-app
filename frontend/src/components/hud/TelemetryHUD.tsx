@@ -20,6 +20,8 @@ import {
   FileText
 } from 'lucide-react';
 import NoteViewerModal from './NoteViewerModal';
+import NotificationsDropdown from './NotificationsDropdown';
+import DiffViewerModal from './DiffViewerModal';
 import { useStore } from '../../store/useStore';
 import { TopicNode, DomainCategory, TodoPriority } from '../../types/telemetry';
 import { DOMAIN_BASE_COLORS, getCategoryShade } from '../../utils/theme';
@@ -179,68 +181,72 @@ export default function TelemetryHUD() {
           </AnimatePresence>
         </div>
 
-        {/* 2. Collapsible Quick Search Bar */}
-        <div className="flex items-center bg-[#080c16]/70 border border-white/10 rounded-lg p-1 font-mono text-xs flex-shrink-0 backdrop-blur-md">
-          <AnimatePresence initial={false} mode="wait">
-            {isSearchOpen ? (
-              <motion.div
-                key="search-expanded"
-                initial={{ width: 0, opacity: 0 }}
-                animate={{ width: 'auto', opacity: 1 }}
-                exit={{ width: 0, opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className="flex items-center gap-2 px-1.5 py-0.5 overflow-hidden"
-              >
-                <Search size={14} className="text-[#00f0ff] flex-shrink-0" />
-                <input
-                  type="text"
-                  autoFocus
-                  placeholder="Search 220+ concepts..."
-                  value={searchQuery}
-                  onChange={(e) => {
-                    setSearchQuery(e.target.value);
-                    if (leftPanelCollapsed) {
-                      setLeftPanelCollapsed(false);
-                    }
-                    if (activeTab !== 'TOPICS') {
-                      setActiveTab('TOPICS');
-                    }
-                  }}
-                  className="bg-transparent font-mono text-xs text-slate-100 placeholder-slate-500 focus:outline-none w-36 md:w-48"
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSearchQuery('');
-                    setIsSearchOpen(false);
-                  }}
-                  className="text-slate-400 hover:text-slate-100 p-0.5 flex-shrink-0"
-                  title="Close search"
+        {/* 2. Top Right Cluster: Notifications Dropdown + Quick Search Bar */}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <NotificationsDropdown />
+
+          <div className="flex items-center bg-[#080c16]/70 border border-white/10 rounded-lg p-1 font-mono text-xs flex-shrink-0 backdrop-blur-md">
+            <AnimatePresence initial={false} mode="wait">
+              {isSearchOpen ? (
+                <motion.div
+                  key="search-expanded"
+                  initial={{ width: 0, opacity: 0 }}
+                  animate={{ width: 'auto', opacity: 1 }}
+                  exit={{ width: 0, opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="flex items-center gap-2 px-1.5 py-0.5 overflow-hidden"
                 >
-                  <X size={13} />
-                </button>
-              </motion.div>
-            ) : (
-              <motion.button
-                key="search-icon"
-                initial={{ scale: 0.8, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.8, opacity: 0 }}
-                onClick={() => {
-                  setIsSearchOpen(true);
-                  setLeftPanelCollapsed(false);
-                  setActiveTab('TOPICS');
-                }}
-                className="p-1 text-slate-400 hover:text-[#00f0ff] transition-colors rounded flex items-center gap-1.5"
-                title="Open concept search"
-              >
-                <Search size={15} />
-                {searchQuery && (
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#00f0ff]" />
-                )}
-              </motion.button>
-            )}
-          </AnimatePresence>
+                  <Search size={14} className="text-[#00f0ff] flex-shrink-0" />
+                  <input
+                    type="text"
+                    autoFocus
+                    placeholder="Search 220+ concepts..."
+                    value={searchQuery}
+                    onChange={(e) => {
+                      setSearchQuery(e.target.value);
+                      if (leftPanelCollapsed) {
+                        setLeftPanelCollapsed(false);
+                      }
+                      if (activeTab !== 'TOPICS') {
+                        setActiveTab('TOPICS');
+                      }
+                    }}
+                    className="bg-transparent font-mono text-xs text-slate-100 placeholder-slate-500 focus:outline-none w-36 md:w-48"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchQuery('');
+                      setIsSearchOpen(false);
+                    }}
+                    className="text-slate-400 hover:text-slate-100 p-0.5 flex-shrink-0"
+                    title="Close search"
+                  >
+                    <X size={13} />
+                  </button>
+                </motion.div>
+              ) : (
+                <motion.button
+                  key="search-icon"
+                  initial={{ scale: 0.8, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.8, opacity: 0 }}
+                  onClick={() => {
+                    setIsSearchOpen(true);
+                    setLeftPanelCollapsed(false);
+                    setActiveTab('TOPICS');
+                  }}
+                  className="p-1 text-slate-400 hover:text-[#00f0ff] transition-colors rounded flex items-center gap-1.5"
+                  title="Open concept search"
+                >
+                  <Search size={15} />
+                  {searchQuery && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#00f0ff]" />
+                  )}
+                </motion.button>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
       </header>
 
@@ -696,6 +702,9 @@ export default function TelemetryHUD() {
 
       {/* Markdown Note Viewing Modal */}
       <NoteViewerModal />
+
+      {/* Review Diff Modal (FRO-11) */}
+      <DiffViewerModal />
     </div>
   );
 }

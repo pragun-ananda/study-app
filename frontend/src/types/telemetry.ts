@@ -73,6 +73,41 @@ export interface IngestPipelineResult {
   };
 }
 
+export type GraphUpdateType = 'TOPIC_UPDATE' | 'NOTE_UPDATE' | 'EDGE_UPDATE';
+
+export type GraphUpdateStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CHANGES_REQUESTED';
+
+export interface LineReviewComment {
+  id: string;
+  lineNumber: number;
+  selectedText?: string;
+  comment: string;
+  createdAt: string;
+}
+
+export interface GraphUpdate {
+  id: string;
+  title: string;
+  description: string;
+  category: DomainCategory;
+  type: GraphUpdateType;
+  status: GraphUpdateStatus;
+  createdAt: string;
+  targetId: string;
+  targetName: string;
+  oldContent: string;
+  newContent: string;
+  comments?: LineReviewComment[];
+  generalFeedback?: string;
+  payload?: {
+    topicId?: string;
+    noteId?: string;
+    patch?: Partial<TopicNode>;
+    notePatch?: Partial<NoteItem>;
+    edge?: { fromId: string; toId: string };
+  };
+}
+
 export interface TelemetryState {
   // System State & Shaders
   systemStatus: SystemStatus;
@@ -92,6 +127,11 @@ export interface TelemetryState {
   activeNote: NoteItem | null;
   isNoteEditing: boolean;
   todos: StudyTodo[];
+
+  // Review & Diff Updates (FRO-11)
+  graphUpdates: GraphUpdate[];
+  activeDiffUpdateId: string | null;
+  isNotificationsOpen: boolean;
 
   // Server Synchronization State
   isLoading: boolean;
@@ -135,8 +175,19 @@ export interface TelemetryActions {
   addTodo: (todo: Omit<StudyTodo, 'id'>) => Promise<StudyTodo | void>;
   deleteTodo: (id: string) => Promise<void>;
 
+  // Diff Review Actions (FRO-11)
+  setIsNotificationsOpen: (open: boolean) => void;
+  setActiveDiffUpdateId: (id: string | null) => void;
+  approveGraphUpdate: (id: string) => void;
+  rejectGraphUpdate: (id: string) => void;
+  requestChangesGraphUpdate: (id: string, comments: LineReviewComment[], generalFeedback?: string) => void;
+  addCommentToUpdate: (updateId: string, comment: Omit<LineReviewComment, 'id' | 'createdAt'>) => void;
+  deleteCommentFromUpdate: (updateId: string, commentId: string) => void;
+  resetGraphUpdates: () => void;
+
   // Reset Action
   resetState: () => void;
 }
 
 export type TelemetryStore = TelemetryState & TelemetryActions;
+
