@@ -5,23 +5,23 @@ import { setupTestDatabase } from "../helpers.js";
 
 const shouldSkipLiveTests = process.env.SKIP_LIVE_TESTS === "true";
 
-describe("E2E: Real Live URL Ingestion over HTTPS", { timeout: 15000 }, () => {
+describe("E2E: Real Live URL Ingestion & Content Cleaning over HTTPS", { timeout: 15000 }, () => {
   beforeEach(() => {
     setupTestDatabase();
   });
 
   it.skipIf(shouldSkipLiveTests)(
-    "successfully fetches and executes pipeline for a real public HTTPS URL",
+    "successfully fetches, cleans HTML, extracts title, and executes pipeline for a real public HTTPS webpage (BAC-16)",
     async () => {
-      const realUrl = "https://raw.githubusercontent.com/pragun-ananda/study-app/main/README.md";
+      const realHtmlUrl = "https://example.com";
 
       const res = await request(app)
         .post("/api/ingest")
-        .send({ url: realUrl, options: { timeoutMs: 10000 } });
+        .send({ url: realHtmlUrl, options: { timeoutMs: 10000 } });
 
       expect(res.status).toBe(200);
       expect(res.body.status).toBe("success");
-      expect(res.body.url).toBe(realUrl);
+      expect(res.body.url).toBe(realHtmlUrl);
       expect(res.body.executedSteps).toEqual([
         "fetch_url",
         "clean_content",
@@ -33,7 +33,38 @@ describe("E2E: Real Live URL Ingestion over HTTPS", { timeout: 15000 }, () => {
       expect(res.body.details).toBeDefined();
       expect(res.body.details.fetchStatus).toBe(200);
       expect(res.body.details.contentLength).toBeGreaterThan(100);
-      expect(res.body.details.cleanedLength).toBe(res.body.details.contentLength);
+      expect(res.body.details.cleanedLength).toBeGreaterThan(0);
+      expect(res.body.details.cleanedLength).toBeLessThan(res.body.details.contentLength);
+      expect(res.body.details.cleanedTitle).toBe("Example Domain");
+      expect(res.body.details.finalUrl).toBe("https://example.com/");
+    },
+    15000
+  );
+
+  it.skipIf(shouldSkipLiveTests)(
+    "successfully fetches and executes pipeline for a real public Markdown URL on GitHub",
+    async () => {
+      const realMarkdownUrl = "https://raw.githubusercontent.com/pragun-ananda/study-app/main/README.md";
+
+      const res = await request(app)
+        .post("/api/ingest")
+        .send({ url: realMarkdownUrl, options: { timeoutMs: 10000 } });
+
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe("success");
+      expect(res.body.url).toBe(realMarkdownUrl);
+      expect(res.body.executedSteps).toEqual([
+        "fetch_url",
+        "clean_content",
+        "extract_topics",
+        "generate_content",
+        "review_content",
+        "add_to_review_queue"
+      ]);
+      expect(res.body.details).toBeDefined();
+      expect(res.body.details.fetchStatus).toBe(200);
+      expect(res.body.details.contentLength).toBeGreaterThan(100);
+      expect(res.body.details.cleanedLength).toBeGreaterThan(100);
     },
     15000
   );

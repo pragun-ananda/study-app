@@ -118,6 +118,9 @@ export interface FetchUrlResult {
 export interface CleanContentResult {
   cleanedContent: string;
   cleanedLength: number;
+  title?: string;
+  byline?: string;
+  excerpt?: string;
 }
 
 export interface ExtractTopicsResult {
@@ -148,6 +151,7 @@ export interface IngestPipelineResult {
     fetchStatus?: number;
     contentLength?: number;
     cleanedLength?: number;
+    cleanedTitle?: string;
     extractedTopicsCount?: number;
     generatedNotesCount?: number;
     reviewPassed?: boolean;
