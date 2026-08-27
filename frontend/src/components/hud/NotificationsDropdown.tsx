@@ -64,6 +64,7 @@ export default function NotificationsDropdown() {
         }`}
         title="Review Updates / Notifications"
         aria-label="Review Updates / Notifications"
+        data-testid="notifications-bell-btn"
       >
         <Bell size={15} />
         {pendingCount > 0 && (
