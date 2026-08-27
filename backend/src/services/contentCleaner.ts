@@ -7,7 +7,6 @@ import { CleanContentResult } from "../types.js";
 export interface CleanContentOptions {
   finalUrl?: string;
   contentType?: string;
-  maxOutputLength?: number;
 }
 
 const UNWANTED_TAGS = [
