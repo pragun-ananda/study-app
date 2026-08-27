@@ -65,7 +65,7 @@ describe("Integration: Ingestion API (POST /api/ingest & POST /ingest)", () => {
     expect(res.body.details.finalUrl).toBe(targetUrl);
     expect(res.body.details.fetchStatus).toBe(200);
     expect(res.body.details.contentLength).toBeGreaterThan(0);
-    expect(res.body.details.cleanedLength).toBe(res.body.details.contentLength);
+    expect(res.body.details.cleanedLength).toBeGreaterThan(0);
     expect(res.body.details.extractedTopicsCount).toBe(0);
     expect(res.body.details.generatedNotesCount).toBe(0);
     expect(res.body.details.reviewPassed).toBe(true);

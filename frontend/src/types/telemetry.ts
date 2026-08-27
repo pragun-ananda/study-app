@@ -66,6 +66,7 @@ export interface IngestPipelineResult {
     fetchStatus?: number;
     contentLength?: number;
     cleanedLength?: number;
+    cleanedTitle?: string;
     extractedTopicsCount?: number;
     generatedNotesCount?: number;
     reviewPassed?: boolean;

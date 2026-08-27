@@ -1,3 +1,4 @@
+import { cleanHtmlToMarkdown, CleanContentOptions } from "./contentCleaner.js";
 import {
   IngestPipelineStep,
   IngestRequestPayload,
@@ -177,13 +178,17 @@ export async function fetchUrlStep(
  * Step 2: Clean fetched content
  * Placeholder no-op for HTML boilerplate removal, DOM cleaning, and markdown extraction.
  */
+/**
+ * Step 2: Clean fetched content (BAC-16)
+ * Converts raw fetched web content (HTML, plain text, markdown) into clean,
+ * standardized GitHub-Flavored Markdown while stripping boilerplate and preserving
+ * code blocks, LaTeX math formulas, tables, and relative URLs.
+ */
 export async function cleanFetchedContentStep(
-  rawContent: string
+  rawContent: string,
+  options?: CleanContentOptions
 ): Promise<CleanContentResult> {
-  return {
-    cleanedContent: rawContent,
-    cleanedLength: Buffer.byteLength(rawContent, "utf8")
-  };
+  return cleanHtmlToMarkdown(rawContent, options);
 }
 
 /**
@@ -249,7 +254,10 @@ export async function runIngestionPipeline(
   executedSteps.push("fetch_url");
 
   // 2. Clean fetched content (no-op)
-  const cleanResult = await cleanFetchedContentStep(fetchResult.content);
+  const cleanResult = await cleanFetchedContentStep(fetchResult.content, {
+    finalUrl: fetchResult.finalUrl,
+    contentType: fetchResult.contentType
+  });
   executedSteps.push("clean_content");
 
   // 3. Extract topics (no-op)
@@ -284,6 +292,7 @@ export async function runIngestionPipeline(
       fetchStatus: fetchResult.status,
       contentLength: fetchResult.contentLength,
       cleanedLength: cleanResult.cleanedLength,
+      cleanedTitle: cleanResult.title,
       extractedTopicsCount: extractResult.topics.length,
       generatedNotesCount: generateResult.notes.length,
       reviewPassed: reviewResult.passed,

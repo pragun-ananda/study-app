@@ -224,17 +224,18 @@ describe("Unit: Ingestion Pipeline Service (src/services/ingestPipeline.ts)", ()
   });
 
   describe("Pipeline Sub-Steps (Clean, Extract, Generate, Review, Queue)", () => {
-    it("cleanFetchedContentStep returns raw content as no-op placeholder and calculates UTF-8 byte length", async () => {
-      const asciiInput = "<h1>Article</h1>";
+    it("cleanFetchedContentStep converts HTML to clean markdown and calculates accurate UTF-8 byte length (BAC-16)", async () => {
+      const asciiInput = "<article><h1>Article Title</h1><p>Article body content.</p></article>";
       const asciiResult = await cleanFetchedContentStep(asciiInput);
-      expect(asciiResult.cleanedContent).toBe(asciiInput);
-      expect(asciiResult.cleanedLength).toBe(Buffer.byteLength(asciiInput, "utf8"));
+      expect(asciiResult.cleanedContent).toContain("Article body content.");
+      expect(asciiResult.cleanedLength).toBe(Buffer.byteLength(asciiResult.cleanedContent, "utf8"));
 
-      const multiByteInput = "<h1>Neural 神经网络 ∇ ∫ 🚀</h1>";
+      const multiByteInput = "<article><h1>Neural 神经网络 ∇ ∫ 🚀</h1><p>Deep Learning 深度学习.</p></article>";
       const multiByteResult = await cleanFetchedContentStep(multiByteInput);
-      expect(multiByteResult.cleanedContent).toBe(multiByteInput);
-      expect(multiByteResult.cleanedLength).toBe(Buffer.byteLength(multiByteInput, "utf8"));
-      expect(multiByteResult.cleanedLength).toBeGreaterThan(multiByteInput.length);
+      expect(multiByteResult.cleanedContent).toContain("Neural 神经网络 ∇ ∫ 🚀");
+      expect(multiByteResult.cleanedContent).toContain("Deep Learning 深度学习.");
+      expect(multiByteResult.cleanedLength).toBe(Buffer.byteLength(multiByteResult.cleanedContent, "utf8"));
+      expect(multiByteResult.cleanedLength).toBeGreaterThan(multiByteResult.cleanedContent.length);
     });
 
     it("extractTopicsStep returns empty topics list", async () => {
