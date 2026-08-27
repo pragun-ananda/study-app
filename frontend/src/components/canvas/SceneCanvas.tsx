@@ -8,6 +8,7 @@ import { TopicNode } from '../../types/telemetry';
 import { getCategoryShade } from '../../utils/theme';
 import { calculateConnectedGraph, ConnectedGraphResult } from '../../utils/graph';
 import PostProcessing from './PostProcessing';
+import CentralSun from './CentralSun';
 
 // Derive distinct incoming (lighter/warmer) and outgoing (richer/electric) edge highlight shades correlated to the active node's color
 const getIncomingEdgeColor = (activeColorHex: string): string => {
@@ -253,11 +254,11 @@ function SolarWindEnergyStreams() {
   );
 }
 
-// Shader for Anamorphic 4-Point Starlight Cross Flare
+// Shader for Isotropic 360-Degree Radial Starlight Halo
 const StarlightGlintShaderMaterial = {
   uniforms: {
     uTime: { value: 0 },
-    uColor: { value: new THREE.Color('#00f0ff') },
+    uColor: { value: new THREE.Color('#facc15') },
     uOpacity: { value: 0.85 }
   },
   vertexShader: `
@@ -274,28 +275,22 @@ const StarlightGlintShaderMaterial = {
     varying vec2 vUv;
 
     void main() {
-      vec2 st = vUv - vec2(0.5);
-      float r = length(st);
+      // 100% isotropic radial starlight aura - completely symmetric in 360 degrees
+      vec2 st = (vUv - vec2(0.5)) * 2.0;
+      float dist = length(st); // 0.0 at center, 1.0 at outer edge
 
-      // Anamorphic 4-point cross flare beams
-      float horizontalBeam = smoothstep(0.4, 0.0, abs(st.y)) * smoothstep(0.5, 0.0, abs(st.x));
-      float verticalBeam = smoothstep(0.4, 0.0, abs(st.x)) * smoothstep(0.5, 0.0, abs(st.y));
-      
-      // Secondary 45-degree diagonal cross spikes
-      vec2 rotSt = vec2(st.x * 0.707 - st.y * 0.707, st.x * 0.707 + st.y * 0.707);
-      float diag1 = smoothstep(0.3, 0.0, abs(rotSt.y)) * smoothstep(0.4, 0.0, abs(rotSt.x)) * 0.4;
-      float diag2 = smoothstep(0.3, 0.0, abs(rotSt.x)) * smoothstep(0.4, 0.0, abs(rotSt.y)) * 0.4;
+      if (dist >= 1.0) discard;
 
-      float centerGlow = smoothstep(0.2, 0.0, r) * 1.5;
-      float flare = max(max(horizontalBeam, verticalBeam), max(diag1, diag2)) + centerGlow;
+      float halo = exp(-dist * dist * 3.5);
+      float core = exp(-dist * dist * 10.0) * 1.5;
+      float glow = (halo + core) * smoothstep(1.0, 0.7, dist);
 
-      if (flare <= 0.01) discard;
+      if (glow <= 0.01) discard;
 
-      // Pulse modulation
-      float pulse = sin(uTime * 3.5) * 0.15 + 0.85;
-      vec3 finalColor = uColor * (1.8 + centerGlow * 2.0);
+      float pulse = sin(uTime * 2.5) * 0.08 + 0.92;
+      vec3 finalColor = uColor * (1.8 + core * 2.2);
 
-      gl_FragColor = vec4(finalColor, flare * uOpacity * pulse);
+      gl_FragColor = vec4(finalColor, glow * uOpacity * pulse);
     }
   `
 };
@@ -333,12 +328,15 @@ function AnamorphicStarGlint({ color, scale = 1.0, opacity = 0.95 }: { color: st
       materialRef.current.uniforms.uColor.value.set(color);
     }
     if (meshRef.current) {
-      meshRef.current.quaternion.copy(state.camera.quaternion); // Always face camera (billboard)
+      // Correct world-space camera alignment regardless of parent rotation
+      meshRef.current.lookAt(state.camera.position);
+      const targetSize = scale * 3.8;
+      meshRef.current.scale.lerp(new THREE.Vector3(targetSize, targetSize, 1), delta * 8.0);
     }
   });
 
   return (
-    <mesh ref={meshRef} geometry={sharedPlaneGeometry} scale={[scale * 3.8, scale * 3.8, 1]} frustumCulled={false}>
+    <mesh ref={meshRef} geometry={sharedPlaneGeometry} frustumCulled={false}>
       <primitive object={material} ref={materialRef} attach="material" />
     </mesh>
   );
@@ -433,7 +431,7 @@ function DeepSpaceStarfield() {
     const sz = new Float32Array(count);
     const ph = new Float32Array(count);
 
-    const palette = [new THREE.Color('#ffffff'), new THREE.Color('#fff4d6'), new THREE.Color('#00f0ff'), new THREE.Color('#ffe600')];
+    const palette = [new THREE.Color('#ffffff'), new THREE.Color('#fff4d6'), new THREE.Color('#ffcc00'), new THREE.Color('#ffaa44')];
 
     for (let i = 0; i < count; i++) {
       const u = Math.random();
@@ -465,7 +463,7 @@ function DeepSpaceStarfield() {
     const sz = new Float32Array(count);
     const ph = new Float32Array(count);
 
-    const palette = [new THREE.Color('#ffffff'), new THREE.Color('#fff4d6'), new THREE.Color('#a855f7')];
+    const palette = [new THREE.Color('#ffffff'), new THREE.Color('#fff4d6'), new THREE.Color('#fb923c'), new THREE.Color('#ffd066')];
 
     for (let i = 0; i < count; i++) {
       const u = Math.random();
@@ -582,13 +580,13 @@ const KnowledgeNode = React.memo(({ node, isConnectedComponent }: { node: TopicN
     setSelectedTopicId(node.id);
   };
 
-  const glintScale = isSelected ? 1.6 : isHovered ? 1.1 : isConnectedComponent ? 0.72 : 0.38;
-  const glintOpacity = isSelected ? 0.95 : isHovered ? 0.75 : isConnectedComponent ? 0.52 : 0.22;
-  const emissiveVal = isSelected ? 2.4 : isHovered ? 1.4 : isConnectedComponent ? 0.95 : 0.55;
+  const glintScale = isSelected ? 0.85 : isHovered ? 0.70 : isConnectedComponent ? 0.52 : 0.35;
+  const glintOpacity = isSelected ? 0.65 : isHovered ? 0.58 : isConnectedComponent ? 0.48 : 0.38;
+  const emissiveVal = isSelected ? 1.25 : isHovered ? 1.05 : isConnectedComponent ? 0.82 : 0.65;
 
   return (
     <group position={node.coordinates}>
-      {/* 4-Point Starlight Flare matched to node's category shade */}
+      {/* Slight Starlight Glow Halo around all topic nodes */}
       <AnamorphicStarGlint
         color={nodeColor}
         scale={glintScale}
@@ -676,8 +674,8 @@ function KnowledgeGraphEdges() {
 
     const visited = new Set<string>();
 
-    const incomingCorrelatedCol = activeNodeColorHex ? getIncomingEdgeColor(activeNodeColorHex) : '#ffaa00';
-    const outgoingCorrelatedCol = activeNodeColorHex ? getOutgoingEdgeColor(activeNodeColorHex) : '#00ff9d';
+    const incomingCorrelatedCol = activeNodeColorHex ? getIncomingEdgeColor(activeNodeColorHex) : '#facc15';
+    const outgoingCorrelatedCol = activeNodeColorHex ? getOutgoingEdgeColor(activeNodeColorHex) : '#f97316';
 
     topicNodes.forEach((source) => {
       source.unlocks.forEach((targetId) => {
@@ -687,9 +685,9 @@ function KnowledgeGraphEdges() {
           if (!visited.has(key)) {
             visited.add(key);
 
-            let color = 'rgba(255, 255, 255, 0.08)';
+            let color = 'rgba(254, 215, 170, 0.14)';
             let lineWidth = 0.7;
-            let baseOpacity = 0.12;
+            let baseOpacity = 0.14;
 
             if (activeId && activeNodeColorHex) {
               if (directOutgoingKeys.has(key)) {
@@ -742,8 +740,18 @@ function KnowledgeGraphEdges() {
   );
 }
 
-// Camera Rig: Deep Space Hyper-Drive Fly-In Swoop (z = 450.0 -> 22.0) and cinematic node zoom
-function CameraRig({ controlsRef, introRef }: { controlsRef: React.RefObject<OrbitControlsImpl>; introRef: React.MutableRefObject<number> }) {
+// Camera Rig: Deep Space Hyper-Drive Fly-In Swoop and cinematic node zoom
+const Y_AXIS = new THREE.Vector3(0, 1, 0);
+
+function CameraRig({
+  controlsRef,
+  introRef,
+  orbitRef
+}: {
+  controlsRef: React.RefObject<OrbitControlsImpl>;
+  introRef: React.MutableRefObject<number>;
+  orbitRef: React.MutableRefObject<number>;
+}) {
   const { camera } = useThree();
   const topicNodes = useStore((state) => state.topicNodes);
   const selectedTopicId = useStore((state) => state.selectedTopicId);
@@ -753,18 +761,6 @@ function CameraRig({ controlsRef, introRef }: { controlsRef: React.RefObject<Orb
 
   const targetPos = useMemo(() => new THREE.Vector3(), []);
   const camTargetPos = useMemo(() => new THREE.Vector3(), []);
-
-  useEffect(() => {
-    const controls = controlsRef.current;
-    if (!controls) return;
-    const onInteractionStart = () => {
-      isAnimating.current = false;
-    };
-    controls.addEventListener('start', onInteractionStart);
-    return () => {
-      controls.removeEventListener('start', onInteractionStart);
-    };
-  }, [controlsRef]);
 
   useEffect(() => {
     if (selectedTopicId !== prevSelectedId.current) {
@@ -777,7 +773,7 @@ function CameraRig({ controlsRef, introRef }: { controlsRef: React.RefObject<Orb
     const controls = controlsRef.current;
     if (!controls) return;
 
-    // 1. Deep Space Hyper-Drive Swoop Sequence on page load/refresh (Starts at z = 450.0, lands at z = 48.0 so full graph is framed in screen)
+    // 1. Deep Space Hyper-Drive Swoop Sequence on page load/refresh (Starts at z = 450.0, lands at z = 48.0)
     if (introRef.current < 1.0) {
       const t = Math.min(1.0, introRef.current);
       const easedT = 1 - Math.pow(1 - t, 4); // Quartic Ease Out for hyper-drive deceleration
@@ -797,30 +793,40 @@ function CameraRig({ controlsRef, introRef }: { controlsRef: React.RefObject<Orb
       const selectedNode = topicNodes.find((n) => n.id === selectedTopicId);
 
       if (selectedNode) {
-        // Zoom into selected node with close-up detail framing distance
+        // Calculate exact 3D world position of the node in the rotating group using Three.js axis-angle transform
         const [nx, ny, nz] = selectedNode.coordinates;
-        const titleLen = selectedNode.name.length;
-        const distOffset = titleLen > 30 ? 6.8 : titleLen > 20 ? 5.4 : 4.2;
-        targetPos.set(nx, ny, nz);
-        camTargetPos.set(nx, ny + 0.2, nz + distOffset);
+        targetPos.set(nx, ny, nz).applyAxisAngle(Y_AXIS, orbitRef.current);
 
-        controls.target.lerp(targetPos, delta * 4.5);
-        camera.position.lerp(camTargetPos, delta * 4.5);
+        const titleLen = selectedNode.name.length;
+        const distOffset = titleLen > 30 ? 6.5 : titleLen > 20 ? 5.2 : 4.0;
+
+        // Position camera directly along the outward radial vector from Sun through node to camera
+        const radialDir = targetPos.clone().normalize();
+        camTargetPos.copy(targetPos).addScaledVector(radialDir, distOffset);
+
+        controls.target.lerp(targetPos, delta * 6.0);
+        camera.position.lerp(camTargetPos, delta * 6.0);
         controls.update();
 
-        if (controls.target.distanceTo(targetPos) < 0.05 && camera.position.distanceTo(camTargetPos) < 0.1) {
+        if (controls.target.distanceTo(targetPos) < 0.02 && camera.position.distanceTo(camTargetPos) < 0.05) {
+          controls.target.copy(targetPos);
+          camera.position.copy(camTargetPos);
+          controls.update();
           isAnimating.current = false;
         }
       } else {
-        // Zoom out to homepage full graph overview centered in screen
+        // Zoom out to homepage full spherical graph overview centered on Sun
         targetPos.set(0, 0, 0);
         camTargetPos.set(0, 0, 48.0);
 
-        controls.target.lerp(targetPos, delta * 4.5);
-        camera.position.lerp(camTargetPos, delta * 4.5);
+        controls.target.lerp(targetPos, delta * 5.0);
+        camera.position.lerp(camTargetPos, delta * 5.0);
         controls.update();
 
         if (controls.target.distanceTo(targetPos) < 0.05 && camera.position.distanceTo(camTargetPos) < 0.1) {
+          controls.target.set(0, 0, 0);
+          camera.position.set(0, 0, 48.0);
+          controls.update();
           isAnimating.current = false;
         }
       }
@@ -830,7 +836,32 @@ function CameraRig({ controlsRef, introRef }: { controlsRef: React.RefObject<Orb
   return null;
 }
 
-function SceneContent() {
+// Orbiting Graph System: Rotates all nodes, edges, and solar wind energy streams around the central star
+function OrbitingGraphSystem({
+  children,
+  orbitRef
+}: {
+  children: React.ReactNode;
+  orbitRef: React.MutableRefObject<number>;
+}) {
+  const groupRef = useRef<THREE.Group>(null!);
+  const selectedTopicId = useStore((state) => state.selectedTopicId);
+  const isInspectorOpen = useStore((state) => state.isInspectorOpen);
+
+  useFrame((_, delta) => {
+    // Only orbit when viewing overview (pauses smoothly when inspecting a topic)
+    if (!selectedTopicId && !isInspectorOpen) {
+      orbitRef.current += delta * 0.04;
+    }
+    if (groupRef.current) {
+      groupRef.current.rotation.y = orbitRef.current;
+    }
+  });
+
+  return <group ref={groupRef}>{children}</group>;
+}
+
+function SceneContent({ orbitRef }: { orbitRef: React.MutableRefObject<number> }) {
   const topicNodes = useStore((state) => state.topicNodes);
   const connectedGraph = useConnectedGraph();
 
@@ -839,18 +870,21 @@ function SceneContent() {
       {/* 3-Tier Deep Space Parallax Starfield Layer (Far, Mid, Foreground) */}
       <DeepSpaceStarfield />
 
-      <KnowledgeGraphEdges />
+      {/* Central Glowing Star */}
+      <CentralSun />
 
-      {/* Directional Energy Flow Particles along Prerequisite Edges (Solar Wind) */}
-      <SolarWindEnergyStreams />
-
-      {topicNodes.map((node) => (
-        <KnowledgeNode
-          key={node.id}
-          node={node}
-          isConnectedComponent={connectedGraph.activeId ? connectedGraph.connectedNodeIds.has(node.id) : false}
-        />
-      ))}
+      {/* Orbiting Planetary Topic Graph System */}
+      <OrbitingGraphSystem orbitRef={orbitRef}>
+        <KnowledgeGraphEdges />
+        <SolarWindEnergyStreams />
+        {topicNodes.map((node) => (
+          <KnowledgeNode
+            key={node.id}
+            node={node}
+            isConnectedComponent={connectedGraph.activeId ? connectedGraph.connectedNodeIds.has(node.id) : false}
+          />
+        ))}
+      </OrbitingGraphSystem>
 
       <PostProcessing />
     </ConnectedGraphContext.Provider>
@@ -861,9 +895,11 @@ export default function SceneCanvas() {
   const setSelectedTopicId = useStore((state) => state.setSelectedTopicId);
   const controlsRef = useRef<OrbitControlsImpl>(null!);
   const introRef = useRef(0);
+  const orbitRef = useRef(0);
 
   useEffect(() => {
     introRef.current = 0;
+    orbitRef.current = 0;
   }, []);
 
   return (
@@ -890,12 +926,12 @@ export default function SceneCanvas() {
           screenSpacePanning
         />
         <IntroAnimationController introRef={introRef} />
-        <CameraRig controlsRef={controlsRef} introRef={introRef} />
-        <ambientLight intensity={0.6} />
-        <pointLight position={[15, 15, 15]} intensity={2.0} color="#00f0ff" />
-        <pointLight position={[-15, -15, -15]} intensity={1.5} color="#00ff9d" />
+        <CameraRig controlsRef={controlsRef} introRef={introRef} orbitRef={orbitRef} />
+        <ambientLight intensity={0.65} color="#fff7ed" />
+        <pointLight position={[15, 15, 15]} intensity={2.0} color="#ffaa00" />
+        <pointLight position={[-15, -15, -15]} intensity={1.5} color="#ff6600" />
         
-        <SceneContent />
+        <SceneContent orbitRef={orbitRef} />
       </Canvas>
     </div>
   );

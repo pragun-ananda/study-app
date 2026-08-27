@@ -39,9 +39,6 @@ export default function App() {
         <SceneCanvas />
       </div>
 
-      {/* Layer z-10: CRT Scanlines, Screen Vignette & Grain Overlay */}
-      <div className="pointer-events-none absolute inset-0 z-10 crt-scanlines crt-vignette opacity-80" />
-
       {/* Layer z-20: HUD & Telemetry UI */}
       <TelemetryHUD />
     </div>
