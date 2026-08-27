@@ -1,4 +1,4 @@
-import { TopicNode, NoteItem, StudyTodo } from '../types/telemetry';
+import { TopicNode, NoteItem, StudyTodo, IngestPipelineResult, IngestRequestOptions } from '../types/telemetry';
 
 export class ApiError extends Error {
   constructor(
@@ -206,3 +206,18 @@ export async function deleteTodo(id: string): Promise<void> {
     method: 'DELETE'
   });
 }
+
+// ==========================================
+// Ingestion Pipeline API (BAC-1 / BAC-2)
+// ==========================================
+
+export async function ingestFromUrl(
+  url: string,
+  options?: IngestRequestOptions
+): Promise<IngestPipelineResult> {
+  return request<IngestPipelineResult>('/api/ingest', {
+    method: 'POST',
+    body: JSON.stringify({ url, options })
+  });
+}
+
