@@ -82,7 +82,7 @@ test.describe('Telemetry HUD & User Controls (FRO-9)', () => {
     await todoInput.press('Enter');
 
     // Verify new todo appears in list
-    const createdTodo = page.locator('text=Master GPU Shader Pipelines');
+    const createdTodo = page.locator('text=Master GPU Shader Pipelines').first();
     await expect(createdTodo).toBeVisible();
 
     // Toggle todo completion

@@ -454,7 +454,34 @@ export default function DiffViewerModal() {
                             </SyntaxHighlighter>
                           </div>
                         );
-                      }
+                      },
+                      img: ({ node, src, alt, ...props }) => (
+                        <span className="block my-4 rounded-xl overflow-hidden border border-white/10 bg-[#060a14] shadow-xl">
+                          <img
+                            src={src}
+                            alt={alt}
+                            className="w-full max-h-[360px] object-contain bg-slate-950/60 p-2"
+                            loading="lazy"
+                            {...props}
+                          />
+                          {alt && (
+                            <span className="block text-center text-[10px] text-slate-400 py-1.5 px-3 border-t border-white/5 bg-slate-950/80 font-mono">
+                              {alt}
+                            </span>
+                          )}
+                        </span>
+                      ),
+                      a: ({ node, href, children, ...props }) => (
+                        <a
+                          href={href}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="underline text-[#00f0ff] hover:text-[#00ff9d] transition-colors"
+                          {...props}
+                        >
+                          {children}
+                        </a>
+                      )
                     }}
                   >
                     {activeUpdate.newContent}

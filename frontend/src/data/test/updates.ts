@@ -50,6 +50,11 @@ y.backward()
 print("Gradients with respect to weights:", W.grad)
 \`\`\`
 
+## Computational Graph Architecture
+![Reverse-Mode Autograd Flow](https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=800&q=80)
+
+*Reference documentation: [PyTorch Autograd Mechanics](https://pytorch.org/docs/stable/notes/autograd.html)*
+
 ## Key Ingestion Enhancements
 1. Reverse-mode accumulation guarantees $O(1)$ reverse passes per scalar loss.
 2. Memory checkpointing avoids caching intermediate activations during forward evaluation.`,

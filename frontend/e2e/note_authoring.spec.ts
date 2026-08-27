@@ -73,7 +73,7 @@ test.describe('Note Authoring & KaTeX Math Persistence (FRO-9)', () => {
 
     const contentTextarea = page.getByPlaceholder('Start typing your note here...');
     await expect(contentTextarea).toBeVisible();
-    await contentTextarea.fill('# Backpropagation Derivations\n\n$$ \\delta^{[l]} = \\frac{\\partial L}{\\partial Z^{[l]}} $$\n\nUpdated via automated Playwright E2E full-stack test.');
+    await contentTextarea.fill('# Backpropagation Derivations\n\n$$ \\delta^{[l]} = \\frac{\\partial L}{\\partial Z^{[l]}} $$\n\n```python\ndef backward_propagation(dAL, caches):\n    return grads\n```\n\nUpdated via automated Playwright E2E full-stack test.');
 
     // 4. Verify global shortcuts (KeyH, KeyO) are safely ignored inside textarea
     await contentTextarea.press('KeyH');
