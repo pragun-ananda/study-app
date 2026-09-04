@@ -138,7 +138,7 @@ The quiz MUST achieve 100% COVERAGE of the note across its core sections:
 1. Problem Context & The "Why"
 2. Conceptual Core & Mental Model
 3. Formal Specification & Math/Mechanics
-4. Implementation & Code Patterns
+4. Algorithmic Logic & Pseudocode
 5. Step-by-Step Worked Trace
 6. Trade-Offs, Alternatives & Decision Matrix
 7. Failure Modes, Edge Cases & Pitfalls

@@ -158,19 +158,21 @@ Your output MUST be in GitHub-Flavored Markdown and strictly adhere to this sect
 ## 2. Conceptual Core & Mental Model
 - Provide an intuitive, high-yield analogy (e.g. system analogy or physical world model).
 - Explain the core operational mechanics in clear, jargon-free principles.
+- Include a Mermaid diagram (\`\`\`mermaid flowchart TD or LR ...) illustrating the architectural topology or component relationships where applicable.
 
 ## 3. Formal Deep-Dive Specification
 - ADAPTIVE RIGOR:
   - If mathematical/algorithmic: provide equations using standard KaTeX ($...$ inline, $$...$$ block), loss functions, complexity bounds, and define all symbols clearly.
   - If systems/networking/protocol: define packet headers, state machine transitions, internal data structures (e.g. Memtable/SSTable, hash rings), and invariant rules.
 
-## 4. Concrete Implementation & Code Patterns
-- Provide production-grade code, configuration, or typed schema definitions (e.g. Python, TypeScript, CQL, or SQL).
-- Include concise comments explaining non-obvious operations.
+## 4. Algorithmic Logic & Pseudocode
+- STRICT REQUIREMENT: Only provide clean, structured, human-readable PSEUDOCODE. Do NOT write full language-specific production code or boilerplates (avoid language imports, framework plumbing, or memory allocators).
+- Focus purely on state transformations, data structures, and core decision logic (e.g., \`ALGORITHM FunctionName(inputs):\`, \`WHILE\`, \`FOR EACH\`, \`IF/ELSE\`, \`RETURN\`).
+- Emphasize pedagogical clarity so the reader understands the logic without getting lost in language syntax.
 
 ## 5. Step-by-Step Worked Trace / Execution Flow
 - Provide a concrete execution walkthrough with realistic sample data (e.g., tracing a request across the ring or stepping through an algorithmic pass).
-- Use clear visual ASCII diagrams or numbered sub-steps.
+- Include a Mermaid diagram (\`\`\`mermaid sequenceDiagram ...) showing chronological interaction between actors, or clean numbered sub-steps with state transitions.
 
 ## 6. Trade-Offs, Alternatives & Decision Matrix
 - Provide a structured Markdown comparison table comparing this approach against 1-2 major alternatives (e.g., Feature vs Alternative A vs Alternative B).
@@ -243,8 +245,10 @@ Your job is to audit study notes against source material to ensure complete tech
 EVALUATION RUBRIC:
 1. PROBLEM MOTIVATION ("The Why"): Did the note clearly articulate what failed before this concept and why it was invented?
 2. TECHNICAL DEPTH & FORMAL SPEC: Are mathematical formulas (KaTeX), asymptotic bounds, or internal data structures rigorously stated?
-3. WORKED TRACE & DECISION MATRIX: Does it include a step-by-step worked trace and a comparative decision matrix (trade-offs table with Use When / Avoid When)?
-4. FACTUAL GROUNDING & SYNTAX: Are all claims grounded in the source text or canonical domain truth? Are code fences and LaTeX delimiters properly closed?
+3. PSEUDOCODE & PEDAGOGY: Is Section 4 written as clean, language-agnostic pseudocode without distracting boilerplate or syntax noise?
+4. WORKED TRACE & DIAGRAMS: Does it include a step-by-step worked trace and Mermaid diagrams (flowcharts/sequences) where applicable?
+5. DECISION MATRIX & TRADEOFFS: Does it include a structured comparison table with explicit Use When / Avoid When heuristics?
+6. FACTUAL GROUNDING & SYNTAX: Are all claims grounded in the source text or canonical domain truth? Are code fences and LaTeX delimiters properly closed?
 
 Output must strictly conform to the required JSON schema.`;
 

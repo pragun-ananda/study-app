@@ -191,6 +191,16 @@ Traditional Recurrent Neural Networks (RNNs and LSTMs) processed sequences seque
 ## 2. Conceptual Core & Mental Model
 The core mechanism replaces sequential recurrence with dynamic, content-based relational affinity weighting. Think of an information retrieval search engine: a Query token searches across a catalog of Key tokens to compute relevance scores, which are then used to compute a weighted sum over the Value payloads.
 
+\`\`\`mermaid
+flowchart LR
+    Q[Queries Q] --> S[Scaled Dot-Product Similarity]
+    K[Keys K] --> S
+    S --> W[Attention Weights Matrix]
+    V[Values V] --> M[Weighted Aggregation]
+    W --> M
+    M --> O[Contextual Representations]
+\`\`\`
+
 ## 3. Formal Deep-Dive Specification
 Given query matrix $Q \\in \\mathbb{R}^{N \\times d_k}$, key matrix $K \\in \\mathbb{R}^{N \\times d_k}$, and value matrix $V \\in \\mathbb{R}^{N \\times d_v}$:
 
@@ -200,21 +210,44 @@ $$
 
 The scaling factor $\\frac{1}{\\sqrt{d_k}}$ prevents large dot-product magnitudes from pushing the softmax function into regions with near-zero gradients.
 
-## 4. Concrete Implementation & Code Patterns
-\`\`\`python
-import torch
-import torch.nn.functional as F
-
-def scaled_dot_product_attention(Q, K, V, mask=None):
-    d_k = Q.size(-1)
-    scores = torch.matmul(Q, K.transpose(-2, -1)) / (d_k ** 0.5)
-    if mask is not None:
-        scores = scores.masked_fill(mask == 0, -1e9)
-    weights = F.softmax(scores, dim=-1)
-    return torch.matmul(weights, V)
+## 4. Algorithmic Logic & Pseudocode
+\`\`\`text
+ALGORITHM ScaledDotProductAttention(Q, K, V, mask):
+    INPUT: Matrices Q, K, V with dimension d_k; optional causal or padding mask
+    OUTPUT: Contextual representation matrix
+    
+    // 1. Compute pairwise raw token affinities scaled by dimension
+    scores := MATMUL(Q, TRANSPOSE(K)) / SQRT(d_k)
+    
+    // 2. Inhibit invalid positions (e.g. future tokens in autoregressive decoding)
+    IF mask IS NOT null THEN
+        scores := MASK_FILL(scores, mask == 0, -INFINITY)
+    END IF
+    
+    // 3. Normalize affinities into probability distribution across keys
+    attention_weights := SOFTMAX(scores, axis=-1)
+    
+    // 4. Compute weighted sum over value vectors
+    RETURN MATMUL(attention_weights, V)
 \`\`\`
 
 ## 5. Step-by-Step Worked Trace / Execution Flow
+\`\`\`mermaid
+sequenceDiagram
+    autonumber
+    participant Input as Input Embeddings
+    participant Proj as Linear Projections (Wq, Wk, Wv)
+    participant Core as Scaled Attention Core
+    participant Output as Final Representation
+
+    Input->>Proj: Forward pass sequence tokens [N x d_model]
+    Proj->>Core: Emit Query (Q), Key (K), Value (V) matrices
+    Core->>Core: Compute pairwise affinity: S = Q * K^T / sqrt(d_k)
+    Core->>Core: Probability distribution: P = Softmax(S)
+    Core->>Core: Weighted summation: Output = P * V
+    Core->>Output: Emit context-aware representations [N x d_v]
+\`\`\`
+
 1. **Projection**: Input embeddings are projected through linear weight matrices $W_Q, W_K, W_V$.
 2. **Affinity Computation**: Pairwise dot products $QK^T$ produce an unnormalized similarity matrix of size $[N \\times N]$.
 3. **Scaling**: Divide scores by $\\sqrt{d_k}$ to stabilize gradient magnitudes.

@@ -133,11 +133,14 @@ Policy gradients and Q-learning. ${'More details on agents. '.repeat(400)}
       expect(note.content).toContain('1. Problem Context & The "Why"');
       expect(note.content).toContain('2. Conceptual Core & Mental Model');
       expect(note.content).toContain('3. Formal Deep-Dive Specification');
-      expect(note.content).toContain('4. Concrete Implementation & Code Patterns');
+      expect(note.content).toContain('4. Algorithmic Logic & Pseudocode');
       expect(note.content).toContain('5. Step-by-Step Worked Trace / Execution Flow');
       expect(note.content).toContain('6. Trade-Offs, Alternatives & Decision Matrix');
       expect(note.content).toContain('7. Failure Modes, Edge Cases & Common Pitfalls');
       expect(note.content).toContain('8. Summary & Key Takeaways Checklist');
+      expect(note.content).toContain('```mermaid');
+      expect(note.content).toContain('flowchart');
+      expect(note.content).toContain('sequenceDiagram');
       expect(note.keyFormulas).toBeDefined();
       expect(note.codeSnippetsCount).toBeGreaterThan(0);
 
