@@ -80,7 +80,14 @@ export function validateQuizQuestions(questions: GeneratedQuizQuestion[]): { val
       if (Array.isArray(payload?.options)) {
         const optionIds = payload.options.map((o) => (o?.id || '').toUpperCase());
         const correctUpper = (q.correctAnswer || '').trim().toUpperCase();
-        if (!optionIds.includes(correctUpper)) {
+        const matchesId = optionIds.includes(correctUpper);
+        const matchesPrefix = optionIds.some(
+          (id) => correctUpper.startsWith(id + ':') || correctUpper.startsWith(id + ')') || correctUpper.startsWith(id + '.')
+        );
+        const matchesText = payload.options.some(
+          (o) => (o?.text || '').trim().toLowerCase() === (q.correctAnswer || '').trim().toLowerCase()
+        );
+        if (!matchesId && !matchesPrefix && !matchesText) {
           errors.push(
             `MCQ Question #${idx + 1} correctAnswer '${q.correctAnswer}' does not match any option ID (${optionIds.join(', ')}).`
           );
@@ -214,7 +221,7 @@ Please re-generate the complete quiz questions, resolving all ambiguities and en
 Your job is to audit study quiz questions against the provided study note.
 
 EVALUATION RUBRIC:
-1. 100% NOTE COVERAGE: Are all major sections of the note (Core Concept, Math, Code, Caveats) covered by at least one question?
+1. 100% NOTE COVERAGE: Are the core sections of the master note (Context & Why, Conceptual Core, Formal Spec, Implementation, Worked Trace, Decision Matrix, Failure Modes, Takeaways) covered by at least one question across the assessment?
 2. UNAMBIGUOUS GROUND TRUTH: Does each question have exactly ONE demonstrably correct answer directly verifiable from the note?
 3. DISTRACTOR PLAUSIBILITY: Are distractors realistic and instructive, avoiding giveaway options?
 4. QUESTION TAXONOMY: Did the author avoid lazy flashcards and utilize challenging formats (MCQ, True/False, Matching, Sequence Ordering)?

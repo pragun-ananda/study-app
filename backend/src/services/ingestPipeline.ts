@@ -216,7 +216,7 @@ export async function extractTopicsStep(
 
 /**
  * Step 4: Generate content (High-Fidelity Topic Notes + 100% Coverage Quizzes)
- * Generates exhaustive 5-part study notes with KaTeX math and code blocks,
+ * Generates exhaustive 8-part master study notes with KaTeX math and code blocks,
  * followed by challenging quizzes (MCQ, True/False, Matching, Sequence Ordering).
  */
 export async function generateContentStep(

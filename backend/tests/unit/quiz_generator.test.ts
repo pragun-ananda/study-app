@@ -13,22 +13,47 @@ describe('Unit: Quiz Generator Service (src/services/quizGenerator.ts)', () => {
     topicName: 'Transformer Self-Attention',
     content: `# Transformer Self-Attention
 
-## 1. Conceptual Core & Mental Model
-Scaled dot-product attention computes token affinities.
+> **Prerequisites**: [[Linear Algebra]], [[Deep Learning Fundamentals]]  
+> **Key Metric / Guarantee**: $\\mathcal{O}(N^2)$ pairwise attention complexity
 
-## 2. Mathematical Formulation
+---
+
+## 1. Problem Context & The "Why"
+Sequential recurrence in RNNs prevented parallelization across GPUs and suffered from vanishing gradients across long contexts.
+
+## 2. Conceptual Core & Mental Model
+Scaled dot-product attention computes token affinities using queries, keys, and values.
+
+## 3. Formal Deep-Dive Specification
 $$\\text{Attention}(Q,K,V) = \\text{softmax}\\left(\\frac{QK^T}{\\sqrt{d_k}}\\right)V$$
+The scaling factor $1/\\sqrt{d_k}$ prevents vanishing softmax gradients.
 
-## 3. Architecture & Code Implementation
+## 4. Concrete Implementation & Code Patterns
 \`\`\`python
 scores = torch.matmul(Q, K.T) / (d_k ** 0.5)
 \`\`\`
 
-## 4. Key Caveats, Edge Cases & Common Pitfalls
-Memory scales quadratically $O(N^2)$.
+## 5. Step-by-Step Worked Trace / Execution Flow
+1. Project inputs to Q, K, V.
+2. Compute similarity matrix $QK^T$.
+3. Scale and normalize with softmax.
+4. Aggregate values.
 
-## 5. Summary & Key Takeaways Checklist
-- [x] Division by sqrt(d_k) stabilizes softmax gradients.`
+## 6. Trade-Offs, Alternatives & Decision Matrix
+| Mechanism | Time Complexity | Sequential Ops |
+| :--- | :--- | :--- |
+| **Self-Attention** | $\\mathcal{O}(N^2 \\cdot d)$ | $\\mathcal{O}(1)$ |
+| **RNN** | $\\mathcal{O}(N \\cdot d^2)$ | $\\mathcal{O}(N)$ |
+
+- **Use When**: High-throughput parallel training on sequence data.
+- **Avoid When**: Ultra-long contexts without sparse attention approximations.
+
+## 7. Failure Modes, Edge Cases & Common Pitfalls
+Memory scales quadratically $\\mathcal{O}(N^2)$ with sequence length. Causal leakage occurs without triangular masks.
+
+## 8. Summary & Key Takeaways Checklist
+- [x] Division by sqrt(d_k) stabilizes softmax gradients.
+- [x] Attention removes sequential recurrent dependencies.`
   };
 
   describe('Question Integrity & Taxonomy Validation', () => {

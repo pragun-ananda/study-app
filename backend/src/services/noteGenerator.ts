@@ -219,10 +219,10 @@ The previous draft was audited and flagged the following issues:
 - Syntax Issues: ${JSON.stringify(lastAuditReport.syntaxErrors)}
 - Reviewer Guidance: ${lastAuditReport.feedback}
 
-Please re-generate the complete note, strictly preserving the 5-section format and fixing all reported deficiencies.
+Please re-generate the complete note, strictly preserving the 8-section master architecture and fixing all reported deficiencies.
 </critic_revision_feedback>`;
     } else {
-      generatorPrompt += `\n\nGenerate the complete, exhaustive 5-part study note for "${topic.name}".`;
+      generatorPrompt += `\n\nGenerate the complete, exhaustive 8-part master study note for "${topic.name}".`;
     }
 
     // Step 1: Generator LLM Call
