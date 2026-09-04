@@ -332,6 +332,57 @@ export interface AddToReviewQueueResult {
   status: 'queued' | 'bypassed';
 }
 
+// -----------------------------------------------------------------------------
+// Graph Update & Intelligent Content Merge Types (BAC-27)
+// -----------------------------------------------------------------------------
+export type GraphUpdateType =
+  | 'NOTE_UPDATE'
+  | 'QUIZ_UPDATE'
+  | 'EDGE_UPDATE'
+  | 'TOPIC_UPDATE';
+
+export type GraphUpdateStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CHANGES_REQUESTED';
+
+export interface GraphUpdate {
+  id: string; // UPDATE-UUID
+  type: GraphUpdateType;
+  status: GraphUpdateStatus;
+  category: DomainCategory;
+  targetId: string; // topicId, noteId, or quizId
+  targetName: string; // Human-readable title
+  title: string; // E.g., "Semantic Merge: Cassandra Storage Model"
+  description: string; // Concise explanation of changes
+  oldContent: string; // Empty string for first write, existing content for updates/merges
+  newContent: string; // The resulting content
+  sourceUrl?: string; // Source article/document URL
+  createdAt: string;
+  payload?: {
+    topicId?: string;
+    noteId?: string;
+    quizId?: string;
+    edge?: { fromId: string; toId: string; action: 'ADD' | 'REMOVE' };
+    patch?: any;
+    notePatch?: any;
+  };
+}
+
+export interface MergeAuditReport {
+  passed: boolean;
+  preservationScore: number; // 0 - 100% (measure of original content retained)
+  coverageScore: number; // 0 - 100% (measure of new material integrated)
+  lostOriginalConcepts: string[]; // Critical: flags any dropped formulas, diagrams, or nuances
+  omittedNewConcepts: string[]; // Flags any missed points from incoming source
+  unresolvedDuplicates: string[]; // Flags any redundant paragraphs/explanations
+  feedback: string;
+  refinementIterations: number;
+}
+
+export interface MergeContentResult {
+  mergedNote: GeneratedNote;
+  auditReport: MergeAuditReport;
+  updateType: 'NOTE_UPDATE';
+}
+
 export interface IngestPipelineResult {
   status: 'success' | 'error';
   url: string;
@@ -353,6 +404,8 @@ export interface IngestPipelineResult {
     queueId?: string | null;
     noteAudits?: NoteAuditReport[];
     quizAudits?: QuizAuditReport[];
+    mergeAudits?: MergeAuditReport[];
+    graphUpdates?: GraphUpdate[];
   };
 }
 

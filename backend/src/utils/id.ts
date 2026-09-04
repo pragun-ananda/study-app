@@ -5,7 +5,7 @@ import crypto from 'crypto';
  * e.g., TOPIC-1724510000000-a1b2c3d4 or NOTE-1724510000000-e5f6g7h8
  */
 export function generateEntityId(
-  prefix: 'TOPIC' | 'NOTE' | 'TODO' | 'QUIZ' | 'QUESTION' | 'QUEUE'
+  prefix: 'TOPIC' | 'NOTE' | 'TODO' | 'QUIZ' | 'QUESTION' | 'QUEUE' | 'UPDATE'
 ): string {
   const timestamp = Date.now().toString(36);
   const random = crypto.randomBytes(4).toString('hex');
