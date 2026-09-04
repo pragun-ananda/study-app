@@ -132,6 +132,49 @@ Shutter speed controls motion blur and action freezing.
       expect(result.validationReport?.rejectedTopics.length).toBe(2);
       expect(result.validationReport?.rejectedTopics[0].name).toBe('Computer Science');
     });
+
+    it('enforces atomic unit of study by rejecting fragmented sub-types and micro-parameters', async () => {
+      const mockClient = new MockLLMClient();
+
+      mockClient.setHandler((options) => {
+        const isCritic = options.systemPrompt.includes('Critic') || options.systemPrompt.includes('Validator');
+        if (!isCritic) {
+          return JSON.stringify({
+            topics: [
+              { name: 'Database Partitioning & Sharding', category: 'SYSTEMS', summary: 'Horizontal and vertical data distribution across machines.' },
+              { name: 'Horizontal Partitioning', category: 'SYSTEMS', summary: 'Splitting table rows across shards.' },
+              { name: 'Vertical Partitioning', category: 'SYSTEMS', summary: 'Splitting table columns across shards.' },
+              { name: 'Shard Key', category: 'SYSTEMS', summary: 'The column used to route data.' }
+            ]
+          });
+        } else {
+          return JSON.stringify({
+            approvedTopics: [
+              {
+                name: 'Database Partitioning & Sharding',
+                category: 'SYSTEMS',
+                summary: 'Horizontal and vertical data distribution across machines.',
+                proposedPrerequisites: []
+              }
+            ],
+            rejectedTopics: [
+              { name: 'Horizontal Partitioning', reason: 'Too granular - sub-concept of Database Partitioning; fold into parent unit of study' },
+              { name: 'Vertical Partitioning', reason: 'Too granular - sub-concept of Database Partitioning; fold into parent unit of study' },
+              { name: 'Shard Key', reason: 'Too narrow - parameter property of sharding; fold into parent unit of study' }
+            ]
+          });
+        }
+      });
+
+      const substantiveContent = 'Database partitioning and sharding split data across multiple nodes.'.repeat(10);
+      const result = await extractHighFidelityTopics(substantiveContent, { llmClient: mockClient });
+
+      expect(result.topics.length).toBe(1);
+      expect(result.topics[0].name).toBe('Database Partitioning & Sharding');
+      expect(result.validationReport?.rejectedTopics.length).toBe(3);
+      expect(result.validationReport?.rejectedTopics.some((r) => r.name === 'Horizontal Partitioning')).toBe(true);
+      expect(result.validationReport?.rejectedTopics.some((r) => r.name === 'Shard Key')).toBe(true);
+    });
   });
 
   describe('Critic Fallback Resilience', () => {
