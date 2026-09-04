@@ -13,6 +13,12 @@ describe("Integration: Ingestion API (POST /api/ingest & POST /ingest)", () => {
       if (req.url === "/valid-source") {
         res.writeHead(200, { "Content-Type": "text/html" });
         res.end("<!DOCTYPE html><html><body><h1>Attention Is All You Need</h1><p>Transformer paper text.</p></body></html>");
+      } else if (req.url === "/rich-article") {
+        res.writeHead(200, { "Content-Type": "text/html" });
+        res.end("<!DOCTYPE html><html><body><h1>Transformer Architecture and Attention</h1><p>The transformer architecture relies on multi-head scaled dot-product self-attention mechanisms to map query, key, and value vectors across sequences without recurrent or convolutional constraints.</p></body></html>");
+      } else if (req.url === "/photography-blog") {
+        res.writeHead(200, { "Content-Type": "text/html" });
+        res.end("<!DOCTYPE html><html><body><h1>Understanding the Exposure Triangle</h1><p>In photography, the exposure triangle balances shutter speed, lens aperture, and camera sensor ISO sensitivity. Mastering aperture enables creative depth of field control.</p></body></html>");
       } else if (req.url === "/photo.jpg") {
         res.writeHead(200, { "Content-Type": "image/jpeg" });
         res.end(Buffer.from([0xff, 0xd8, 0xff]));
@@ -83,6 +89,32 @@ describe("Integration: Ingestion API (POST /api/ingest & POST /ingest)", () => {
     expect(res.body.status).toBe("success");
     expect(res.body.url).toBe(targetUrl);
     expect(res.body.executedSteps.length).toBe(6);
+  });
+
+  it("POST /api/ingest extracts high-fidelity topics from rich content (BAC-19)", async () => {
+    const targetUrl = `http://127.0.0.1:${mockServerPort}/rich-article`;
+
+    const res = await request(app)
+      .post("/api/ingest")
+      .send({ url: targetUrl });
+
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe("success");
+    expect(res.body.executedSteps).toContain("extract_topics");
+    expect(res.body.details.extractedTopicsCount).toBeGreaterThan(0);
+  });
+
+  it("POST /api/ingest dynamically proposes emergent PHOTOGRAPHY subgraph for novel content (BAC-19)", async () => {
+    const targetUrl = `http://127.0.0.1:${mockServerPort}/photography-blog`;
+
+    const res = await request(app)
+      .post("/api/ingest")
+      .send({ url: targetUrl });
+
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe("success");
+    expect(res.body.details.extractedTopicsCount).toBeGreaterThan(0);
+    expect(res.body.details.suggestedNewDomains).toContain("PHOTOGRAPHY");
   });
 
   it("POST /api/ingest returns 415 Unsupported Media Type when target is binary media (e.g. image/jpeg)", async () => {

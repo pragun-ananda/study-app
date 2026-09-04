@@ -24,6 +24,9 @@ describe("Unit: Ingestion Pipeline Service (src/services/ingestPipeline.ts)", ()
       if (req.url === "/article") {
         res.writeHead(200, { "Content-Type": "text/html" });
         res.end("<html><body><h1>Neural Networks</h1><p>Deep Learning Concepts.</p></body></html>");
+      } else if (req.url === "/rich-article") {
+        res.writeHead(200, { "Content-Type": "text/html" });
+        res.end("<html><body><h1>Transformer Attention Architecture</h1><p>Self-attention mechanisms calculate scaled dot products between query and key vectors to model semantic context in sequence models. Multi-Head Attention enables parallel representation sub-spaces.</p></body></html>");
       } else if (req.url === "/redirect-source") {
         res.writeHead(302, { Location: "/article" });
         res.end();
@@ -238,9 +241,20 @@ describe("Unit: Ingestion Pipeline Service (src/services/ingestPipeline.ts)", ()
       expect(multiByteResult.cleanedLength).toBeGreaterThan(multiByteResult.cleanedContent.length);
     });
 
-    it("extractTopicsStep returns empty topics list", async () => {
+    it("extractTopicsStep returns empty topics list for short content (< 100 chars)", async () => {
       const result = await extractTopicsStep("Sample content");
       expect(result.topics).toEqual([]);
+    });
+
+    it("extractTopicsStep extracts structured ExtractedTopic nodes for substantive content (BAC-19)", async () => {
+      const richContent = `# Deep Learning and Neural Network Architectures\n\n` +
+        `Neural network models utilize deep layers with backpropagation to optimize weight parameters. ` +
+        `Transformer self-attention architectures allow capturing long-range token relationships efficiently.`;
+      const result = await extractTopicsStep(richContent);
+      expect(result.topics.length).toBeGreaterThan(0);
+      expect(result.topics[0].name).toBeDefined();
+      expect(result.topics[0].category).toBeDefined();
+      expect(result.topics[0].summary).toBeDefined();
     });
 
     it("generateContentStep returns empty notes list", async () => {
@@ -283,6 +297,15 @@ describe("Unit: Ingestion Pipeline Service (src/services/ingestPipeline.ts)", ()
       expect(result.details.generatedNotesCount).toBe(0);
       expect(result.details.reviewPassed).toBe(true);
       expect(result.details.queueId).toBeNull();
+    });
+
+    it("populates extractedTopicsCount when ingesting rich article content (BAC-19)", async () => {
+      const url = `http://127.0.0.1:${mockServerPort}/rich-article`;
+      const result = await runIngestionPipeline({ url });
+
+      expect(result.status).toBe("success");
+      expect(result.executedSteps).toContain("extract_topics");
+      expect(result.details.extractedTopicsCount).toBeGreaterThan(0);
     });
   });
 });

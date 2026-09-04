@@ -1,4 +1,5 @@
 import { cleanHtmlToMarkdown, CleanContentOptions } from "./contentCleaner.js";
+import { extractHighFidelityTopics } from "./topicExtractor.js";
 import {
   IngestPipelineStep,
   IngestRequestPayload,
@@ -6,6 +7,7 @@ import {
   IngestPipelineResult,
   FetchUrlResult,
   CleanContentResult,
+  ExtractTopicsOptions,
   ExtractTopicsResult,
   GenerateContentResult,
   ReviewContentResult,
@@ -192,15 +194,15 @@ export async function cleanFetchedContentStep(
 }
 
 /**
- * Step 3: Extract topics
- * Placeholder no-op for entity recognition and concept extraction into topic nodes.
+ * Step 3: Extract topics (BAC-19)
+ * Extracts high-fidelity topic nodes from cleaned markdown using a dual-agent
+ * architecture (Generator + Critic) with dynamic domain emergence.
  */
 export async function extractTopicsStep(
-  _cleanedContent: string
+  cleanedContent: string,
+  options?: ExtractTopicsOptions
 ): Promise<ExtractTopicsResult> {
-  return {
-    topics: []
-  };
+  return extractHighFidelityTopics(cleanedContent, options);
 }
 
 /**
@@ -260,8 +262,8 @@ export async function runIngestionPipeline(
   });
   executedSteps.push("clean_content");
 
-  // 3. Extract topics (no-op)
-  const extractResult = await extractTopicsStep(cleanResult.cleanedContent);
+  // 3. Extract topics (BAC-19)
+  const extractResult = await extractTopicsStep(cleanResult.cleanedContent, payload.options);
   executedSteps.push("extract_topics");
 
   // 4. Generate content (no-op)
@@ -294,6 +296,7 @@ export async function runIngestionPipeline(
       cleanedLength: cleanResult.cleanedLength,
       cleanedTitle: cleanResult.title,
       extractedTopicsCount: extractResult.topics.length,
+      suggestedNewDomains: extractResult.suggestedNewDomains,
       generatedNotesCount: generateResult.notes.length,
       reviewPassed: reviewResult.passed,
       queueId: queueResult.queueId

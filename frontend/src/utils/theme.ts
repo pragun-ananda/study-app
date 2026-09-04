@@ -11,8 +11,24 @@ export const DOMAIN_BASE_COLORS: Record<string, string> = {
 };
 
 
+export function getDomainBaseColor(category: string): string {
+  if (DOMAIN_BASE_COLORS[category]) return DOMAIN_BASE_COLORS[category];
+
+  // Deterministic golden ratio hue hashing for emergent subgraphs (preserves starlight neon vibrancy)
+  let hash = 0;
+  for (let i = 0; i < category.length; i++) {
+    hash = (hash << 5) - hash + category.charCodeAt(i);
+    hash |= 0;
+  }
+  const goldenRatio = 0.618033988749895;
+  const hue = Math.floor(((Math.abs(hash) * goldenRatio) % 1) * 360);
+  const color = new THREE.Color();
+  color.setHSL(hue / 360, 1.0, 0.55);
+  return '#' + color.getHexString();
+}
+
 export const getCategoryShade = (id: string, category: string): string => {
-  const baseColorHex = DOMAIN_BASE_COLORS[category] || '#00f0ff';
+  const baseColorHex = getDomainBaseColor(category);
   const color = new THREE.Color(baseColorHex);
 
   let hash = 0;

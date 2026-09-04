@@ -1,30 +1,30 @@
-import { DomainCategory, TopicStatus, TodoPriority } from '../types.js';
+import { DomainCategory, TopicStatus, TodoPriority, DEFAULT_DOMAINS } from '../types.js';
 
-export const VALID_CATEGORIES: DomainCategory[] = [
-  'AI & ML',
-  'CS',
-  'SYSTEMS',
-  'MATH',
-  'PHYSICS',
-  'CYBERSECURITY',
-  'ARCH'
-];
+export const VALID_CATEGORIES: string[] = [...DEFAULT_DOMAINS];
+export const VALID_STATUSES: TopicStatus[] = ['DUE', 'LEARNING', 'MASTERED', 'NEW'];
+export const VALID_PRIORITIES: TodoPriority[] = ['HIGH', 'MEDIUM', 'LOW'];
 
-export const VALID_STATUSES: TopicStatus[] = [
-  'DUE',
-  'LEARNING',
-  'MASTERED',
-  'NEW'
-];
+/**
+ * Canonicalizes domain category name to uppercase, trimmed, alphanumeric spaces up to 64 chars.
+ */
+export function normalizeDomainCategory(raw: string): string {
+  if (!raw || typeof raw !== 'string') return '';
+  return raw.trim().toUpperCase().replace(/[\s_-]+/g, ' ').slice(0, 64);
+}
 
-export const VALID_PRIORITIES: TodoPriority[] = [
-  'HIGH',
-  'MEDIUM',
-  'LOW'
-];
+/**
+ * Registers a newly discovered or emergent domain category into the allowed categories registry.
+ */
+export function registerDomainCategory(category: string): string {
+  const normalized = normalizeDomainCategory(category);
+  if (normalized && !VALID_CATEGORIES.includes(normalized)) {
+    VALID_CATEGORIES.push(normalized);
+  }
+  return normalized;
+}
 
 export function isValidCategory(category: unknown): category is DomainCategory {
-  return typeof category === 'string' && VALID_CATEGORIES.includes(category as DomainCategory);
+  return typeof category === 'string' && VALID_CATEGORIES.includes(category);
 }
 
 export function isValidStatus(status: unknown): status is TopicStatus {
