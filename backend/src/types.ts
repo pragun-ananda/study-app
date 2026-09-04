@@ -47,6 +47,41 @@ export interface NoteRow {
   updated_at: string | Date;
 }
 
+export interface QuizRow {
+  id: string;
+  topic_id: string;
+  title: string;
+  description: string | null;
+  created_at: string | Date;
+  updated_at: string | Date;
+}
+
+export type QuizQuestionType = 'MCQ' | 'TRUE_FALSE' | 'MATCHING' | 'ORDERING' | 'FLASHCARD';
+export type QuizQuestionDifficulty = 'EASY' | 'MEDIUM' | 'HARD';
+
+export interface QuizQuestionRow {
+  id: string;
+  quiz_id: string;
+  note_id: string | null;
+  type: QuizQuestionType;
+  prompt: string;
+  payload: any;
+  correct_answer: string;
+  explanation: string;
+  difficulty: QuizQuestionDifficulty;
+  created_at: string | Date;
+}
+
+export interface IngestReviewQueueRow {
+  id: string;
+  source_url: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  payload: any;
+  audit_report: any;
+  created_at: string | Date;
+  reviewed_at: string | Date | null;
+}
+
 export interface StudyTodoRow {
   id: string;
   topic_id: string | null;
@@ -82,6 +117,29 @@ export interface NoteDTO {
   updatedAt?: string;
 }
 
+export interface QuizQuestionDTO {
+  id: string;
+  quizId: string;
+  noteId?: string;
+  type: QuizQuestionType;
+  prompt: string;
+  payload: any;
+  correctAnswer: string;
+  explanation: string;
+  difficulty: QuizQuestionDifficulty;
+  createdAt?: string;
+}
+
+export interface QuizDTO {
+  id: string;
+  topicId: string;
+  title: string;
+  description?: string;
+  questions?: QuizQuestionDTO[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface StudyTodoDTO {
   id: string;
   topicId?: string;
@@ -99,6 +157,7 @@ export type IngestPipelineStep =
   | 'clean_content'
   | 'extract_topics'
   | 'generate_content'
+  | 'generate_quizzes'
   | 'review_content'
   | 'add_to_review_queue';
 
@@ -106,6 +165,8 @@ export interface IngestRequestOptions {
   timeoutMs?: number;
   existingDomains?: string[];
   maxTopics?: number;
+  maxRefinementIterations?: number;
+  skipCritic?: boolean;
 }
 
 export interface IngestRequestPayload {
@@ -154,13 +215,116 @@ export interface ExtractTopicsResult {
   };
 }
 
-export interface GenerateContentResult {
-  notes: Array<{ title: string; content?: string; topicName?: string }>;
+// -----------------------------------------------------------------------------
+// Note Generation Types
+// -----------------------------------------------------------------------------
+export interface GeneratedNote {
+  title: string;
+  topicName: string;
+  content: string;
+  keyFormulas?: string[];
+  codeSnippetsCount?: number;
 }
 
+export interface GenerateContentOptions {
+  llmClient?: any;
+  maxRefinementIterations?: number;
+  timeoutMs?: number;
+}
+
+export interface GenerateContentResult {
+  notes: GeneratedNote[];
+  auditReports?: NoteAuditReport[];
+}
+
+export interface NoteAuditReport {
+  topicName: string;
+  passed: boolean;
+  coverageScore: number; // 0 to 100
+  missingConcepts: string[];
+  hallucinations: string[];
+  syntaxErrors: string[];
+  feedback: string;
+  refinementIterations: number;
+}
+
+// -----------------------------------------------------------------------------
+// Quiz Generation Types
+// -----------------------------------------------------------------------------
+export interface MCQPayload {
+  options: Array<{ id: string; text: string }>;
+  distractorExplanations?: Record<string, string>;
+}
+
+export interface TrueFalsePayload {
+  statement: string;
+  isTrue: boolean;
+}
+
+export interface MatchingPayload {
+  pairs: Array<{ term: string; definition: string }>;
+  distractorTerms?: string[];
+}
+
+export interface OrderingPayload {
+  items: string[];
+  correctOrder: number[];
+  orderedSequence: string[];
+}
+
+export interface FlashcardPayload {
+  front: string;
+  back: string;
+  memorizationReason: string;
+}
+
+export interface GeneratedQuizQuestion {
+  type: QuizQuestionType;
+  prompt: string;
+  payload: MCQPayload | TrueFalsePayload | MatchingPayload | OrderingPayload | FlashcardPayload;
+  correctAnswer: string;
+  explanation: string;
+  difficulty: QuizQuestionDifficulty;
+  sourceAssertion?: string;
+}
+
+export interface GeneratedQuiz {
+  topicName: string;
+  title: string;
+  description?: string;
+  questions: GeneratedQuizQuestion[];
+}
+
+export interface GenerateQuizOptions {
+  llmClient?: any;
+  maxRefinementIterations?: number;
+  timeoutMs?: number;
+}
+
+export interface GenerateQuizResult {
+  quizzes: GeneratedQuiz[];
+  auditReports?: QuizAuditReport[];
+}
+
+export interface QuizAuditReport {
+  topicName: string;
+  passed: boolean;
+  coverageScore: number; // 0 to 100
+  untestedSections: string[];
+  flawedQuestions: Array<{ index: number; reason: string }>;
+  feedback: string;
+  refinementIterations: number;
+}
+
+// -----------------------------------------------------------------------------
+// Overall Review & Queue Types
+// -----------------------------------------------------------------------------
 export interface ReviewContentResult {
   passed: boolean;
-  notes?: string;
+  overallScore: number;
+  noteAudits: NoteAuditReport[];
+  quizAudits: QuizAuditReport[];
+  summary: string;
 }
 
 export interface AddToReviewQueueResult {
@@ -182,8 +346,13 @@ export interface IngestPipelineResult {
     extractedTopicsCount?: number;
     suggestedNewDomains?: string[];
     generatedNotesCount?: number;
+    generatedQuizzesCount?: number;
+    generatedQuestionsCount?: number;
     reviewPassed?: boolean;
+    overallScore?: number;
     queueId?: string | null;
+    noteAudits?: NoteAuditReport[];
+    quizAudits?: QuizAuditReport[];
   };
 }
 

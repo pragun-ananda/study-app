@@ -59,7 +59,7 @@ export class OpenAIClient implements LLMClient {
     this.model = config?.model || process.env.LLM_MODEL || 'gpt-4o-mini';
     this.defaultTimeoutMs =
       config?.defaultTimeoutMs ??
-      (process.env.LLM_TIMEOUT_MS ? parseInt(process.env.LLM_TIMEOUT_MS, 10) : 8000);
+      (process.env.LLM_TIMEOUT_MS ? parseInt(process.env.LLM_TIMEOUT_MS, 10) : 20000);
 
     this.client = new OpenAI({
       baseURL,
@@ -153,9 +153,170 @@ export class MockLLMClient implements LLMClient {
       return this.customHandler(options);
     }
 
-    // Default intelligent simulation based on prompt content
+    const sys = options.systemPrompt.toLowerCase();
     const text = options.prompt.toLowerCase();
-    const isCritic = options.systemPrompt.includes('Critic') || options.systemPrompt.includes('Validator');
+
+    // 1. Note Critic / Coverage Auditor
+    if (sys.includes('note critic') || sys.includes('coverage auditor') || sys.includes('note quality critic')) {
+      // Simulate pass unless prompt specifically indicates failure test
+      const shouldFail = text.includes('force_critic_fail');
+      return JSON.stringify({
+        passed: !shouldFail,
+        coverageScore: shouldFail ? 65 : 98,
+        missingConcepts: shouldFail ? ['Scaling Factor 1/sqrt(d_k)'] : [],
+        hallucinations: [],
+        syntaxErrors: [],
+        feedback: shouldFail
+          ? 'Missing the scaling factor 1/sqrt(d_k) in mathematical formulation. Please include it.'
+          : 'High fidelity coverage of all core concepts with valid LaTeX and clear code implementations.'
+      });
+    }
+
+    // 2. Note Generator
+    if (sys.includes('note generator') || sys.includes('study note author')) {
+      const topic = text.includes('photo') || text.includes('exposure')
+        ? 'Exposure Triangle'
+        : 'Transformer Self-Attention';
+
+      return `# ${topic}
+
+## 1. Conceptual Core & Mental Model
+The core mechanism enables dynamic relational weighting across token positions without recurrent sequential bottlenecking. It computes similarity affinities between projected representation vectors.
+
+## 2. Mathematical Formulation
+Given query vector $Q$, key vector $K$, and value vector $V$ with key dimension $d_k$:
+
+$$
+\\text{Attention}(Q, K, V) = \\text{softmax}\\left(\\frac{QK^T}{\\sqrt{d_k}}\\right)V
+$$
+
+The scaling factor $\\frac{1}{\\sqrt{d_k}}$ prevents vanishing gradients in softmax when $d_k$ is large.
+
+## 3. Architecture & Code Implementation
+\`\`\`python
+import torch
+import torch.nn.functional as F
+
+def scaled_dot_product_attention(Q, K, V, mask=None):
+    d_k = Q.size(-1)
+    scores = torch.matmul(Q, K.transpose(-2, -1)) / (d_k ** 0.5)
+    if mask is not None:
+        scores = scores.masked_fill(mask == 0, -1e9)
+    weights = F.softmax(scores, dim=-1)
+    return torch.matmul(weights, V)
+\`\`\`
+
+## 4. Key Caveats, Edge Cases & Common Pitfalls
+- **Quadratic Complexity**: Memory complexity scales as $\\mathcal{O}(N^2)$ with sequence length $N$.
+- **Masking Requirements**: Autoregressive decoding requires causal masking to prevent attention to future tokens.
+
+## 5. Summary & Key Takeaways Checklist
+- [x] Scaled dot-product maps queries and keys to attention probabilities.
+- [x] Division by $\\sqrt{d_k}$ stabilizes gradient magnitude.
+- [x] Parallel matrix multiplication eliminates RNN step latency.`;
+    }
+
+    // 3. Quiz Critic / Answer Key Auditor
+    if (sys.includes('quiz critic') || sys.includes('quiz auditor') || sys.includes('assessment auditor')) {
+      const shouldFail = text.includes('force_quiz_critic_fail');
+      return JSON.stringify({
+        passed: !shouldFail,
+        coverageScore: shouldFail ? 60 : 96,
+        untestedSections: shouldFail ? ['Section 4: Key Caveats'] : [],
+        flawedQuestions: shouldFail ? [{ index: 0, reason: 'Ambiguous wording in option C' }] : [],
+        feedback: shouldFail
+          ? 'Section 4 edge cases are untested and question 1 has ambiguous distractors.'
+          : 'Thorough coverage of all sections with unambiguous single correct answers.'
+      });
+    }
+
+    // 4. Quiz Generator
+    if (sys.includes('quiz generator') || sys.includes('assessment architect')) {
+      return JSON.stringify({
+        questions: [
+          {
+            type: 'MCQ',
+            prompt: 'Why is the dot-product scaled by 1/sqrt(d_k) in scaled dot-product attention?',
+            payload: {
+              options: [
+                { id: 'A', text: 'To normalize the sequence length so all tokens have equal probability' },
+                { id: 'B', text: 'To prevent the dot products from growing large in magnitude, which pushes softmax into regions with extremely small gradients' },
+                { id: 'C', text: 'To enforce causal masking across downstream autoregressive tokens' },
+                { id: 'D', text: 'To compress the representation dimensionality into a compact subspace' }
+              ],
+              distractorExplanations: {
+                A: 'Normalization by sequence length is handled by softmax, not the square root of key dimension.',
+                C: 'Causal masking is achieved by adding a large negative mask matrix, not by key dimension scaling.',
+                D: 'Dimensionality reduction is performed via linear projection matrices W_Q, W_K, W_V, not the scaling factor.'
+              }
+            },
+            correctAnswer: 'B',
+            explanation: 'For large values of d_k, the dot products grow large in magnitude, pushing the softmax function into regions where it has extremely small gradients. Dividing by sqrt(d_k) counters this effect.',
+            difficulty: 'HARD',
+            sourceAssertion: 'Division by sqrt(d_k) stabilizes gradient magnitude in softmax.'
+          },
+          {
+            type: 'TRUE_FALSE',
+            prompt: 'Standard bidirectional self-attention inherently scales with linear memory complexity O(N) with respect to input sequence length N.',
+            payload: {
+              statement: 'Standard bidirectional self-attention scales with linear memory complexity O(N).',
+              isTrue: false
+            },
+            correctAnswer: 'False',
+            explanation: 'False. The full attention matrix computes pairwise similarities between all N tokens against all N tokens, requiring O(N^2) memory complexity.',
+            difficulty: 'MEDIUM',
+            sourceAssertion: 'Quadratic Complexity: Memory complexity scales as O(N^2) with sequence length N.'
+          },
+          {
+            type: 'MATCHING',
+            prompt: 'Match each attention component to its operational role in the architecture:',
+            payload: {
+              pairs: [
+                { term: 'Query (Q)', definition: 'Vector representing the current token seeking relevant context' },
+                { term: 'Key (K)', definition: 'Vector representing candidate tokens against which affinities are scored' },
+                { term: 'Value (V)', definition: 'Vector containing the actual representation payload to be aggregated' },
+                { term: 'Causal Mask', definition: 'Upper-triangular negative mask preventing future token leakage' }
+              ]
+            },
+            correctAnswer: 'All 4 pairs mapped correctly',
+            explanation: 'Queries search against Keys to generate weights that aggregate Values, while Causal Mask enforces autoregressive ordering.',
+            difficulty: 'MEDIUM',
+            sourceAssertion: 'Scaled dot-product mechanism'
+          },
+          {
+            type: 'ORDERING',
+            prompt: 'Order the chronological execution steps of Scaled Dot-Product Attention from first to last:',
+            payload: {
+              items: [
+                'Linearly project input embeddings to obtain Q, K, and V matrices',
+                'Compute matrix multiplication of Q with transposed K (QK^T)',
+                'Scale dot-product scores by 1/sqrt(d_k)',
+                'Apply optional mask and compute softmax across key dimension',
+                'Multiply attention weight matrix by Value matrix V'
+              ],
+              correctOrder: [0, 1, 2, 3, 4],
+              orderedSequence: [
+                'Linearly project input embeddings to obtain Q, K, and V matrices',
+                'Compute matrix multiplication of Q with transposed K (QK^T)',
+                'Scale dot-product scores by 1/sqrt(d_k)',
+                'Apply optional mask and compute softmax across key dimension',
+                'Multiply attention weight matrix by Value matrix V'
+              ]
+            },
+            correctAnswer: '1 -> 2 -> 3 -> 4 -> 5',
+            explanation: 'The pipeline computes projections -> dot product -> scaling -> softmax weights -> value aggregation.',
+            difficulty: 'HARD',
+            sourceAssertion: 'Scaled dot product execution flow'
+          }
+        ]
+      });
+    }
+
+    // 5. Topic Critic / Extraction
+    const isCritic =
+      sys.includes('quality critic') ||
+      sys.includes('taxonomy auditor') ||
+      (options.systemPrompt.includes('Critic') && !options.systemPrompt.includes('curriculum architect'));
 
     // Case 1: Photography content (novel emergent domain)
     if (text.includes('photo') || text.includes('aperture') || text.includes('camera') || text.includes('shutter')) {
