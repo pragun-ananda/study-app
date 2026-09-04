@@ -257,20 +257,76 @@ describe("Unit: Ingestion Pipeline Service (src/services/ingestPipeline.ts)", ()
       expect(result.topics[0].summary).toBeDefined();
     });
 
-    it("generateContentStep returns empty notes list", async () => {
+    it("generateContentStep returns empty notes and quizzes for empty topics", async () => {
       const result = await generateContentStep([]);
       expect(result.notes).toEqual([]);
+      expect(result.quizzes).toEqual([]);
     });
 
-    it("reviewGeneratedContentStep returns passed: true", async () => {
+    it("generateContentStep synthesizes notes and quizzes for extracted topics (Stage 4 & 5)", async () => {
+      const topics = [
+        {
+          name: "Transformer Self-Attention",
+          category: "AI & ML" as const,
+          summary: "Scaled dot-product mechanism for sequences."
+        }
+      ];
+      const result = await generateContentStep(topics, "# Transformer Self-Attention\nScaled dot-product attention.");
+      expect(result.notes).toHaveLength(1);
+      expect(result.notes[0].title).toBe("Transformer Self-Attention");
+      expect(result.quizzes).toHaveLength(1);
+      expect(result.quizzes[0].questions.length).toBeGreaterThanOrEqual(1);
+      expect(result.auditReports).toHaveLength(1);
+      expect(result.quizAudits).toHaveLength(1);
+    });
+
+    it("reviewGeneratedContentStep returns passed: true when all audits pass", async () => {
       const result = await reviewGeneratedContentStep({ topics: [], notes: [] });
       expect(result.passed).toBe(true);
+      expect(result.overallScore).toBe(100);
+      expect(result.summary).toContain("Audit passed");
     });
 
-    it("addToReviewQueueStep returns bypassed status", async () => {
+    it("reviewGeneratedContentStep flags failure when an audit report fails or has low score", async () => {
+      const failedNoteAudit = {
+        topicName: "Transformer Self-Attention",
+        passed: false,
+        coverageScore: 65,
+        missingConcepts: ["1/sqrt(d_k) scaling"],
+        hallucinations: [],
+        syntaxErrors: [],
+        feedback: "Missing formula",
+        refinementIterations: 2
+      };
+      const result = await reviewGeneratedContentStep({
+        noteAudits: [failedNoteAudit],
+        quizAudits: []
+      });
+      expect(result.passed).toBe(false);
+      expect(result.overallScore).toBe(65);
+      expect(result.summary).toContain("Audit flagged warnings");
+    });
+
+    it("addToReviewQueueStep returns bypassed status when review passed cleanly", async () => {
       const result = await addToReviewQueueStep({ reviewPassed: true });
       expect(result.status).toBe("bypassed");
       expect(result.queueId).toBeNull();
+    });
+
+    it("addToReviewQueueStep stages flagged content into the review queue when review fails", async () => {
+      const result = await addToReviewQueueStep({
+        url: "http://example.com/test",
+        reviewPassed: false,
+        reviewResult: {
+          passed: false,
+          overallScore: 60,
+          noteAudits: [],
+          quizAudits: [],
+          summary: "Staged for review"
+        }
+      });
+      expect(result.status).toBe("queued");
+      expect(result.queueId).toMatch(/^QUEUE-/);
     });
   });
 
@@ -299,13 +355,21 @@ describe("Unit: Ingestion Pipeline Service (src/services/ingestPipeline.ts)", ()
       expect(result.details.queueId).toBeNull();
     });
 
-    it("populates extractedTopicsCount when ingesting rich article content (BAC-19)", async () => {
+    it("populates extracted topics, notes, quizzes, and audit metrics when ingesting rich article content (BAC-19 & BAC-20)", async () => {
       const url = `http://127.0.0.1:${mockServerPort}/rich-article`;
       const result = await runIngestionPipeline({ url });
 
       expect(result.status).toBe("success");
       expect(result.executedSteps).toContain("extract_topics");
+      expect(result.executedSteps).toContain("generate_content");
+      expect(result.executedSteps).toContain("review_content");
+      expect(result.executedSteps).toContain("add_to_review_queue");
       expect(result.details.extractedTopicsCount).toBeGreaterThan(0);
+      expect(result.details.generatedNotesCount).toBeGreaterThan(0);
+      expect(result.details.generatedQuizzesCount).toBeGreaterThan(0);
+      expect(result.details.generatedQuestionsCount).toBeGreaterThan(0);
+      expect(result.details.reviewPassed).toBe(true);
+      expect(result.details.overallScore).toBeGreaterThanOrEqual(90);
     });
   });
 });

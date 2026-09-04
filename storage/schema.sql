@@ -61,3 +61,47 @@ CREATE TABLE IF NOT EXISTS study_todos (
 
 CREATE INDEX IF NOT EXISTS idx_study_todos_topic_id ON study_todos(topic_id);
 CREATE INDEX IF NOT EXISTS idx_study_todos_completed ON study_todos(completed);
+
+-- 5. Quizzes attached to Topics
+CREATE TABLE IF NOT EXISTS quizzes (
+    id VARCHAR(64) PRIMARY KEY,
+    topic_id VARCHAR(64) NOT NULL REFERENCES topics(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    description TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_quizzes_topic_id ON quizzes(topic_id);
+
+-- 6. Quiz Questions (Challenging MCQs, True/False, Matching, Sequence Ordering, and Flashcards)
+CREATE TABLE IF NOT EXISTS quiz_questions (
+    id VARCHAR(64) PRIMARY KEY,
+    quiz_id VARCHAR(64) NOT NULL REFERENCES quizzes(id) ON DELETE CASCADE,
+    note_id VARCHAR(64) REFERENCES notes(id) ON DELETE SET NULL,
+    type VARCHAR(32) NOT NULL DEFAULT 'MCQ' CHECK (type IN ('MCQ', 'TRUE_FALSE', 'MATCHING', 'ORDERING', 'FLASHCARD')),
+    prompt TEXT NOT NULL,
+    payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+    correct_answer TEXT NOT NULL,
+    explanation TEXT NOT NULL,
+    difficulty VARCHAR(16) NOT NULL DEFAULT 'MEDIUM' CHECK (difficulty IN ('EASY', 'MEDIUM', 'HARD')),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_quiz_questions_quiz_id ON quiz_questions(quiz_id);
+CREATE INDEX IF NOT EXISTS idx_quiz_questions_note_id ON quiz_questions(note_id);
+CREATE INDEX IF NOT EXISTS idx_quiz_questions_type ON quiz_questions(type);
+
+-- 7. Ingestion Review Queue (Audit staging and human review sign-off)
+CREATE TABLE IF NOT EXISTS ingest_review_queue (
+    id VARCHAR(64) PRIMARY KEY,
+    source_url TEXT NOT NULL,
+    status VARCHAR(32) NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'APPROVED', 'REJECTED')),
+    payload JSONB NOT NULL,
+    audit_report JSONB NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    reviewed_at TIMESTAMP WITH TIME ZONE
+);
+
+CREATE INDEX IF NOT EXISTS idx_ingest_review_queue_status ON ingest_review_queue(status);
+
