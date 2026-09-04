@@ -127,24 +127,27 @@ export async function generateSingleTopicQuiz(
 
   const generatorSystemPrompt = `You are an Elite Academic Assessment Architect and Exam Designer.
 Your task is to synthesize a high-rigor, comprehensive study quiz based STRICTLY on the provided study note.
-The quiz MUST achieve 100% COVERAGE of the note across all 5 sections:
-1. Conceptual Core & Mental Model
-2. Mathematical Formulation & Equations
-3. Architecture & Code Implementation
-4. Key Caveats, Edge Cases & Pitfalls
-5. Summary & Key Takeaways
+The quiz MUST achieve 100% COVERAGE of the note across its core sections:
+1. Problem Context & The "Why"
+2. Conceptual Core & Mental Model
+3. Formal Specification & Math/Mechanics
+4. Implementation & Code Patterns
+5. Step-by-Step Worked Trace
+6. Trade-Offs, Alternatives & Decision Matrix
+7. Failure Modes, Edge Cases & Pitfalls
+8. Summary & Key Takeaways
 
 QUESTION FORMAT TAXONOMY (PRIORITIZE CHALLENGING FORMATS):
 1. 'MCQ' (Multiple Choice Questions):
-   - Stem: Challenging scenario, conceptual dilemma, or code/math analysis.
+   - Stem: Challenging scenario, architectural dilemma, or comparative trade-off drawn from the Decision Matrix.
    - Options: Exactly 4 options (ids: 'A', 'B', 'C', 'D'). Plausible distractors targeting common cognitive traps.
    - Distractor Rationales: Provide 'distractorExplanations' explaining WHY each distractor is wrong.
 2. 'TRUE_FALSE':
    - Tests subtle nuances, asymptotic claims, or counter-intuitive edge cases. Avoid obvious statements.
 3. 'MATCHING':
-   - Match terms/equations to their exact functional roles, meanings, or consequences. Provide at least 3-4 pairs.
+   - Match terms, data structures, or trade-offs to their exact definitions, alternatives, or roles. Provide at least 3-4 pairs.
 4. 'ORDERING':
-   - Chronological sequence of execution steps, algorithmic pipeline flow, or mathematical derivation steps.
+   - Chronological sequence of execution steps drawn from the Worked Trace section or pipeline flow. Provide at least 3-4 items.
 5. 'FLASHCARD' (STRICTLY RESTRICTED):
    - Only use for facts requiring raw rote memorization (e.g. constant values, exact notation definitions).
    - MUST provide 'memorizationReason'. Do NOT use for general concepts.

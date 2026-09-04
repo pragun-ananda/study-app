@@ -173,26 +173,34 @@ export class MockLLMClient implements LLMClient {
     }
 
     // 2. Note Generator
-    if (sys.includes('note generator') || sys.includes('study note author')) {
+    if (sys.includes('note generator') || sys.includes('study note author') || sys.includes('study note architect')) {
       const topic = text.includes('photo') || text.includes('exposure')
         ? 'Exposure Triangle'
         : 'Transformer Self-Attention';
 
       return `# ${topic}
 
-## 1. Conceptual Core & Mental Model
-The core mechanism enables dynamic relational weighting across token positions without recurrent sequential bottlenecking. It computes similarity affinities between projected representation vectors.
+> **Prerequisites**: [[Linear Algebra]], [[Deep Learning Fundamentals]]  
+> **Key Metric / Guarantee**: $\\mathcal{O}(N^2)$ pairwise attention complexity
 
-## 2. Mathematical Formulation
-Given query vector $Q$, key vector $K$, and value vector $V$ with key dimension $d_k$:
+---
+
+## 1. Problem Context & The "Why"
+Traditional Recurrent Neural Networks (RNNs and LSTMs) processed sequences sequentially step-by-step ($h_t = f(h_{t-1}, x_t)$). This created a severe computational bottleneck that prohibited parallelization across GPU clusters and suffered from vanishing gradients across long token distances ($N > 512$).
+
+## 2. Conceptual Core & Mental Model
+The core mechanism replaces sequential recurrence with dynamic, content-based relational affinity weighting. Think of an information retrieval search engine: a Query token searches across a catalog of Key tokens to compute relevance scores, which are then used to compute a weighted sum over the Value payloads.
+
+## 3. Formal Deep-Dive Specification
+Given query matrix $Q \\in \\mathbb{R}^{N \\times d_k}$, key matrix $K \\in \\mathbb{R}^{N \\times d_k}$, and value matrix $V \\in \\mathbb{R}^{N \\times d_v}$:
 
 $$
 \\text{Attention}(Q, K, V) = \\text{softmax}\\left(\\frac{QK^T}{\\sqrt{d_k}}\\right)V
 $$
 
-The scaling factor $\\frac{1}{\\sqrt{d_k}}$ prevents vanishing gradients in softmax when $d_k$ is large.
+The scaling factor $\\frac{1}{\\sqrt{d_k}}$ prevents large dot-product magnitudes from pushing the softmax function into regions with near-zero gradients.
 
-## 3. Architecture & Code Implementation
+## 4. Concrete Implementation & Code Patterns
 \`\`\`python
 import torch
 import torch.nn.functional as F
@@ -206,14 +214,33 @@ def scaled_dot_product_attention(Q, K, V, mask=None):
     return torch.matmul(weights, V)
 \`\`\`
 
-## 4. Key Caveats, Edge Cases & Common Pitfalls
-- **Quadratic Complexity**: Memory complexity scales as $\\mathcal{O}(N^2)$ with sequence length $N$.
-- **Masking Requirements**: Autoregressive decoding requires causal masking to prevent attention to future tokens.
+## 5. Step-by-Step Worked Trace / Execution Flow
+1. **Projection**: Input embeddings are projected through linear weight matrices $W_Q, W_K, W_V$.
+2. **Affinity Computation**: Pairwise dot products $QK^T$ produce an unnormalized similarity matrix of size $[N \\times N]$.
+3. **Scaling**: Divide scores by $\\sqrt{d_k}$ to stabilize gradient magnitudes.
+4. **Softmax Normalization**: Softmax across the row dimension turns raw affinities into probabilities summing to $1.0$.
+5. **Weighted Aggregation**: Multiply weights by $V$ to produce the contextual representation matrix.
 
-## 5. Summary & Key Takeaways Checklist
+## 6. Trade-Offs, Alternatives & Decision Matrix
+| Mechanism | Time Complexity | Sequential Operations | Maximum Path Length |
+| :--- | :--- | :--- | :--- |
+| **Self-Attention** | $\\mathcal{O}(N^2 \\cdot d)$ | $\\mathcal{O}(1)$ | $\\mathcal{O}(1)$ |
+| **Recurrent (LSTM)** | $\\mathcal{O}(N \\cdot d^2)$ | $\\mathcal{O}(N)$ | $\\mathcal{O}(N)$ |
+| **Convolutional** | $\\mathcal{O}(k \\cdot N \\cdot d^2)$ | $\\mathcal{O}(1)$ | $\\mathcal{O}(\\log_k(N))$ |
+
+- **Use Self-Attention When**: Training on high-throughput GPU clusters with sequences where capturing long-range global dependencies in $\\mathcal{O}(1)$ steps is critical.
+- **Avoid When**: Extremely long sequence lengths ($N > 100,000$) where quadratic memory $\\mathcal{O}(N^2)$ exhausts VRAM without sparse/linear approximations (e.g., FlashAttention, State-Space Models).
+
+## 7. Failure Modes, Edge Cases & Common Pitfalls
+- **Quadratic Memory Explosion**: Full attention matrices consume prohibitive GPU memory for large contexts.
+- **Permutation Invariance**: Without explicit Positional Encodings (RoPE, sinusoidal, or learned), self-attention treats sequences as unordered bags of words.
+- **Causal Leakage**: In autoregressive generative models (GPT), failing to apply an upper-triangular causal mask causes future token leakage during training.
+
+## 8. Summary & Key Takeaways Checklist
 - [x] Scaled dot-product maps queries and keys to attention probabilities.
 - [x] Division by $\\sqrt{d_k}$ stabilizes gradient magnitude.
-- [x] Parallel matrix multiplication eliminates RNN step latency.`;
+- [x] Parallel matrix multiplication eliminates RNN step latency.
+- [x] Positional encodings are mandatory to inject sequence order.`;
     }
 
     // 3. Quiz Critic / Answer Key Auditor

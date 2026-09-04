@@ -133,33 +133,54 @@ export async function generateSingleTopicNote(
 
   const topicContext = extractTopicRelevantContext(fullMarkdown, topic);
 
-  const generatorSystemPrompt = `You are a World-Class Technical Educator, Curriculum Engineer, and Study Note Author.
-Your mission is to generate an EXTREMELY HIGH-QUALITY, authoritative, and exhaustive study note for the topic "${topic.name}".
-The note must achieve 100% coverage of the important concepts, formulas, code mechanics, and edge cases present in the source text.
+  const prereqsText = (topic.prerequisites && topic.prerequisites.length > 0)
+    ? topic.prerequisites.map((p) => `[[${p}]]`).join(', ')
+    : 'None (Foundational)';
 
-MANDATORY 5-SECTION STRUCTURE:
-Your output MUST be in GitHub-Flavored Markdown and strictly follow this exact section hierarchy:
+  const generatorSystemPrompt = `You are a World-Class Technical Educator, Curriculum Engineer, and Authoritative Study Note Architect.
+Your mission is to generate an EXTREMELY HIGH-QUALITY, comprehensive, and definitive master study note for the topic "${topic.name}".
+The note must achieve 100% coverage of the important concepts, formulas, code mechanics, edge cases, and architectural trade-offs present in the source text.
+
+MANDATORY MASTER NOTE STRUCTURE:
+Your output MUST be in GitHub-Flavored Markdown and strictly adhere to this section hierarchy:
 
 # ${topic.name}
 
-## 1. Conceptual Core & Mental Model
-- Provide an intuitive, high-yield explanation of what this concept is, why it was created, and the core problem it solves.
-- Use concrete real-world or systemic analogies to build an intuitive mental model.
+> **Prerequisites**: ${prereqsText}  
+> **Key Metric / Guarantee**: [Primary asymptotic bound, consistency level, or core operational property]
 
-## 2. Mathematical & Formal Formulation
-- State all relevant mathematical definitions, loss functions, equations, or asymptotic complexities.
-- Use standard KaTeX syntax: inline math with $...$ and block display equations with $$...$$.
-- Define every variable, symbol, and scaling factor clearly.
+---
 
-## 3. Architecture & Code Implementation
-- Provide production-grade, cleanly formatted code or pseudocode with typed syntax (e.g. \`\`\`python or \`\`\`typescript).
-- Include line comments explaining non-obvious algorithmic transformations.
+## 1. Problem Context & The "Why"
+- Detail the historical constraints, architectural bottlenecks, or legacy failures that preceded this concept.
+- Clarify the exact problem statement this architecture or algorithm was created to solve.
 
-## 4. Key Caveats, Edge Cases & Common Pitfalls
-- Detail subtle edge cases, numerical stability caveats, hyperparameter sensitivities, or common engineering misconceptions.
-- Explain practical trade-offs (e.g. memory vs latency, bias vs variance).
+## 2. Conceptual Core & Mental Model
+- Provide an intuitive, high-yield analogy (e.g. system analogy or physical world model).
+- Explain the core operational mechanics in clear, jargon-free principles.
 
-## 5. Summary & Key Takeaways Checklist
+## 3. Formal Deep-Dive Specification
+- ADAPTIVE RIGOR:
+  - If mathematical/algorithmic: provide equations using standard KaTeX ($...$ inline, $$...$$ block), loss functions, complexity bounds, and define all symbols clearly.
+  - If systems/networking/protocol: define packet headers, state machine transitions, internal data structures (e.g. Memtable/SSTable, hash rings), and invariant rules.
+
+## 4. Concrete Implementation & Code Patterns
+- Provide production-grade code, configuration, or typed schema definitions (e.g. Python, TypeScript, CQL, or SQL).
+- Include concise comments explaining non-obvious operations.
+
+## 5. Step-by-Step Worked Trace / Execution Flow
+- Provide a concrete execution walkthrough with realistic sample data (e.g., tracing a request across the ring or stepping through an algorithmic pass).
+- Use clear visual ASCII diagrams or numbered sub-steps.
+
+## 6. Trade-Offs, Alternatives & Decision Matrix
+- Provide a structured Markdown comparison table comparing this approach against 1-2 major alternatives (e.g., Feature vs Alternative A vs Alternative B).
+- Explicit decision heuristics: **Use When...** vs **Avoid When...**
+
+## 7. Failure Modes, Edge Cases & Common Pitfalls
+- Detail subtle edge cases, production gotchas (e.g. clock drift, tombstone build-up, memory leaks, split-brain).
+- Explain common engineering misconceptions and interview traps.
+
+## 8. Summary & Key Takeaways Checklist
 - Provide a concise checklist using GFM task items (- [x] ...) summarizing the critical retention points.
 
 SECURITY & SANDBOXING:
@@ -216,14 +237,14 @@ Please re-generate the complete note, strictly preserving the 5-section format a
     const syntaxCheck = validateNoteFormatting(currentNoteMarkdown);
 
     // Step 3: Note Critic / Coverage Auditor LLM Call
-    const criticSystemPrompt = `You are an exacting Technical Note Critic and Academic Coverage Auditor.
-Your job is to audit study notes against source material to ensure 100% coverage of core concepts, mathematical accuracy, and lack of hallucination.
+    const criticSystemPrompt = `You are an exacting Technical Note Critic, Curriculum Auditor, and System Design Evaluator.
+Your job is to audit study notes against source material to ensure complete technical depth, pedagogical clarity, and absence of hallucinations.
 
 EVALUATION RUBRIC:
-1. SOURCE COVERAGE: Did the note capture all core formulas, architectural parameters, and concepts mentioned in the source context for "${topic.name}"?
-2. FACTUAL GROUNDING: Is every claim grounded in the source or canonical domain truth? Flag any hallucinations.
-3. STRUCTURE & CLARITY: Does it properly adhere to the 5-section specification?
-4. MATHEMATICAL INTEGRITY: Are KaTeX equations properly formatted and explained?
+1. PROBLEM MOTIVATION ("The Why"): Did the note clearly articulate what failed before this concept and why it was invented?
+2. TECHNICAL DEPTH & FORMAL SPEC: Are mathematical formulas (KaTeX), asymptotic bounds, or internal data structures rigorously stated?
+3. WORKED TRACE & DECISION MATRIX: Does it include a step-by-step worked trace and a comparative decision matrix (trade-offs table with Use When / Avoid When)?
+4. FACTUAL GROUNDING & SYNTAX: Are all claims grounded in the source text or canonical domain truth? Are code fences and LaTeX delimiters properly closed?
 
 Output must strictly conform to the required JSON schema.`;
 

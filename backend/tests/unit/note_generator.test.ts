@@ -122,18 +122,22 @@ Policy gradients and Q-learning. ${'More details on agents. '.repeat(400)}
   });
 
   describe('Single Topic Note Generation & Critic Review', () => {
-    it('generates high-fidelity 5-part note and passes critic audit', async () => {
+    it('generates high-fidelity 8-part note and passes critic audit', async () => {
       const mockClient = new MockLLMClient();
       const { note, auditReport } = await generateSingleTopicNote(sampleTopic, sampleMarkdown, {
         llmClient: mockClient
       });
 
       expect(note.title).toBe('Transformer Self-Attention');
-      expect(note.content).toContain('1. Conceptual Core & Mental Model');
-      expect(note.content).toContain('2. Mathematical Formulation');
-      expect(note.content).toContain('3. Architecture & Code Implementation');
-      expect(note.content).toContain('4. Key Caveats, Edge Cases & Common Pitfalls');
-      expect(note.content).toContain('5. Summary & Key Takeaways Checklist');
+      expect(note.content).toContain('Prerequisites');
+      expect(note.content).toContain('1. Problem Context & The "Why"');
+      expect(note.content).toContain('2. Conceptual Core & Mental Model');
+      expect(note.content).toContain('3. Formal Deep-Dive Specification');
+      expect(note.content).toContain('4. Concrete Implementation & Code Patterns');
+      expect(note.content).toContain('5. Step-by-Step Worked Trace / Execution Flow');
+      expect(note.content).toContain('6. Trade-Offs, Alternatives & Decision Matrix');
+      expect(note.content).toContain('7. Failure Modes, Edge Cases & Common Pitfalls');
+      expect(note.content).toContain('8. Summary & Key Takeaways Checklist');
       expect(note.keyFormulas).toBeDefined();
       expect(note.codeSnippetsCount).toBeGreaterThan(0);
 
