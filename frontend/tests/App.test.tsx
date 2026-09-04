@@ -62,15 +62,71 @@ describe('App Component', () => {
     expect(useStore.getState().searchQuery).toBe('');
   });
 
-  it('ignores shortcuts when user is focused inside an input element', () => {
+  it('handles Slash (/) shortcut to open search and sidebar', () => {
+    render(<App />);
+    expect(useStore.getState().isSearchOpen).toBe(false);
+    expect(useStore.getState().isSidebarOpen).toBe(false);
+
+    fireEvent.keyDown(window, { key: '/', code: 'Slash' });
+    expect(useStore.getState().isSearchOpen).toBe(true);
+    expect(useStore.getState().isSidebarOpen).toBe(true);
+  });
+
+  it('handles Escape (Esc) shortcut to dismiss overlays and active states in priority order', () => {
+    render(<App />);
+
+    // 1. Dismiss notifications dropdown
+    act(() => {
+      useStore.getState().setIsNotificationsOpen(true);
+    });
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(useStore.getState().isNotificationsOpen).toBe(false);
+
+    // 2. Dismiss inspector panel
+    act(() => {
+      useStore.getState().setIsInspectorOpen(true);
+    });
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(useStore.getState().isInspectorOpen).toBe(false);
+
+    // 3. Dismiss search bar, clear search query, and collapse left sidebar
+    act(() => {
+      useStore.getState().setIsSearchOpen(true);
+      useStore.getState().setIsSidebarOpen(true);
+      useStore.getState().setSearchQuery('neural networks');
+    });
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(useStore.getState().isSearchOpen).toBe(false);
+    expect(useStore.getState().isSidebarOpen).toBe(false);
+    expect(useStore.getState().searchQuery).toBe('');
+
+    // 4. Deselect active topic
+    act(() => {
+      useStore.getState().setSelectedTopicId('TOPIC-001');
+    });
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(useStore.getState().selectedTopicId).toBeNull();
+  });
+
+  it('ignores typing shortcuts when user is focused inside an input element, but Escape still blurs/handles', () => {
     render(<App />);
     const input = document.createElement('input');
     document.body.appendChild(input);
     input.focus();
 
+    // Typing 'h' should not toggle HUD
     fireEvent.keyDown(input, { code: 'KeyH' });
-    expect(useStore.getState().hudVisible).toBe(true); // Should not toggle
+    expect(useStore.getState().hudVisible).toBe(true);
+
+    // Escape should blur the input
+    act(() => {
+      useStore.getState().setIsInspectorOpen(true);
+    });
+    fireEvent.keyDown(input, { key: 'Escape' });
+    expect(useStore.getState().isInspectorOpen).toBe(false);
 
     document.body.removeChild(input);
   });
 });
+
+

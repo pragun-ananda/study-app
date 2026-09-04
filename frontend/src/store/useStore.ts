@@ -150,6 +150,8 @@ export const INITIAL_STATE: TelemetryState = {
   hudVisible: true,
 
   searchQuery: '',
+  isSearchOpen: false,
+  isSidebarOpen: false,
   selectedCategory: null,
 
   topicNodes: INITIAL_TOPICS,
@@ -181,10 +183,14 @@ export const useStore = create<TelemetryStore>((set, get) => ({
 
   // Search & Filter Actions
   setSearchQuery: (searchQuery: string) => set({ searchQuery }),
+  setIsSearchOpen: (isSearchOpen: boolean) => set({ isSearchOpen }),
+  setIsSidebarOpen: (isSidebarOpen: boolean) => set({ isSidebarOpen }),
+  toggleSidebar: () => set((state) => ({ isSidebarOpen: !state.isSidebarOpen })),
   setSelectedCategory: (selectedCategory: string | null) => set({ selectedCategory }),
   setHoveredTopicId: (hoveredTopicId: string | null) => set({ hoveredTopicId }),
 
   // Server Hydration Actions
+
   loadInitialData: async () => {
     set({ isLoading: true, error: null });
     try {

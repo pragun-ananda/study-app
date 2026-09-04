@@ -89,4 +89,24 @@ test.describe('Telemetry HUD & User Controls (FRO-9)', () => {
     const todoCheckbox = page.locator('div:has-text("Master GPU Shader Pipelines") input[type="checkbox"], div:has-text("Master GPU Shader Pipelines") button').first();
     await todoCheckbox.click();
   });
+
+  test('Handles Slash (/) to open search & sidebar, and Escape to dismiss', async ({ page }) => {
+    // 1. Press '/' to open search input and expand left sidebar
+    await page.keyboard.press('/');
+    const searchInput = page.getByPlaceholder('Search 220+ concepts...');
+    await expect(searchInput).toBeVisible();
+    await expect(searchInput).toBeFocused();
+    await expect(page.getByText(/GRAPH NODES/i).first()).toBeVisible();
+
+    // Type search query
+    await searchInput.fill('Backpropagation');
+    await expect(page.getByText('Neural Network Backpropagation').first()).toBeVisible();
+
+    // 2. Press 'Escape' to dismiss search and collapse sidebar
+    await page.keyboard.press('Escape');
+    await expect(searchInput).not.toBeVisible();
+    await expect(page.getByText(/GRAPH NODES/i).first()).not.toBeVisible();
+  });
 });
+
+
