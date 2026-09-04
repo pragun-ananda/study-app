@@ -1,12 +1,16 @@
-// Category Enums matching database schema CHECK constraints
-export type DomainCategory =
-  | 'AI & ML'
-  | 'CS'
-  | 'SYSTEMS'
-  | 'MATH'
-  | 'PHYSICS'
-  | 'CYBERSECURITY'
-  | 'ARCH';
+// Category Taxonomy (Defaults with dynamic emergent domain support)
+export const DEFAULT_DOMAINS = [
+  'AI & ML',
+  'CS',
+  'SYSTEMS',
+  'MATH',
+  'PHYSICS',
+  'CYBERSECURITY',
+  'ARCH'
+] as const;
+
+export type DefaultDomainCategory = (typeof DEFAULT_DOMAINS)[number];
+export type DomainCategory = DefaultDomainCategory | (string & {});
 
 // Status Enums matching database schema CHECK constraints
 export type TopicStatus = 'DUE' | 'LEARNING' | 'MASTERED' | 'NEW';
@@ -100,6 +104,8 @@ export type IngestPipelineStep =
 
 export interface IngestRequestOptions {
   timeoutMs?: number;
+  existingDomains?: string[];
+  maxTopics?: number;
 }
 
 export interface IngestRequestPayload {
@@ -123,8 +129,29 @@ export interface CleanContentResult {
   excerpt?: string;
 }
 
+export interface ExtractedTopic {
+  name: string;
+  category: DomainCategory;
+  summary: string;
+  prerequisites?: string[];
+  isNewDomain?: boolean;
+}
+
+export interface ExtractTopicsOptions {
+  llmClient?: any;
+  existingDomains?: string[];
+  maxTopics?: number;
+  skipCritic?: boolean;
+}
+
 export interface ExtractTopicsResult {
-  topics: Array<{ name: string; category?: DomainCategory; summary?: string }>;
+  topics: ExtractedTopic[];
+  suggestedNewDomains?: string[];
+  validationReport?: {
+    totalExtracted: number;
+    totalApproved: number;
+    rejectedTopics: Array<{ name: string; reason: string }>;
+  };
 }
 
 export interface GenerateContentResult {
@@ -153,6 +180,7 @@ export interface IngestPipelineResult {
     cleanedLength?: number;
     cleanedTitle?: string;
     extractedTopicsCount?: number;
+    suggestedNewDomains?: string[];
     generatedNotesCount?: number;
     reviewPassed?: boolean;
     queueId?: string | null;
