@@ -221,3 +221,6 @@ describe('TelemetryHUD Component', () => {
     expect(useStore.getState().isInspectorOpen).toBe(false);
   });
 });
+
+
+

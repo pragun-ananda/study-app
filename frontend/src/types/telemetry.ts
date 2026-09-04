@@ -1,6 +1,8 @@
 export type SystemStatus = 'OPTIMAL' | 'DEGRADED' | 'OVERLOADED' | 'OFFLINE' | 'STANDBY';
 
-export type DomainCategory = 'CS' | 'AI & ML' | 'MATH' | 'PHYSICS' | 'SYSTEMS' | 'CYBERSECURITY' | 'ARCH';
+export const DEFAULT_DOMAINS = ['CS', 'AI & ML', 'MATH', 'PHYSICS', 'SYSTEMS', 'CYBERSECURITY', 'ARCH'] as const;
+export type DefaultDomainCategory = (typeof DEFAULT_DOMAINS)[number];
+export type DomainCategory = DefaultDomainCategory | (string & {});
 
 export type TopicStatus = 'DUE' | 'LEARNING' | 'MASTERED' | 'NEW';
 
@@ -118,6 +120,8 @@ export interface TelemetryState {
 
   // Navigation & Filtering
   searchQuery: string;
+  isSearchOpen: boolean;
+  isSidebarOpen: boolean;
   selectedCategory: string | null;
 
   // Knowledge Graph & Study Data
@@ -149,6 +153,9 @@ export interface TelemetryActions {
 
   // Search & Navigation Setters
   setSearchQuery: (query: string) => void;
+  setIsSearchOpen: (open: boolean) => void;
+  setIsSidebarOpen: (open: boolean) => void;
+  toggleSidebar: () => void;
   setSelectedCategory: (category: string | null) => void;
   setHoveredTopicId: (id: string | null) => void;
 
@@ -190,5 +197,7 @@ export interface TelemetryActions {
   resetState: () => void;
 }
 
+
 export type TelemetryStore = TelemetryState & TelemetryActions;
+
 

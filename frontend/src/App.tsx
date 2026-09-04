@@ -12,11 +12,60 @@ export default function App() {
   // Global Keyboard Shortcuts Listener
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      // Avoid triggering when focused inside input elements
-      if (['INPUT', 'TEXTAREA'].includes((event.target as HTMLElement)?.tagName)) {
+      const isInput = ['INPUT', 'TEXTAREA'].includes((event.target as HTMLElement)?.tagName);
+
+      // Handle Escape globally to dismiss topmost active modal, overlay, or selection
+      if (event.key === 'Escape' || event.code === 'Escape') {
+        if (isInput) {
+          (event.target as HTMLElement)?.blur();
+        }
+
+        const state = useStore.getState();
+        if (state.activeNote) {
+          state.setActiveNote(null);
+          return;
+        }
+        if (state.activeDiffUpdateId) {
+          state.setActiveDiffUpdateId(null);
+          return;
+        }
+        if (state.isNotificationsOpen) {
+          state.setIsNotificationsOpen(false);
+          return;
+        }
+        if (state.isInspectorOpen) {
+          state.setIsInspectorOpen(false);
+          return;
+        }
+        if (state.isSearchOpen || state.searchQuery || state.isSidebarOpen) {
+          state.setIsSearchOpen(false);
+          state.setSearchQuery('');
+          state.setIsSidebarOpen(false);
+          return;
+        }
+        if (state.selectedTopicId) {
+          state.setSelectedTopicId(null);
+          return;
+        }
         return;
       }
 
+      // Avoid triggering typing shortcuts when focused inside input elements
+      if (isInput) {
+        return;
+      }
+
+      // '/': Focus Concept Search & Open Study Sidebar
+      if (event.key === '/' || event.code === 'Slash') {
+        event.preventDefault();
+        useStore.getState().setIsSearchOpen(true);
+        useStore.getState().setIsSidebarOpen(true);
+        return;
+      }
+
+
+
+      // 'H': Toggle HUD Visibility
       if (event.code === 'KeyH') {
         useStore.getState().toggleHudVisibility();
       } else if (event.code === 'KeyO') {
@@ -31,6 +80,7 @@ export default function App() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
+
 
   return (
     <div className="relative w-full h-screen bg-[#050811] overflow-hidden select-none">

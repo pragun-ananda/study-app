@@ -34,7 +34,13 @@ export default function TelemetryHUD() {
   const setSelectedCategory = useStore((state) => state.setSelectedCategory);
   const searchQuery = useStore((state) => state.searchQuery);
   const setSearchQuery = useStore((state) => state.setSearchQuery);
+  const isSearchOpen = useStore((state) => state.isSearchOpen);
+  const setIsSearchOpen = useStore((state) => state.setIsSearchOpen);
+  const isSidebarOpen = useStore((state) => state.isSidebarOpen);
+  const setIsSidebarOpen = useStore((state) => state.setIsSidebarOpen);
+  const toggleSidebar = useStore((state) => state.toggleSidebar);
   const topicNodes = useStore((state) => state.topicNodes);
+
   const selectedTopicId = useStore((state) => state.selectedTopicId);
   const setSelectedTopicId = useStore((state) => state.setSelectedTopicId);
   const isInspectorOpen = useStore((state) => state.isInspectorOpen);
@@ -47,12 +53,19 @@ export default function TelemetryHUD() {
   const deleteTodo = useStore((state) => state.deleteTodo);
 
   const [activeTab, setActiveTab] = useState<'TOPICS' | 'TODOS'>('TOPICS');
-  const [leftPanelCollapsed, setLeftPanelCollapsed] = useState(true);
   const [isSubgraphsOpen, setIsSubgraphsOpen] = useState(false);
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [newTodoTitle, setNewTodoTitle] = useState('');
   const [newTodoCategory, setNewTodoCategory] = useState<DomainCategory>('AI & ML');
   const [newTodoPriority, setNewTodoPriority] = useState<TodoPriority>('HIGH');
+
+  // Auto expand panel when search is opened
+  React.useEffect(() => {
+    if (isSearchOpen) {
+      setIsSidebarOpen(true);
+      setActiveTab('TOPICS');
+    }
+  }, [isSearchOpen, setIsSidebarOpen]);
+
 
   const handleAddTodo = (e: React.FormEvent) => {
     e.preventDefault();
@@ -186,6 +199,7 @@ export default function TelemetryHUD() {
           <NotificationsDropdown />
 
           <div className="flex items-center bg-[#080c16]/70 border border-white/10 rounded-lg p-1 font-mono text-xs flex-shrink-0 backdrop-blur-md">
+
             <AnimatePresence initial={false} mode="wait">
               {isSearchOpen ? (
                 <motion.div
@@ -204,8 +218,8 @@ export default function TelemetryHUD() {
                     value={searchQuery}
                     onChange={(e) => {
                       setSearchQuery(e.target.value);
-                      if (leftPanelCollapsed) {
-                        setLeftPanelCollapsed(false);
+                      if (!isSidebarOpen) {
+                        setIsSidebarOpen(true);
                       }
                       if (activeTab !== 'TOPICS') {
                         setActiveTab('TOPICS');
@@ -218,6 +232,7 @@ export default function TelemetryHUD() {
                     onClick={() => {
                       setSearchQuery('');
                       setIsSearchOpen(false);
+                      setIsSidebarOpen(false);
                     }}
                     className="text-slate-400 hover:text-slate-100 p-0.5 flex-shrink-0"
                     title="Close search"
@@ -233,7 +248,7 @@ export default function TelemetryHUD() {
                   exit={{ scale: 0.8, opacity: 0 }}
                   onClick={() => {
                     setIsSearchOpen(true);
-                    setLeftPanelCollapsed(false);
+                    setIsSidebarOpen(true);
                     setActiveTab('TOPICS');
                   }}
                   className="p-1 text-slate-400 hover:text-[#00f0ff] transition-colors rounded flex items-center gap-1.5"
@@ -258,19 +273,20 @@ export default function TelemetryHUD() {
           animate={{ x: 0, opacity: 1 }}
           onWheel={(e) => e.stopPropagation()}
           className={`pointer-events-auto glass-panel rounded-xl p-4 transition-all duration-300 relative flex flex-col max-h-[calc(100vh-180px)] ${
-            leftPanelCollapsed ? 'w-12' : 'w-80 md:w-96'
+            isSidebarOpen ? 'w-80 md:w-96' : 'w-12'
           }`}
         >
           <button
-            onClick={() => setLeftPanelCollapsed(!leftPanelCollapsed)}
+            onClick={() => toggleSidebar()}
             aria-label="Toggle study panel"
             className="absolute -right-3 top-4 bg-[#080c16] border border-white/20 text-slate-300 p-1 rounded-full hover:text-[#00f0ff] transition-colors z-30"
           >
-            {leftPanelCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+            {isSidebarOpen ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}
           </button>
 
-          {!leftPanelCollapsed ? (
+          {isSidebarOpen ? (
             <div className="flex flex-col h-full space-y-4 font-mono overflow-hidden">
+
               <div className="flex items-center justify-between border-b border-white/10 pb-2">
                 <div className="flex items-center gap-1 bg-slate-950/60 p-1 rounded-lg">
                   <button
@@ -713,3 +729,5 @@ export default function TelemetryHUD() {
     </div>
   );
 }
+
+
