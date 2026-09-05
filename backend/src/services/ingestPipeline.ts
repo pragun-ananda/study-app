@@ -1,7 +1,13 @@
 import { cleanHtmlToMarkdown, CleanContentOptions } from "./contentCleaner.js";
 import { extractHighFidelityTopics } from "./topicExtractor.js";
-import { generateTopicNotes } from "./noteGenerator.js";
+import { generateTopicNotes, generateSingleTopicNote } from "./noteGenerator.js";
 import { generateTopicQuizzes } from "./quizGenerator.js";
+import {
+  findMatchingTopic,
+  mergeTopicContent,
+  mergeQuizQuestions,
+  createGraphUpdate
+} from "./contentMerger.js";
 import { generateEntityId } from "../utils/id.js";
 import { query } from "../db.js";
 import {
@@ -15,12 +21,19 @@ import {
   ExtractTopicsResult,
   GeneratedNote,
   GeneratedQuiz,
+  GeneratedQuizQuestion,
   NoteAuditReport,
   QuizAuditReport,
   GenerateContentResult,
   GenerateQuizResult,
   ReviewContentResult,
-  AddToReviewQueueResult
+  AddToReviewQueueResult,
+  TopicRow,
+  NoteRow,
+  QuizRow,
+  QuizQuestionRow,
+  GraphUpdate,
+  MergeAuditReport
 } from "../types.js";
 
 export const MAX_CONTENT_BYTES = 10 * 1024 * 1024; // 10 MB maximum payload size
@@ -214,37 +227,243 @@ export async function extractTopicsStep(
   return extractHighFidelityTopics(cleanedContent, options);
 }
 
+export interface GenerateContentStepOptions extends IngestRequestOptions {
+  existingTopics?: TopicRow[];
+  existingNotes?: Record<string, NoteRow>;
+  existingQuizzes?: Record<string, { quiz: QuizRow; questions: QuizQuestionRow[] }>;
+  matchThreshold?: number;
+}
+
 /**
- * Step 4: Generate content (High-Fidelity Topic Notes + 100% Coverage Quizzes)
- * Generates exhaustive 8-part master study notes with KaTeX math and code blocks,
+ * Step 4: Generate content (High-Fidelity Topic Notes + 100% Coverage Quizzes + Intelligent Content Merge)
+ * Generates exhaustive 8-part master study notes or semantically merges into existing notes (BAC-27),
  * followed by challenging quizzes (MCQ, True/False, Matching, Sequence Ordering).
  */
 export async function generateContentStep(
   topics: ExtractTopicsResult["topics"],
   cleanedContent: string = "",
-  options?: IngestRequestOptions
-): Promise<GenerateContentResult & { quizzes: GeneratedQuiz[]; quizAudits?: QuizAuditReport[] }> {
+  options?: GenerateContentStepOptions
+): Promise<GenerateContentResult & {
+  quizzes: GeneratedQuiz[];
+  quizAudits?: QuizAuditReport[];
+  mergeAudits?: MergeAuditReport[];
+  graphUpdates?: GraphUpdate[];
+}> {
   if (!topics || topics.length === 0) {
-    return { notes: [], quizzes: [], auditReports: [], quizAudits: [] };
+    return { notes: [], quizzes: [], auditReports: [], quizAudits: [], mergeAudits: [], graphUpdates: [] };
   }
 
-  const notesResult = await generateTopicNotes(topics, cleanedContent, {
-    llmClient: (options as any)?.llmClient,
-    maxRefinementIterations: options?.maxRefinementIterations,
-    timeoutMs: options?.timeoutMs
-  });
+  // Retrieve existing topics from DB or options for semantic matching
+  let existingTopics: TopicRow[] = options?.existingTopics || [];
+  if (existingTopics.length === 0) {
+    try {
+      const res = await query<TopicRow>("SELECT * FROM topics");
+      existingTopics = res.rows || [];
+    } catch {
+      // DB offline / mock test environment
+    }
+  }
 
-  const quizResult = await generateTopicQuizzes(notesResult.notes, {
-    llmClient: (options as any)?.llmClient,
-    maxRefinementIterations: options?.maxRefinementIterations,
-    timeoutMs: options?.timeoutMs
-  });
+  const generatedNotes: GeneratedNote[] = [];
+  const generatedQuizzes: GeneratedQuiz[] = [];
+  const noteAudits: NoteAuditReport[] = [];
+  const quizAudits: QuizAuditReport[] = [];
+  const mergeAudits: MergeAuditReport[] = [];
+  const graphUpdates: GraphUpdate[] = [];
+
+  for (const topic of topics) {
+    const match = findMatchingTopic(topic.name, existingTopics, options?.matchThreshold);
+
+    if (match.matchedTopic) {
+      // Semantic Merge Flow (BAC-27)
+      const matchedTopicId = match.matchedTopic.id;
+      let existingNote: NoteRow | null = options?.existingNotes?.[matchedTopicId] || null;
+
+      if (!existingNote) {
+        try {
+          const nRes = await query<NoteRow>("SELECT * FROM notes WHERE topic_id = $1 LIMIT 1", [matchedTopicId]);
+          existingNote = nRes.rows[0] || null;
+        } catch {
+          // DB offline
+        }
+      }
+
+      if (existingNote) {
+        const mergeResult = await mergeTopicContent(
+          existingNote,
+          cleanedContent,
+          topic,
+          {
+            llmClient: (options as any)?.llmClient,
+            maxRefinementIterations: options?.maxRefinementIterations,
+            timeoutMs: options?.timeoutMs
+          }
+        );
+
+        generatedNotes.push(mergeResult.mergedNote);
+        mergeAudits.push(mergeResult.auditReport);
+
+        // Standardized NOTE_UPDATE
+        const isAutoApproved = mergeResult.auditReport.passed && mergeResult.auditReport.preservationScore >= 90;
+        graphUpdates.push(
+          createGraphUpdate({
+            type: "NOTE_UPDATE",
+            status: isAutoApproved ? "APPROVED" : "PENDING",
+            category: topic.category,
+            targetId: matchedTopicId,
+            targetName: match.matchedTopic.name,
+            title: `Semantic Merge: ${match.matchedTopic.name}`,
+            description: `Merged incoming content into ${match.matchedTopic.name} with ${mergeResult.auditReport.preservationScore}% semantic preservation guarantee.`,
+            oldContent: existingNote.content,
+            newContent: mergeResult.mergedNote.content,
+            payload: {
+              topicId: matchedTopicId,
+              noteId: existingNote.id
+            }
+          })
+        );
+
+        // Generate quiz questions targeting the merged content
+        const quizRes = await generateTopicQuizzes([mergeResult.mergedNote], {
+          llmClient: (options as any)?.llmClient,
+          maxRefinementIterations: options?.maxRefinementIterations,
+          timeoutMs: options?.timeoutMs
+        });
+
+        if (quizRes.quizzes[0]) {
+          const incomingQuestions = quizRes.quizzes[0].questions;
+          const existingQuizData = options?.existingQuizzes?.[matchedTopicId];
+          const existingQuestions = existingQuizData?.questions || [];
+
+          const mergedQuizResult = mergeQuizQuestions(existingQuestions, incomingQuestions);
+          const finalQuiz: GeneratedQuiz = {
+            ...quizRes.quizzes[0],
+            questions: mergedQuizResult.mergedQuestions
+          };
+          generatedQuizzes.push(finalQuiz);
+
+          graphUpdates.push(
+            createGraphUpdate({
+              type: "QUIZ_UPDATE",
+              status: isAutoApproved ? "APPROVED" : "PENDING",
+              category: topic.category,
+              targetId: matchedTopicId,
+              targetName: match.matchedTopic.name,
+              title: `Quiz Update: ${match.matchedTopic.name}`,
+              description: `Added ${mergedQuizResult.addedCount} new question(s) to assessment bank.`,
+              oldContent: JSON.stringify(existingQuestions, null, 2),
+              newContent: JSON.stringify(mergedQuizResult.mergedQuestions, null, 2),
+              payload: {
+                topicId: matchedTopicId,
+                quizId: existingQuizData?.quiz?.id
+              }
+            })
+          );
+        }
+
+        if (quizRes.auditReports) {
+          quizAudits.push(...quizRes.auditReports);
+        }
+
+        continue;
+      }
+    }
+
+    // First-Write Flow (New Topic or Existing Topic with no prior note)
+    const singleNoteRes = await generateSingleTopicNote(topic, cleanedContent, {
+      llmClient: (options as any)?.llmClient,
+      maxRefinementIterations: options?.maxRefinementIterations,
+      timeoutMs: options?.timeoutMs
+    });
+
+    generatedNotes.push(singleNoteRes.note);
+    noteAudits.push(singleNoteRes.auditReport);
+
+    const isNoteAutoApproved = singleNoteRes.auditReport.passed && singleNoteRes.auditReport.coverageScore >= 90;
+
+    // Standardized TOPIC_UPDATE + NOTE_UPDATE
+    const topicId = match.matchedTopic ? match.matchedTopic.id : generateEntityId("TOPIC");
+    if (!match.matchedTopic) {
+      graphUpdates.push(
+        createGraphUpdate({
+          type: "TOPIC_UPDATE",
+          status: isNoteAutoApproved ? "APPROVED" : "PENDING",
+          category: topic.category,
+          targetId: topicId,
+          targetName: topic.name,
+          title: `New Topic: ${topic.name}`,
+          description: topic.summary,
+          oldContent: "",
+          newContent: topic.summary,
+          payload: {
+            topicId,
+            patch: {
+              name: topic.name,
+              category: topic.category,
+              summary: topic.summary,
+              status: "NEW",
+              mastery: 0
+            }
+          }
+        })
+      );
+    }
+
+    graphUpdates.push(
+      createGraphUpdate({
+        type: "NOTE_UPDATE",
+        status: isNoteAutoApproved ? "APPROVED" : "PENDING",
+        category: topic.category,
+        targetId: topicId,
+        targetName: topic.name,
+        title: `Initial Study Note: ${topic.name}`,
+        description: `Synthesized 8-part master study note with KaTeX formulas and pseudocode.`,
+        oldContent: "",
+        newContent: singleNoteRes.note.content,
+        payload: {
+          topicId
+        }
+      })
+    );
+
+    const quizRes = await generateTopicQuizzes([singleNoteRes.note], {
+      llmClient: (options as any)?.llmClient,
+      maxRefinementIterations: options?.maxRefinementIterations,
+      timeoutMs: options?.timeoutMs
+    });
+
+    if (quizRes.quizzes[0]) {
+      generatedQuizzes.push(quizRes.quizzes[0]);
+      graphUpdates.push(
+        createGraphUpdate({
+          type: "QUIZ_UPDATE",
+          status: isNoteAutoApproved ? "APPROVED" : "PENDING",
+          category: topic.category,
+          targetId: topicId,
+          targetName: topic.name,
+          title: `Initial Quiz Bank: ${topic.name}`,
+          description: `Generated ${quizRes.quizzes[0].questions.length} assessment question(s).`,
+          oldContent: "",
+          newContent: JSON.stringify(quizRes.quizzes[0].questions, null, 2),
+          payload: {
+            topicId
+          }
+        })
+      );
+    }
+
+    if (quizRes.auditReports) {
+      quizAudits.push(...quizRes.auditReports);
+    }
+  }
 
   return {
-    notes: notesResult.notes,
-    quizzes: quizResult.quizzes,
-    auditReports: notesResult.auditReports,
-    quizAudits: quizResult.auditReports
+    notes: generatedNotes,
+    quizzes: generatedQuizzes,
+    auditReports: noteAudits,
+    quizAudits,
+    mergeAudits,
+    graphUpdates
   };
 }
 
@@ -268,7 +487,7 @@ export async function generateQuizzesStep(
 
 /**
  * Step 5: Review generated content
- * Aggregates Note Audits and Quiz Audits, computes overall coverage score,
+ * Aggregates Note Audits, Quiz Audits, and Semantic Merge Audits, computes overall score,
  * and determines if human review staging is warranted.
  */
 export async function reviewGeneratedContentStep(data: {
@@ -277,23 +496,27 @@ export async function reviewGeneratedContentStep(data: {
   quizzes?: GeneratedQuiz[];
   noteAudits?: NoteAuditReport[];
   quizAudits?: QuizAuditReport[];
+  mergeAudits?: MergeAuditReport[];
 }): Promise<ReviewContentResult> {
   const noteAudits = data.noteAudits || [];
   const quizAudits = data.quizAudits || [];
+  const mergeAudits = data.mergeAudits || [];
 
   const allNotePassed = noteAudits.length === 0 || noteAudits.every((a) => a.passed);
   const allQuizPassed = quizAudits.length === 0 || quizAudits.every((a) => a.passed);
+  const allMergePassed = mergeAudits.length === 0 || mergeAudits.every((m) => m.passed && m.preservationScore >= 90);
 
   const totalScores = [
     ...noteAudits.map((a) => a.coverageScore),
-    ...quizAudits.map((a) => a.coverageScore)
+    ...quizAudits.map((a) => a.coverageScore),
+    ...mergeAudits.map((m) => m.preservationScore)
   ];
 
   const overallScore = totalScores.length > 0
     ? Math.round(totalScores.reduce((sum, s) => sum + s, 0) / totalScores.length)
     : 100;
 
-  const passed = allNotePassed && allQuizPassed && overallScore >= 90;
+  const passed = allNotePassed && allQuizPassed && allMergePassed && overallScore >= 90;
 
   return {
     passed,
@@ -301,8 +524,8 @@ export async function reviewGeneratedContentStep(data: {
     noteAudits,
     quizAudits,
     summary: passed
-      ? `Audit passed with an average coverage score of ${overallScore}%. High fidelity notes and quizzes verified.`
-      : `Audit flagged warnings with average coverage score of ${overallScore}%. Staged for review.`
+      ? `Audit passed with an average score of ${overallScore}%. High fidelity notes, quizzes, and zero-loss merges verified.`
+      : `Audit flagged warnings with average score of ${overallScore}%. Staged for review.`
   };
 }
 
@@ -319,6 +542,7 @@ export async function addToReviewQueueStep(data: {
     topics?: ExtractTopicsResult["topics"];
     notes?: GeneratedNote[];
     quizzes?: GeneratedQuiz[];
+    graphUpdates?: GraphUpdate[];
   };
 }): Promise<AddToReviewQueueResult> {
   const isPassed = data.reviewResult ? data.reviewResult.passed : Boolean(data.reviewPassed);
@@ -363,8 +587,8 @@ export async function addToReviewQueueStep(data: {
 
 /**
  * Executes the complete 6-stage ingestion pipeline.
- * Per BAC-2: Fetches from URL, cleans markdown, extracts topics, generates content (notes + quizzes),
- * audits content coverage, stages to review queue if needed, and drops raw content from memory.
+ * Per BAC-2 & BAC-27: Fetches from URL, cleans markdown, extracts topics, generates or merges content,
+ * audits zero information loss, stages to review queue if needed, and drops raw content from memory.
  */
 export async function runIngestionPipeline(
   payload: IngestRequestPayload
@@ -386,7 +610,7 @@ export async function runIngestionPipeline(
   const extractResult = await extractTopicsStep(cleanResult.cleanedContent, payload.options);
   executedSteps.push("extract_topics");
 
-  // 4. Generate high-yield study notes and quizzes (BAC-20 / Content Generation)
+  // 4. Generate or semantically merge high-yield study notes and quizzes (BAC-20 & BAC-27)
   const generateResult = await generateContentStep(
     extractResult.topics,
     cleanResult.cleanedContent,
@@ -394,13 +618,14 @@ export async function runIngestionPipeline(
   );
   executedSteps.push("generate_content");
 
-  // 5. Review generated content (Dual Note + Quiz Audits)
+  // 5. Review generated content (Dual Note + Quiz + Merge Audits)
   const reviewResult = await reviewGeneratedContentStep({
     topics: extractResult.topics,
     notes: generateResult.notes,
     quizzes: generateResult.quizzes,
     noteAudits: generateResult.auditReports,
-    quizAudits: generateResult.quizAudits
+    quizAudits: generateResult.quizAudits,
+    mergeAudits: generateResult.mergeAudits
   });
   executedSteps.push("review_content");
 
@@ -411,7 +636,8 @@ export async function runIngestionPipeline(
     payload: {
       topics: extractResult.topics,
       notes: generateResult.notes,
-      quizzes: generateResult.quizzes
+      quizzes: generateResult.quizzes,
+      graphUpdates: generateResult.graphUpdates
     }
   });
   executedSteps.push("add_to_review_queue");
@@ -441,7 +667,10 @@ export async function runIngestionPipeline(
       overallScore: reviewResult.overallScore,
       queueId: queueResult.queueId,
       noteAudits: generateResult.auditReports,
-      quizAudits: generateResult.quizAudits
+      quizAudits: generateResult.quizAudits,
+      mergeAudits: generateResult.mergeAudits,
+      graphUpdates: generateResult.graphUpdates
     }
   };
 }
+

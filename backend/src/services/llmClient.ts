@@ -138,6 +138,10 @@ export class MockLLMClient implements LLMClient {
     this.customHandler = handler;
   }
 
+  setCustomHandler(handler: MockHandler): void {
+    this.customHandler = handler;
+  }
+
   getCallHistory(): CompletionOptions[] {
     return [...this.callHistory];
   }
@@ -155,6 +159,110 @@ export class MockLLMClient implements LLMClient {
 
     const sys = options.systemPrompt.toLowerCase();
     const text = options.prompt.toLowerCase();
+
+    // 0. Merge Critic / Knowledge Graph Auditor (BAC-27)
+    if (sys.includes('merge reviewer') || sys.includes('merge critic') || sys.includes('merge auditor')) {
+      const shouldFail = text.includes('force_merge_critic_fail');
+      return JSON.stringify({
+        passed: !shouldFail,
+        preservationScore: shouldFail ? 65 : 100,
+        coverageScore: shouldFail ? 60 : 96,
+        lostOriginalConcepts: shouldFail ? ['Memtable Flush Complexity O(N)'] : [],
+        omittedNewConcepts: shouldFail ? ['Bloom Filter False Positive Rate'] : [],
+        unresolvedDuplicates: shouldFail ? ['Redundant introduction paragraph'] : [],
+        feedback: shouldFail
+          ? 'Lost original formula and dropped Memtable Flush complexity.'
+          : 'Zero information loss verified. All formulas, diagrams, and gotchas preserved with clean deduplication.'
+      });
+    }
+
+    // 0.1 Merge Generator / Content Synthesizer (BAC-27)
+    if (sys.includes('semantic merge') || sys.includes('content synthesizer') || sys.includes('knowledge graph integrator')) {
+      const dropFormulas = text.includes('force_generator_drop_formulas');
+      const topicName = text.includes('cassandra') ? 'Cassandra Storage Engine' : 'Transformer Self-Attention';
+      const mathBlock = dropFormulas ? '' : `$$
+\\text{Attention}(Q, K, V) = \\text{softmax}\\left(\\frac{QK^T}{\\sqrt{d_k}}\\right)V
+$$`;
+
+      return `# ${topicName}
+
+> **Prerequisites**: [[Linear Algebra]], [[Distributed Systems Basics]]  
+> **Key Metric / Guarantee**: $\\mathcal{O}(N^2)$ pairwise attention complexity
+
+---
+
+## 1. Problem Context & The "Why"
+Traditional systems encountered severe scalability bottlenecks under high-throughput workloads. By decoupling sequence steps and utilizing structured representations, modern architectures achieve linear parallelization.
+
+## 2. Conceptual Core & Mental Model
+The core mechanism replaces sequential recurrence with dynamic, content-based relational affinity weighting.
+
+\`\`\`mermaid
+flowchart LR
+    Q[Queries Q] --> S[Scaled Dot-Product Similarity]
+    K[Keys K] --> S
+    S --> W[Attention Weights Matrix]
+    V[Values V] --> M[Weighted Aggregation]
+    W --> M
+    M --> O[Contextual Representations]
+\`\`\`
+
+## 3. Formal Deep-Dive Specification
+Given query matrix $Q \\in \\mathbb{R}^{N \\times d_k}$, key matrix $K \\in \\mathbb{R}^{N \\times d_k}$, and value matrix $V \\in \\mathbb{R}^{N \\times d_v}$:
+
+${mathBlock}
+
+The scaling factor $\\frac{1}{\\sqrt{d_k}}$ prevents large dot-product magnitudes from pushing the softmax function into regions with near-zero gradients.
+
+## 4. Algorithmic Logic & Pseudocode
+\`\`\`text
+ALGORITHM ScaledDotProductAttention(Q, K, V, mask):
+    INPUT: Matrices Q, K, V with dimension d_k; optional causal or padding mask
+    OUTPUT: Contextual representation matrix
+    
+    scores := MATMUL(Q, TRANSPOSE(K)) / SQRT(d_k)
+    IF mask IS NOT null THEN
+        scores := MASK_FILL(scores, mask == 0, -INFINITY)
+    END IF
+    attention_weights := SOFTMAX(scores, axis=-1)
+    RETURN MATMUL(attention_weights, V)
+\`\`\`
+
+## 5. Step-by-Step Worked Trace / Execution Flow
+\`\`\`mermaid
+sequenceDiagram
+    autonumber
+    participant Input as Input Embeddings
+    participant Proj as Linear Projections
+    participant Core as Scaled Attention Core
+    participant Output as Final Representation
+
+    Input->>Proj: Forward pass sequence tokens [N x d_model]
+    Proj->>Core: Emit Q, K, V matrices
+    Core->>Core: Compute pairwise affinity
+    Core->>Output: Emit context-aware representations
+\`\`\`
+
+## 6. Trade-Offs, Alternatives & Decision Matrix
+| Strategy | Throughput | Memory Complexity | Best Fit |
+| :--- | :--- | :--- | :--- |
+| **Standard Attention** | High (parallelizable) | $\\mathcal{O}(N^2)$ | Moderate context length ($N \\le 4096$) |
+| **Linear Attention** | Extreme | $\\mathcal{O}(N)$ | Streaming / Long context |
+| **Recurrent Models** | Low (sequential) | $\\mathcal{O}(1)$ step memory | Real-time audio |
+
+- **Use When**: Modeling dense contextual dependencies across arbitrary token positions.
+- **Avoid When**: Strict streaming memory constraints prohibit storing quadratic $N \\times N$ attention matrices.
+
+## 7. Failure Modes, Edge Cases & Common Pitfalls
+- **Softmax Gradient Saturation**: Without division by $\\sqrt{d_k}$, large dot products cause gradient vanishing.
+- **Causal Mask Leakage**: Incorrect indexing in triangular masking can expose future tokens during autoregressive training.
+
+## 8. Summary & Key Takeaways Checklist
+- [x] Attention dynamically computes affinity weights without recurrent unrolling.
+- [x] Scaling factor $\\frac{1}{\\sqrt{d_k}}$ preserves healthy gradient magnitudes.
+- [x] Quadratic complexity $\\mathcal{O}(N^2)$ requires sparse or linear approximations for ultra-long contexts.
+`;
+    }
 
     // 1. Note Critic / Coverage Auditor
     if (sys.includes('note critic') || sys.includes('coverage auditor') || sys.includes('note quality critic')) {

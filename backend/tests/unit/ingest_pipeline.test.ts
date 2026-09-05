@@ -370,6 +370,52 @@ describe("Unit: Ingestion Pipeline Service (src/services/ingestPipeline.ts)", ()
       expect(result.details.generatedQuestionsCount).toBeGreaterThan(0);
       expect(result.details.reviewPassed).toBe(true);
       expect(result.details.overallScore).toBeGreaterThanOrEqual(90);
+      expect(result.details.graphUpdates).toBeDefined();
+      expect(result.details.graphUpdates!.length).toBeGreaterThan(0);
+      expect(result.details.graphUpdates!.some((u) => u.type === 'NOTE_UPDATE')).toBe(true);
+    });
+
+    it("synthesizes NOTE_UPDATE and QUIZ_UPDATE graph updates for existing topics (BAC-27)", async () => {
+      const url = `http://127.0.0.1:${mockServerPort}/rich-article`;
+      const result = await runIngestionPipeline({
+        url,
+        options: {
+          existingTopics: [
+            {
+              id: 'TOPIC-TRANSFORMER-EXISTING',
+              name: 'Transformer Self-Attention',
+              category: 'AI & ML',
+              summary: 'Scaled dot-product attention mechanism.',
+              mastery: 60,
+              status: 'LEARNING',
+              coord_x: 0,
+              coord_y: 0,
+              coord_z: 0,
+              last_reviewed: null
+            }
+          ],
+          existingNotes: {
+            'TOPIC-TRANSFORMER-EXISTING': {
+              id: 'NOTE-TRANSFORMER-EXISTING',
+              topic_id: 'TOPIC-TRANSFORMER-EXISTING',
+              title: 'Transformer Self-Attention',
+              filename: null,
+              content: `# Transformer Self-Attention\n\n## 1. Problem Context & The "Why"\nRNN limits.\n\n## 2. Conceptual Core & Mental Model\n\`\`\`mermaid\nflowchart LR\n  A --> B\n\`\`\`\n\n## 3. Formal Deep-Dive Specification\n$$\\text{Attention}(Q, K, V) = \\text{softmax}(QK^T)V$$\n\n## 4. Algorithmic Logic & Pseudocode\n\`\`\`text\nALGORITHM Attention():\n  RETURN 0\n\`\`\`\n\n## 5. Step-by-Step Worked Trace / Execution Flow\n\`\`\`mermaid\nsequenceDiagram\n  A->>B: msg\n\`\`\`\n\n## 6. Trade-Offs, Alternatives & Decision Matrix\n| A | B |\n\n## 7. Failure Modes, Edge Cases & Common Pitfalls\n- Gradient vanishing\n\n## 8. Summary & Key Takeaways Checklist\n- [x] Item\n`,
+              created_at: new Date(),
+              updated_at: new Date()
+            }
+          }
+        } as any
+      });
+
+      expect(result.status).toBe("success");
+      expect(result.details.graphUpdates).toBeDefined();
+      const noteUpdate = result.details.graphUpdates?.find((u) => u.type === 'NOTE_UPDATE');
+      expect(noteUpdate).toBeDefined();
+      expect(noteUpdate?.title).toContain('Transformer Self-Attention');
+      expect(noteUpdate?.oldContent).toContain('Transformer Self-Attention');
+      expect(noteUpdate?.newContent).toContain('Transformer Self-Attention');
     });
   });
 });
+
