@@ -12,7 +12,8 @@ import {
   Trash2,
   CheckCircle2,
   XCircle,
-  CornerDownRight
+  CornerDownRight,
+  Sparkles
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -30,6 +31,7 @@ import { DOMAIN_BASE_COLORS } from '../../utils/theme';
 export default function DiffViewerModal() {
   const activeDiffUpdateId = useStore((state) => state.activeDiffUpdateId);
   const setActiveDiffUpdateId = useStore((state) => state.setActiveDiffUpdateId);
+  const setActiveWalkthroughQueueId = useStore((state) => state.setActiveWalkthroughQueueId);
   const graphUpdates = useStore((state) => state.graphUpdates);
   const approveGraphUpdate = useStore((state) => state.approveGraphUpdate);
   const rejectGraphUpdate = useStore((state) => state.rejectGraphUpdate);
@@ -214,6 +216,22 @@ export default function DiffViewerModal() {
                     <span>RENDERED PREVIEW</span>
                   </button>
                 </div>
+
+                {activeUpdate.queueId && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveWalkthroughQueueId(activeUpdate.queueId!);
+                      setActiveDiffUpdateId(null);
+                    }}
+                    className="px-2.5 py-1 rounded-lg border border-[#00f0ff]/40 bg-[#00f0ff]/15 hover:bg-[#00f0ff]/25 text-[#00f0ff] font-bold text-[10px] transition-all flex items-center gap-1 cursor-pointer"
+                    title="View Pedagogical Source Walkthrough"
+                    data-testid="diff-view-walkthrough-btn"
+                  >
+                    <Sparkles size={11} />
+                    <span>WALKTHROUGH</span>
+                  </button>
+                )}
 
                 <button
                   type="button"

@@ -16,7 +16,16 @@ import { generateEntityId } from '../utils/id.js';
 function normalizeQueueRow(row: IngestReviewQueueRow): ReviewQueueItemDTO {
   const payload = typeof row.payload === 'string' ? JSON.parse(row.payload) : (row.payload || {});
   const auditReport = typeof row.audit_report === 'string' ? JSON.parse(row.audit_report) : (row.audit_report || {});
-  const updates: GraphUpdate[] = Array.isArray(payload.graphUpdates) ? payload.graphUpdates : [];
+  const walkthrough = payload.walkthrough || undefined;
+  const sourceMetadata = payload.sourceMetadata || undefined;
+  const rawUpdates: GraphUpdate[] = Array.isArray(payload.graphUpdates) ? payload.graphUpdates : [];
+
+  const updates = rawUpdates.map((u) => ({
+    ...u,
+    sourceUrl: u.sourceUrl || row.source_url,
+    sourceTitle: u.sourceTitle || sourceMetadata?.title || u.title,
+    queueId: u.queueId || row.id
+  }));
 
   return {
     id: row.id,
@@ -24,6 +33,8 @@ function normalizeQueueRow(row: IngestReviewQueueRow): ReviewQueueItemDTO {
     status: row.status as GraphUpdateStatus,
     payload,
     auditReport,
+    walkthrough,
+    sourceMetadata,
     createdAt: typeof row.created_at === 'string' ? row.created_at : row.created_at?.toISOString() || new Date().toISOString(),
     reviewedAt: row.reviewed_at ? (typeof row.reviewed_at === 'string' ? row.reviewed_at : row.reviewed_at.toISOString()) : null,
     updates

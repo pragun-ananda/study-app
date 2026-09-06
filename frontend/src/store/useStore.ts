@@ -10,7 +10,7 @@ import {
   GraphUpdate
 } from '../types/telemetry';
 import { DOMAIN_DATA, INITIAL_TODOS } from '../data/test';
-import { INITIAL_UPDATES } from '../data/test/updates';
+import { INITIAL_UPDATES, INITIAL_QUEUE_ITEMS } from '../data/test/updates';
 import * as api from '../api/client';
 
 // Deterministic 3D spatial layout generator for initial fallback / offline testing
@@ -164,7 +164,9 @@ export const INITIAL_STATE: TelemetryState = {
 
   // Review & Diff Updates (FRO-11)
   graphUpdates: INITIAL_UPDATES,
+  queueItems: INITIAL_QUEUE_ITEMS,
   activeDiffUpdateId: null,
+  activeWalkthroughQueueId: null,
   isNotificationsOpen: false,
 
   // Ingestion State (BAC-2 / Ingest UI)
@@ -206,7 +208,17 @@ export const useStore = create<TelemetryStore>((set, get) => ({
       const updates = queueData?.updates && queueData.updates.length > 0
         ? queueData.updates
         : get().graphUpdates;
-      set({ topicNodes: topics, todos, graphUpdates: updates, isLoading: false, error: null });
+      const queueItems = queueData?.queueItems && queueData.queueItems.length > 0
+        ? queueData.queueItems
+        : get().queueItems;
+      set({
+        topicNodes: topics,
+        todos,
+        graphUpdates: updates,
+        queueItems,
+        isLoading: false,
+        error: null
+      });
     } catch (err: any) {
       set({
         error: err.message || 'Failed to load initial cosmos telemetry data',
@@ -454,12 +466,16 @@ export const useStore = create<TelemetryStore>((set, get) => ({
   // Diff Review Actions (FRO-11)
   setIsNotificationsOpen: (isNotificationsOpen: boolean) => set({ isNotificationsOpen }),
   setActiveDiffUpdateId: (activeDiffUpdateId: string | null) => set({ activeDiffUpdateId }),
+  setActiveWalkthroughQueueId: (activeWalkthroughQueueId: string | null) => set({ activeWalkthroughQueueId }),
 
   fetchReviewQueue: async (filters?: { status?: string }) => {
     try {
       const res = await api.fetchReviewQueue(filters);
-      if (res?.updates && res.updates.length > 0) {
-        set({ graphUpdates: res.updates });
+      if (res?.updates) {
+        set({
+          graphUpdates: res.updates,
+          queueItems: res.queueItems || []
+        });
       }
     } catch (err: any) {
       console.warn('[REVIEW_QUEUE_FETCH_WARN]:', err?.message);
@@ -471,7 +487,7 @@ export const useStore = create<TelemetryStore>((set, get) => ({
     set({ isIngesting: true, ingestError: null });
     try {
       const result = await api.ingestFromUrl(url.trim());
-      // Refresh review queue to load newly staged updates
+      // Refresh review queue to load newly staged updates and queueItems
       await get().fetchReviewQueue();
       set({
         isIngesting: false,
@@ -486,6 +502,105 @@ export const useStore = create<TelemetryStore>((set, get) => ({
         ingestError: errorMsg
       });
       throw err;
+    }
+  },
+
+  approveEntireQueueItem: async (queueId: string) => {
+    // 1. Optimistic batch approval of all updates in this queueItem
+    set((state) => {
+      const queueItem = state.queueItems.find((q) => q.id === queueId);
+      const updatesToApprove = queueItem?.updates || state.graphUpdates.filter((u) => u.queueId === queueId);
+
+      let nextTopics = [...state.topicNodes];
+
+      updatesToApprove.forEach((update) => {
+        if (update.type === 'TOPIC_UPDATE') {
+          const topicId = update.payload?.topicId || update.targetId;
+          nextTopics = nextTopics.map((t) =>
+            t.id === topicId ? { ...t, ...(update.payload?.patch || { summary: update.newContent }) } : t
+          );
+        } else if (update.type === 'NOTE_UPDATE') {
+          const topicId = update.payload?.topicId;
+          const noteId = update.payload?.noteId || update.targetId;
+          if (topicId) {
+            nextTopics = nextTopics.map((t) => {
+              if (t.id !== topicId) return t;
+              const notes = (t.notes || []).map((n) =>
+                n.id === noteId ? { ...n, content: update.newContent, updatedAt: 'Just now' } : n
+              );
+              return { ...t, notes };
+            });
+          }
+        } else if (update.type === 'EDGE_UPDATE' && update.payload?.edge) {
+          const { fromId, toId } = update.payload.edge;
+          nextTopics = nextTopics.map((t) => {
+            if (t.id === toId && !t.prerequisites.includes(fromId)) {
+              return { ...t, prerequisites: [...t.prerequisites, fromId] };
+            }
+            if (t.id === fromId && !t.unlocks.includes(toId)) {
+              return { ...t, unlocks: [...t.unlocks, toId] };
+            }
+            return t;
+          });
+        }
+      });
+
+      const nextUpdates = state.graphUpdates.map((u) =>
+        u.queueId === queueId ? { ...u, status: 'APPROVED' as const } : u
+      );
+      const nextQueueItems = state.queueItems.map((q) =>
+        q.id === queueId
+          ? {
+              ...q,
+              status: 'APPROVED' as const,
+              updates: q.updates.map((u) => ({ ...u, status: 'APPROVED' as const }))
+            }
+          : q
+      );
+
+      return {
+        topicNodes: nextTopics,
+        graphUpdates: nextUpdates,
+        queueItems: nextQueueItems,
+        activeDiffUpdateId: null,
+        activeWalkthroughQueueId: null
+      };
+    });
+
+    // 2. Persist to backend
+    try {
+      await api.approveEntireQueueItem(queueId);
+      const freshTopics = await api.fetchTopics();
+      if (freshTopics && freshTopics.length > 0) {
+        set({ topicNodes: freshTopics });
+      }
+    } catch (err: any) {
+      console.warn('[APPROVE_QUEUE_ITEM_PERSIST_WARN]:', err?.message);
+    }
+  },
+
+  rejectEntireQueueItem: async (queueId: string) => {
+    set((state) => ({
+      graphUpdates: state.graphUpdates.map((u) =>
+        u.queueId === queueId ? { ...u, status: 'REJECTED' as const } : u
+      ),
+      queueItems: state.queueItems.map((q) =>
+        q.id === queueId
+          ? {
+              ...q,
+              status: 'REJECTED' as const,
+              updates: q.updates.map((u) => ({ ...u, status: 'REJECTED' as const }))
+            }
+          : q
+      ),
+      activeDiffUpdateId: null,
+      activeWalkthroughQueueId: null
+    }));
+
+    try {
+      await api.rejectEntireQueueItem(queueId);
+    } catch (err: any) {
+      console.warn('[REJECT_QUEUE_ITEM_PERSIST_WARN]:', err?.message);
     }
   },
 
@@ -534,10 +649,15 @@ export const useStore = create<TelemetryStore>((set, get) => ({
       const nextUpdates = state.graphUpdates.map((u) =>
         u.id === id ? { ...u, status: 'APPROVED' as const } : u
       );
+      const nextQueueItems = state.queueItems.map((q) => ({
+        ...q,
+        updates: q.updates.map((u) => (u.id === id ? { ...u, status: 'APPROVED' as const } : u))
+      }));
 
       return {
         topicNodes: nextTopics,
         graphUpdates: nextUpdates,
+        queueItems: nextQueueItems,
         activeDiffUpdateId: null,
         selectedTopicId: targetSelectedId || state.selectedTopicId,
         isInspectorOpen: targetSelectedId ? true : state.isInspectorOpen
@@ -561,6 +681,10 @@ export const useStore = create<TelemetryStore>((set, get) => ({
       graphUpdates: state.graphUpdates.map((u) =>
         u.id === id ? { ...u, status: 'REJECTED' as const } : u
       ),
+      queueItems: state.queueItems.map((q) => ({
+        ...q,
+        updates: q.updates.map((u) => (u.id === id ? { ...u, status: 'REJECTED' as const } : u))
+      })),
       activeDiffUpdateId: null
     }));
 
@@ -584,6 +708,19 @@ export const useStore = create<TelemetryStore>((set, get) => ({
             }
           : u
       ),
+      queueItems: state.queueItems.map((q) => ({
+        ...q,
+        updates: q.updates.map((u) =>
+          u.id === id
+            ? {
+                ...u,
+                status: 'CHANGES_REQUESTED' as const,
+                comments: comments.length > 0 ? comments : u.comments,
+                generalFeedback: generalFeedback ?? u.generalFeedback
+              }
+            : u
+        )
+      })),
       activeDiffUpdateId: null
     }));
 
@@ -594,7 +731,13 @@ export const useStore = create<TelemetryStore>((set, get) => ({
         set((state) => ({
           graphUpdates: state.graphUpdates.map((u) =>
             u.id === id ? { ...u, ...res.update, status: 'PENDING' as const } : u
-          )
+          ),
+          queueItems: state.queueItems.map((q) => ({
+            ...q,
+            updates: q.updates.map((u) =>
+              u.id === id ? { ...u, ...res.update, status: 'PENDING' as const } : u
+            )
+          }))
         }));
       }
     } catch (err: any) {
@@ -625,7 +768,13 @@ export const useStore = create<TelemetryStore>((set, get) => ({
     }));
   },
 
-  resetGraphUpdates: () => set({ graphUpdates: INITIAL_UPDATES, activeDiffUpdateId: null }),
+  resetGraphUpdates: () =>
+    set({
+      graphUpdates: INITIAL_UPDATES,
+      queueItems: INITIAL_QUEUE_ITEMS,
+      activeDiffUpdateId: null,
+      activeWalkthroughQueueId: null
+    }),
 
   // Reset Action
   resetState: () => set(INITIAL_STATE)

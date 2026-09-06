@@ -324,6 +324,7 @@ export interface ReviewContentResult {
   overallScore: number;
   noteAudits: NoteAuditReport[];
   quizAudits: QuizAuditReport[];
+  mergeAudits?: MergeAuditReport[];
   summary: string;
 }
 
@@ -363,6 +364,8 @@ export interface GraphUpdate {
   oldContent: string; // Empty string for first write, existing content for updates/merges
   newContent: string; // The resulting content
   sourceUrl?: string; // Source article/document URL
+  sourceTitle?: string; // Title of source article/document
+  queueId?: string; // Associated parent review queue item ID
   createdAt: string;
   comments?: LineReviewComment[];
   generalFeedback?: string;
@@ -383,12 +386,32 @@ export interface GraphUpdate {
   };
 }
 
+export interface IngestionWalkthrough {
+  executiveSummary: string;
+  extractedConcepts: Array<{ name: string; rationale: string }>;
+  omittedContent: Array<{ contentSnippetOrTheme: string; reason: string }>;
+  quizCoverageJustification: {
+    completenessRationale: string;
+    testedFailureModes: string[];
+    coverageScore: number;
+  };
+}
+
+export interface SourceMetadata {
+  title?: string;
+  domain?: string;
+  contentLength?: number;
+  cleanedLength?: number;
+}
+
 export interface ReviewQueueItemDTO {
   id: string;
   sourceUrl: string;
   status: GraphUpdateStatus;
   payload: any;
   auditReport: any;
+  walkthrough?: IngestionWalkthrough;
+  sourceMetadata?: SourceMetadata;
   createdAt: string;
   reviewedAt: string | null;
   updates: GraphUpdate[];
@@ -451,6 +474,8 @@ export interface IngestPipelineResult {
     quizAudits?: QuizAuditReport[];
     mergeAudits?: MergeAuditReport[];
     graphUpdates?: GraphUpdate[];
+    walkthrough?: IngestionWalkthrough;
+    sourceMetadata?: SourceMetadata;
   };
 }
 

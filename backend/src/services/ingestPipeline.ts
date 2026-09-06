@@ -8,6 +8,7 @@ import {
   mergeQuizQuestions,
   createGraphUpdate
 } from "./contentMerger.js";
+import { generateIngestionWalkthrough, extractDomainFromUrl } from "./walkthroughGenerator.js";
 import { generateEntityId } from "../utils/id.js";
 import { query } from "../db.js";
 import {
@@ -33,7 +34,9 @@ import {
   QuizRow,
   QuizQuestionRow,
   GraphUpdate,
-  MergeAuditReport
+  MergeAuditReport,
+  IngestionWalkthrough,
+  SourceMetadata
 } from "../types.js";
 
 export const MAX_CONTENT_BYTES = 10 * 1024 * 1024; // 10 MB maximum payload size
@@ -535,27 +538,48 @@ export async function addToReviewQueueStep(data: {
   url?: string;
   reviewPassed?: boolean;
   reviewResult?: ReviewContentResult;
+  walkthrough?: IngestionWalkthrough;
+  sourceMetadata?: SourceMetadata;
   payload?: {
     topics?: ExtractTopicsResult["topics"];
     notes?: GeneratedNote[];
     quizzes?: GeneratedQuiz[];
     graphUpdates?: GraphUpdate[];
+    walkthrough?: IngestionWalkthrough;
+    sourceMetadata?: SourceMetadata;
   };
 }): Promise<AddToReviewQueueResult> {
   const queueId = generateEntityId('QUEUE');
   try {
     const sourceUrl = data.url || 'http://unknown.source';
+    const queuePayload = {
+      ...(data.payload || {}),
+      walkthrough: data.walkthrough || data.payload?.walkthrough,
+      sourceMetadata: data.sourceMetadata || data.payload?.sourceMetadata
+    };
+
+    // Backlink sourceUrl, sourceTitle, and queueId to each graphUpdate
+    if (Array.isArray(queuePayload.graphUpdates)) {
+      queuePayload.graphUpdates = queuePayload.graphUpdates.map((u) => ({
+        ...u,
+        sourceUrl,
+        sourceTitle: queuePayload.sourceMetadata?.title || u.title,
+        queueId
+      }));
+    }
+
     await query(
       `INSERT INTO ingest_review_queue (id, source_url, status, payload, audit_report, created_at)
        VALUES ($1, $2, 'PENDING', $3, $4, NOW())`,
       [
         queueId,
         sourceUrl,
-        JSON.stringify(data.payload || {}),
+        JSON.stringify(queuePayload),
         JSON.stringify({
           overallScore: data.reviewResult?.overallScore ?? 0,
           noteAudits: data.reviewResult?.noteAudits ?? [],
           quizAudits: data.reviewResult?.quizAudits ?? [],
+          mergeAudits: data.reviewResult?.mergeAudits ?? [],
           summary: data.reviewResult?.summary ?? 'Audit flagged warnings'
         })
       ]
@@ -618,15 +642,33 @@ export async function runIngestionPipeline(
   });
   executedSteps.push("review_content");
 
-  // 6. Add to human review queue if warnings or low coverage
+  // 5.5 Generate LLM Ingestion Walkthrough & Source Metadata for human review
+  const { walkthrough, sourceMetadata } = await generateIngestionWalkthrough({
+    url: payload.url,
+    cleanedTitle: cleanResult.title,
+    rawContent: cleanResult.cleanedContent,
+    extractedTopics: extractResult.topics,
+    notes: generateResult.notes,
+    quizzes: generateResult.quizzes,
+    noteAudits: generateResult.auditReports,
+    quizAudits: generateResult.quizAudits,
+    mergeAudits: generateResult.mergeAudits,
+    options: payload.options
+  });
+
+  // 6. Add to human review queue with walkthrough and source metadata
   const queueResult = await addToReviewQueueStep({
     url: payload.url,
     reviewResult,
+    walkthrough,
+    sourceMetadata,
     payload: {
       topics: extractResult.topics,
       notes: generateResult.notes,
       quizzes: generateResult.quizzes,
-      graphUpdates: generateResult.graphUpdates
+      graphUpdates: generateResult.graphUpdates,
+      walkthrough,
+      sourceMetadata
     }
   });
   executedSteps.push("add_to_review_queue");
@@ -658,7 +700,9 @@ export async function runIngestionPipeline(
       noteAudits: generateResult.auditReports,
       quizAudits: generateResult.quizAudits,
       mergeAudits: generateResult.mergeAudits,
-      graphUpdates: generateResult.graphUpdates
+      graphUpdates: generateResult.graphUpdates,
+      walkthrough,
+      sourceMetadata
     }
   };
 }

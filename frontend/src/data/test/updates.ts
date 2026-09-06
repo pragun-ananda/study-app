@@ -1,8 +1,11 @@
-import { GraphUpdate } from '../../types/telemetry';
+import { GraphUpdate, ReviewQueueItemDTO } from '../../types/telemetry';
 
 export const INITIAL_UPDATES: GraphUpdate[] = [
   {
     id: 'UPDATE-001',
+    queueId: 'QUEUE-INIT-001',
+    sourceUrl: 'https://arxiv.org/abs/1706.03762',
+    sourceTitle: 'Attention Is All You Need (ArXiv:1706.03762)',
     title: 'Backpropagation & Autograd Refinement',
     description: 'Ingested ArXiv paper updates gradient equations, cross-entropy formulation, and PyTorch computation graph snippet.',
     category: 'AI & ML',
@@ -74,6 +77,9 @@ print("Gradients with respect to weights:", W.grad)
   },
   {
     id: 'UPDATE-002',
+    queueId: 'QUEUE-INIT-002',
+    sourceUrl: 'https://en.wikipedia.org/wiki/Binary_search_tree',
+    sourceTitle: 'Binary Search Trees - Complexity & Balanced Bounds',
     title: 'Binary Search Trees Complexity Guarantees',
     description: 'Updated topic summary clarifying self-balancing AVL/Red-Black tree height bounds.',
     category: 'CS',
@@ -93,6 +99,9 @@ print("Gradients with respect to weights:", W.grad)
   },
   {
     id: 'UPDATE-003',
+    queueId: 'QUEUE-INIT-002',
+    sourceUrl: 'https://en.wikipedia.org/wiki/Binary_search_tree',
+    sourceTitle: 'Binary Search Trees - Complexity & Balanced Bounds',
     title: 'Prerequisite Edge: Linear Algebra -> SVD',
     description: 'Auto-extracted knowledge dependency linking linear algebra fundamentals before matrix factorization.',
     category: 'MATH',
@@ -113,3 +122,96 @@ print("Gradients with respect to weights:", W.grad)
     }
   }
 ];
+
+export const INITIAL_QUEUE_ITEMS: ReviewQueueItemDTO[] = [
+  {
+    id: 'QUEUE-INIT-001',
+    sourceUrl: 'https://arxiv.org/abs/1706.03762',
+    status: 'PENDING',
+    payload: {},
+    auditReport: { score: 96, passed: true },
+    sourceMetadata: {
+      title: 'Attention Is All You Need (ArXiv:1706.03762)',
+      domain: 'arxiv.org',
+      contentLength: 42150,
+      cleanedLength: 18450
+    },
+    walkthrough: {
+      executiveSummary: 'Synthesized core mathematical formulations and algorithmic execution traces for reverse-mode automatic differentiation and attention projections from original ArXiv publication.',
+      extractedConcepts: [
+        {
+          name: 'Reverse-Mode Automatic Differentiation',
+          rationale: 'Foundational computation engine enabling backpropagation across arbitrary computational graphs with O(1) reverse passes per scalar loss.'
+        },
+        {
+          name: 'Dynamic Computation Graph & Adjoints',
+          rationale: 'Explains PyTorch autograd execution tape, vector-Jacobian products (VJPs), and memory checkpointing.'
+        }
+      ],
+      omittedContent: [
+        {
+          contentSnippetOrTheme: 'Hardware cluster node topologies (TPU v2 pod setup)',
+          reason: 'Infrastructure implementation details omitted to focus on foundational algorithms.'
+        },
+        {
+          contentSnippetOrTheme: 'Translation BLEU score benchmark tables',
+          reason: 'Empirical benchmark artifacts pruned in favor of durable algorithmic mechanics.'
+        }
+      ],
+      quizCoverageJustification: {
+        completenessRationale: 'Questions comprehensively assess both theoretical chain-rule dimensions and practical tensor-transpose gotchas during backpropagation.',
+        testedFailureModes: [
+          'Loss of precision in unscaled softmax gradients',
+          'Intermediate activation memory explosion without gradient checkpointing'
+        ],
+        coverageScore: 96
+      }
+    },
+    createdAt: '10 mins ago',
+    reviewedAt: null,
+    updates: [INITIAL_UPDATES[0]]
+  },
+  {
+    id: 'QUEUE-INIT-002',
+    sourceUrl: 'https://en.wikipedia.org/wiki/Binary_search_tree',
+    status: 'PENDING',
+    payload: {},
+    auditReport: { score: 92, passed: true },
+    sourceMetadata: {
+      title: 'Binary Search Trees - Complexity & Balanced Bounds',
+      domain: 'en.wikipedia.org',
+      contentLength: 28400,
+      cleanedLength: 12200
+    },
+    walkthrough: {
+      executiveSummary: 'Extracted rigorous worst-case bounds for self-balancing search trees and established topological prerequisite relationships in the knowledge graph.',
+      extractedConcepts: [
+        {
+          name: 'Self-Balancing Tree Invariants',
+          rationale: 'Establishes height bounds guaranteeing O(log n) operations against pathological linear degradation.'
+        },
+        {
+          name: 'Linear Algebra Topological Precursor',
+          rationale: 'Maps matrix factorization dependencies to ensure prerequisite mastery before vector space decompositions.'
+        }
+      ],
+      omittedContent: [
+        {
+          contentSnippetOrTheme: 'Historical timeline of tree algorithms in 1960s literature',
+          reason: 'Bibliographic history omitted to maintain tight pedagogical density.'
+        }
+      ],
+      quizCoverageJustification: {
+        completenessRationale: 'Tests understanding of tree rotation invariants and asymptotic height calculations.',
+        testedFailureModes: [
+          'Pathological O(n) degeneration on sorted sequential inserts'
+        ],
+        coverageScore: 92
+      }
+    },
+    createdAt: '25 mins ago',
+    reviewedAt: null,
+    updates: [INITIAL_UPDATES[1], INITIAL_UPDATES[2]]
+  }
+];
+

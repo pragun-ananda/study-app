@@ -160,6 +160,46 @@ export class MockLLMClient implements LLMClient {
     const sys = options.systemPrompt.toLowerCase();
     const text = options.prompt.toLowerCase();
 
+    // 0. Walkthrough Generator / Pedagogical Auditor
+    const isWalkthroughReq =
+      (options.responseFormat?.type === 'json_schema' && (options.responseFormat as any).json_schema?.name === 'walkthrough_generation') ||
+      (sys.includes('pedagogical auditor') && text.includes('review walkthrough')) ||
+      text.includes('walkthrough for human sign-off');
+
+    if (isWalkthroughReq) {
+      return JSON.stringify({
+        executiveSummary: "Synthesized 2 core concepts and comprehensive assessment questions covering sequence models and attention mechanisms.",
+        extractedConcepts: [
+          {
+            name: "Transformer Self-Attention",
+            rationale: "Core architectural foundation replacing recurrent bottlenecks with O(1) sequential dependency paths."
+          },
+          {
+            name: "Multi-Head Attention",
+            rationale: "Enables joint attending to information from distinct representation subspaces."
+          }
+        ],
+        omittedContent: [
+          {
+            contentSnippetOrTheme: "Introductory hardware cluster benchmarks and training FLOP estimates",
+            reason: "Non-conceptual implementation details pruned to maintain focus on fundamental principles."
+          },
+          {
+            contentSnippetOrTheme: "Generic NLP benchmark evaluation tables (BLEU score comparisons)",
+            reason: "Empirical benchmark trivia omitted in favor of durable algorithmic mechanics."
+          }
+        ],
+        quizCoverageJustification: {
+          completenessRationale: "Questions rigorously test both mathematical formulations (scaling factor sqrt(d_k)) and algorithmic step order (Q, K, V projections through softmax).",
+          testedFailureModes: [
+            "Softmax gradient saturation without scaling factor",
+            "Causal masking leakage during autoregressive decoding"
+          ],
+          coverageScore: 98
+        }
+      });
+    }
+
     // 0. Merge Critic / Knowledge Graph Auditor / Revision Reviewer (BAC-27)
     if (sys.includes('merge reviewer') || sys.includes('merge critic') || sys.includes('merge auditor') || sys.includes('revision reviewer') || sys.includes('exacting reviewer')) {
       const shouldFail = text.includes('force_merge_critic_fail') || text.includes('force_critic_fail');
