@@ -83,7 +83,8 @@ export interface GenerateWalkthroughParams {
  */
 export function extractDomainFromUrl(url: string): string {
   try {
-    const parsed = new URL(url);
+    const normalized = url.includes('://') ? url.trim() : `https://${url.trim()}`;
+    const parsed = new URL(normalized);
     return parsed.hostname.replace(/^www\./, '');
   } catch {
     return 'unknown.source';

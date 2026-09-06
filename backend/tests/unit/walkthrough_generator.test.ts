@@ -17,8 +17,9 @@ describe('Unit: Walkthrough Generator (src/services/walkthroughGenerator.ts)', (
     it('extracts clean hostnames without protocol or www prefix', () => {
       expect(extractDomainFromUrl('https://www.nature.com/articles/s41586-020-2649-2')).toBe('nature.com');
       expect(extractDomainFromUrl('https://arxiv.org/abs/1706.03762')).toBe('arxiv.org');
+      expect(extractDomainFromUrl('arxiv.org/abs/1706.03762')).toBe('arxiv.org');
       expect(extractDomainFromUrl('http://localhost:3000/docs')).toBe('localhost');
-      expect(extractDomainFromUrl('invalid-url')).toBe('unknown.source');
+      expect(extractDomainFromUrl('invalid-url-with spaces')).toBe('unknown.source');
     });
   });
 
