@@ -21,6 +21,23 @@ import { useStore } from '../../store/useStore';
 import { GraphUpdateStatus, DomainCategory, ReviewQueueItemDTO, GraphUpdate } from '../../types/telemetry';
 import { DOMAIN_BASE_COLORS } from '../../utils/theme';
 
+// Format relative timestamp simply
+function formatRelativeTimestamp(dateStr?: string): string {
+  if (!dateStr) return '';
+  if (dateStr.includes('ago')) return dateStr;
+  const date = new Date(dateStr);
+  if (isNaN(date.getTime())) return dateStr;
+  const now = new Date();
+  const diffSec = Math.floor((now.getTime() - date.getTime()) / 1000);
+  if (diffSec < 60) return 'Just now';
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHours = Math.floor(diffMin / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+  const diffDays = Math.floor(diffHours / 24);
+  return `${diffDays}d ago`;
+}
+
 export default function NotificationsDropdown() {
   const isNotificationsOpen = useStore((state) => state.isNotificationsOpen);
   const setIsNotificationsOpen = useStore((state) => state.setIsNotificationsOpen);
@@ -56,6 +73,7 @@ export default function NotificationsDropdown() {
       sourceUrl?: string;
       domain?: string;
       score?: number;
+      timestamp?: string;
       walkthroughAvailable: boolean;
       updates: GraphUpdate[];
     }> = [];
@@ -83,6 +101,7 @@ export default function NotificationsDropdown() {
           sourceUrl: item.sourceUrl,
           domain: item.sourceMetadata?.domain,
           score: item.walkthrough?.quizCoverageJustification?.coverageScore ?? item.auditReport?.score,
+          timestamp: formatRelativeTimestamp(item.createdAt || visibleUpdates[0]?.createdAt),
           walkthroughAvailable: Boolean(item.walkthrough),
           updates: visibleUpdates
         });
@@ -119,6 +138,7 @@ export default function NotificationsDropdown() {
             sourceUrl: first.sourceUrl,
             domain: undefined,
             score: undefined,
+            timestamp: formatRelativeTimestamp(first.createdAt),
             walkthroughAvailable: false,
             updates: visibleUpdates
           });
@@ -295,6 +315,14 @@ export default function NotificationsDropdown() {
                                   <span className="text-[10px] text-slate-400">
                                     {group.updates.length} change{group.updates.length > 1 ? 's' : ''}
                                   </span>
+                                  {group.timestamp && (
+                                    <>
+                                      <span className="text-[10px] text-slate-500">•</span>
+                                      <span className="text-[10px] text-slate-400 font-mono">
+                                        {group.timestamp}
+                                      </span>
+                                    </>
+                                  )}
                                 </div>
                               </div>
                             </button>
@@ -462,9 +490,6 @@ function SingleUpdateCard({
             <span className="flex items-center gap-1 text-[9px] text-[#ffaa00] font-bold">
               <AlertCircle size={11} /> FEEDBACK
             </span>
-          )}
-          {update.status === 'PENDING' && (
-            <span className="text-[9px] text-slate-500">{update.createdAt}</span>
           )}
         </div>
       </div>
