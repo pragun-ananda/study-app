@@ -183,7 +183,7 @@ export default function TelemetryHUD() {
       {/* ================= TRANSPARENT TOP SUBGRAPHS & SEARCH BAR ================= */}
       <header className="pointer-events-auto flex items-center justify-between gap-4 bg-transparent py-1 px-1">
         {/* 1. Collapsible Subgraphs Navigation Bar (Minimized by default) */}
-        <div className="flex items-center bg-[#080c16]/70 border border-white/10 rounded-lg p-1 font-mono text-xs flex-shrink-0 backdrop-blur-md">
+        <div className="flex items-center bg-[#080c16]/70 border border-white/10 rounded-lg p-1 text-xs flex-shrink-0 backdrop-blur-md">
           <AnimatePresence initial={false} mode="wait">
             {isSubgraphsOpen ? (
               <motion.div
@@ -252,7 +252,7 @@ export default function TelemetryHUD() {
         {/* 2. Top Right Cluster: URL Ingest Button + Notifications Dropdown + Quick Search Bar */}
         <div className="flex items-center gap-2 flex-shrink-0">
           {/* Plus icon to open URL Ingest Textbox */}
-          <div className="relative font-mono" ref={urlInputRef}>
+          <div className="relative" ref={urlInputRef}>
             <button
               type="button"
               onClick={() => setIsUrlInputOpen(!isUrlInputOpen)}
@@ -301,7 +301,7 @@ export default function TelemetryHUD() {
                         value={inputUrl}
                         onChange={(e) => setInputUrl(e.target.value)}
                         disabled={isIngesting}
-                        className="bg-transparent font-mono text-xs text-slate-100 placeholder-slate-500 focus:outline-none flex-1 min-w-0"
+                        className="bg-transparent font-sans text-xs text-slate-100 placeholder-slate-500 focus:outline-none flex-1 min-w-0"
                         data-testid="ingest-url-input"
                       />
                       <button
@@ -344,7 +344,7 @@ export default function TelemetryHUD() {
 
           <NotificationsDropdown />
 
-          <div className="flex items-center bg-[#080c16]/70 border border-white/10 rounded-lg p-1 font-mono text-xs flex-shrink-0 backdrop-blur-md">
+          <div className="flex items-center bg-[#080c16]/70 border border-white/10 rounded-lg p-1 text-xs flex-shrink-0 backdrop-blur-md">
 
             <AnimatePresence initial={false} mode="wait">
               {isSearchOpen ? (
@@ -371,7 +371,7 @@ export default function TelemetryHUD() {
                         setActiveTab('TOPICS');
                       }
                     }}
-                    className="bg-transparent font-mono text-xs text-slate-100 placeholder-slate-500 focus:outline-none w-36 md:w-48"
+                    className="bg-transparent font-sans text-xs text-slate-100 placeholder-slate-500 focus:outline-none w-36 md:w-48"
                   />
                   <button
                     type="button"
@@ -431,7 +431,7 @@ export default function TelemetryHUD() {
           </button>
 
           {isSidebarOpen ? (
-            <div className="flex flex-col h-full space-y-4 font-mono overflow-hidden">
+            <div className="flex flex-col h-full space-y-4 overflow-hidden">
 
               <div className="flex items-center justify-between border-b border-white/10 pb-2">
                 <div className="flex items-center gap-1 bg-slate-950/60 p-1 rounded-lg">
@@ -479,7 +479,7 @@ export default function TelemetryHUD() {
                         }`}
                       >
                         <div className="flex justify-between items-center mb-1">
-                          <span className="font-bold text-slate-200">{topic.name}</span>
+                          <span className="font-sans font-bold text-slate-200">{topic.name}</span>
                           <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${
                             topic.status === 'MASTERED'
                               ? 'bg-[#00ff9d]/20 text-[#00ff9d]'
@@ -611,11 +611,11 @@ export default function TelemetryHUD() {
                   boxShadow: `0 0 24px ${selectedNodeColor}50`,
                   backgroundColor: 'rgba(8, 12, 22, 0.92)'
                 }}
-                className="px-5 py-3 rounded-xl border text-slate-100 font-mono text-xs font-bold tracking-wider hover:scale-105 transition-all flex items-center gap-3 backdrop-blur-md shadow-2xl cursor-pointer"
+                className="px-5 py-3 rounded-xl border text-slate-100 font-sans text-xs font-bold tracking-wider hover:scale-105 transition-all flex items-center gap-3 backdrop-blur-md shadow-2xl cursor-pointer"
               >
                 <BookOpen size={16} style={{ color: selectedNodeColor }} />
                 <span>EXPLORE:</span>
-                <span className="uppercase font-extrabold" style={{ color: selectedNodeColor }}>
+                <span className="uppercase font-sans font-bold" style={{ color: selectedNodeColor }}>
                   {selectedNode.name}
                 </span>
                 <span
@@ -638,13 +638,13 @@ export default function TelemetryHUD() {
               animate={{ x: 0, opacity: 1 }}
               exit={{ x: 40, opacity: 0 }}
               onWheel={(e) => e.stopPropagation()}
-              className="pointer-events-auto glass-panel p-4 md:p-5 rounded-xl w-80 md:w-96 font-mono text-xs space-y-3.5 mr-6 max-h-[calc(100vh-140px)] flex flex-col shadow-2xl overscroll-contain"
+              className="pointer-events-auto glass-panel p-4 md:p-5 rounded-xl w-80 md:w-96 text-xs space-y-3.5 mr-6 max-h-[calc(100vh-140px)] flex flex-col shadow-2xl overscroll-contain"
             >
               {/* Fixed Header */}
               <div className="flex items-center justify-between border-b border-white/10 pb-2.5 flex-shrink-0">
                 <div className="flex items-center gap-2">
                   <Target size={15} className="text-[#00f0ff]" />
-                  <span className="font-bold text-slate-100 uppercase tracking-wider truncate max-w-[220px]">{selectedNode.name}</span>
+                  <span className="font-sans font-bold text-slate-100 uppercase tracking-wider truncate max-w-[220px]">{selectedNode.name}</span>
                 </div>
                 <button
                   onClick={() => setIsInspectorOpen(false)}
@@ -701,7 +701,7 @@ export default function TelemetryHUD() {
                             <span className="text-[10px] font-mono font-extrabold text-[#ffaa00] bg-[#ffaa00]/15 px-1.5 py-0.5 rounded flex-shrink-0">
                               {idx + 1}
                             </span>
-                            <span className="truncate font-semibold text-slate-200 group-hover:text-[#ffaa00]">
+                            <span className="truncate font-sans font-bold text-slate-200 group-hover:text-[#ffaa00]">
                               {prereqNode.name}
                             </span>
                           </div>

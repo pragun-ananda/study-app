@@ -329,7 +329,7 @@ export default function NoteViewerModal() {
               borderColor: `${nodeColor}70`,
               boxShadow: `0 0 50px ${nodeColor}35, 0 0 20px ${nodeColor}20, inset 0 0 20px ${nodeColor}08`
             }}
-            className="relative w-full max-w-3xl max-h-[85vh] flex flex-col bg-[#080c16]/95 border rounded-2xl overflow-hidden font-mono z-50 shadow-2xl"
+            className="relative w-full max-w-3xl max-h-[85vh] flex flex-col bg-[#080c16]/95 border rounded-2xl overflow-hidden font-sans z-50 shadow-2xl"
           >
             {/* Top Accent Scanline Bar matched to node color */}
             <div
@@ -361,7 +361,7 @@ export default function NoteViewerModal() {
                       value={editTitle}
                       onChange={(e) => setEditTitle(e.target.value)}
                       placeholder="Note title..."
-                      className="w-full bg-slate-900/90 border border-white/20 focus:border-[#00f0ff] rounded-lg px-2.5 py-1 text-xs text-slate-100 font-mono font-bold focus:outline-none transition-colors"
+                      className="w-full bg-slate-900/90 border border-white/20 focus:border-[#00f0ff] rounded-lg px-2.5 py-1 text-xs text-slate-100 font-sans font-bold focus:outline-none transition-colors"
                     />
                   </div>
                 </div>
@@ -381,7 +381,7 @@ export default function NoteViewerModal() {
                     <FileText size={16} />
                   </div>
                   <div className="truncate">
-                    <span className="text-slate-100 font-bold text-xs uppercase tracking-wider truncate">
+                    <span className="text-slate-100 font-sans font-bold text-xs uppercase tracking-wider truncate">
                       {activeNote.title}
                     </span>
                   </div>
@@ -422,7 +422,7 @@ export default function NoteViewerModal() {
                       borderColor: `${nodeColor}40`,
                       color: nodeColor
                     }}
-                    className="px-2.5 py-1 rounded-lg border bg-slate-900/60 hover:bg-slate-800 text-[11px] font-mono font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                    className="px-2.5 py-1 rounded-lg border bg-slate-900/60 hover:bg-slate-800 text-[11px] font-sans font-bold transition-all flex items-center gap-1.5 cursor-pointer"
                     title="Edit Note"
                   >
                     <Edit3 size={13} />
@@ -452,7 +452,7 @@ export default function NoteViewerModal() {
                     value={editContent}
                     onChange={(e) => setEditContent(e.target.value)}
                     placeholder="Start typing your note here..."
-                    className="w-full flex-1 min-h-[340px] p-4 rounded-xl bg-slate-950/80 border border-white/10 text-slate-100 font-mono text-xs leading-relaxed focus:outline-none focus:border-[#00f0ff]/60 resize-none selection:bg-white/20 selection:text-white placeholder:text-slate-600"
+                    className="w-full flex-1 min-h-[340px] p-4 rounded-xl bg-slate-950/80 border border-white/10 text-slate-100 font-sans text-sm leading-relaxed focus:outline-none focus:border-[#00f0ff]/60 resize-none selection:bg-white/20 selection:text-white placeholder:text-slate-600"
                     spellCheck={false}
                     autoFocus
                   />
@@ -461,14 +461,14 @@ export default function NoteViewerModal() {
                 /* View Mode or Live Preview Mode */
                 <div className="flex-1">
                   {(isNoteEditing ? editContent : activeNote.content) ? (
-                    <div className="prose prose-invert max-w-none text-xs leading-relaxed font-mono">
+                    <div className="prose prose-invert max-w-none text-sm leading-relaxed font-sans">
                       <ReactMarkdown
                         remarkPlugins={[remarkGfm, remarkMath]}
                         rehypePlugins={[[rehypeKatex, { strict: false, throwOnError: false }]]}
                         components={{
                           h1: ({ node, ...props }) => (
                             <h1
-                              className="text-base font-bold font-mono tracking-wider border-b pb-2 mb-4 mt-2 flex items-center gap-2"
+                              className="text-lg font-bold font-sans tracking-wide border-b pb-2 mb-4 mt-2 flex items-center gap-2"
                               style={{
                                 color: nodeColor,
                                 borderColor: `${nodeColor}30`
@@ -478,27 +478,27 @@ export default function NoteViewerModal() {
                           ),
                           h2: ({ node, ...props }) => (
                             <h2
-                              className="text-sm font-bold text-slate-100 font-mono tracking-wide mt-6 mb-3 flex items-center gap-2"
+                              className="text-base font-bold text-slate-100 font-sans tracking-wide mt-6 mb-3 flex items-center gap-2"
                               {...props}
                             />
                           ),
                           h3: ({ node, ...props }) => (
                             <h3
-                              className="text-xs font-semibold font-mono tracking-wide mt-4 mb-2"
+                              className="text-sm font-semibold font-sans tracking-wide mt-4 mb-2"
                               style={{ color: nodeColor }}
                               {...props}
                             />
                           ),
                           p: ({ node, ...props }) => (
-                            <p className="text-slate-300 text-xs leading-relaxed mb-3 font-mono" {...props} />
+                            <p className="text-slate-300 text-sm leading-relaxed mb-3 font-sans" {...props} />
                           ),
                           ul: ({ node, ...props }) => (
-                            <ul className="list-disc list-inside space-y-1.5 mb-4 text-slate-300 text-xs font-mono" {...props} />
+                            <ul className="list-disc list-inside space-y-1.5 mb-4 text-slate-300 text-sm font-sans" {...props} />
                           ),
                           ol: ({ node, ...props }) => (
-                            <ol className="list-decimal list-inside space-y-1.5 mb-4 text-slate-300 text-xs font-mono" {...props} />
+                            <ol className="list-decimal list-inside space-y-1.5 mb-4 text-slate-300 text-sm font-sans" {...props} />
                           ),
-                          li: ({ node, ...props }) => <li className="text-slate-300 text-xs font-mono leading-relaxed" {...props} />,
+                          li: ({ node, ...props }) => <li className="text-slate-300 text-sm font-sans leading-relaxed" {...props} />,
                           code: ({ node, className, children, ...props }) => {
                             const match = /language-(\w+)/.exec(className || '');
                             const codeString = String(children).replace(/\n$/, '');

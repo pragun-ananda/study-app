@@ -398,25 +398,25 @@ export default function DiffViewerModal() {
                 </div>
               ) : (
                 /* 2. Rendered Markdown & Math Preview */
-                <div className="flex-1 p-4 rounded-xl bg-slate-950/80 border border-white/10 prose prose-invert max-w-none text-xs leading-relaxed font-mono">
+                <div className="flex-1 p-4 rounded-xl bg-slate-950/80 border border-white/10 prose prose-invert max-w-none text-sm leading-relaxed font-sans">
                   <ReactMarkdown
                     remarkPlugins={[remarkGfm, remarkMath]}
                     rehypePlugins={[[rehypeKatex, { strict: false, throwOnError: false }]]}
                     components={{
                       h1: ({ node, ...props }) => (
                         <h1
-                          className="text-base font-bold font-mono tracking-wider border-b pb-2 mb-4 mt-2"
+                          className="text-lg font-bold font-sans tracking-wide border-b pb-2 mb-4 mt-2"
                           style={{ color: catColor, borderColor: `${catColor}30` }}
                           {...props}
                         />
                       ),
                       h2: ({ node, ...props }) => (
-                        <h2 className="text-sm font-bold text-slate-100 font-mono tracking-wide mt-6 mb-3" {...props} />
+                        <h2 className="text-base font-bold text-slate-100 font-sans tracking-wide mt-6 mb-3" {...props} />
                       ),
-                      p: ({ node, ...props }) => <p className="text-slate-300 text-xs leading-relaxed mb-3 font-mono" {...props} />,
-                      ul: ({ node, ...props }) => <ul className="list-disc list-inside space-y-1.5 mb-4 text-slate-300 text-xs font-mono" {...props} />,
-                      ol: ({ node, ...props }) => <ol className="list-decimal list-inside space-y-1.5 mb-4 text-slate-300 text-xs font-mono" {...props} />,
-                      li: ({ node, ...props }) => <li className="text-slate-300 text-xs font-mono leading-relaxed" {...props} />,
+                      p: ({ node, ...props }) => <p className="text-slate-300 text-sm leading-relaxed mb-3 font-sans" {...props} />,
+                      ul: ({ node, ...props }) => <ul className="list-disc list-inside space-y-1.5 mb-4 text-slate-300 text-sm font-sans" {...props} />,
+                      ol: ({ node, ...props }) => <ol className="list-decimal list-inside space-y-1.5 mb-4 text-slate-300 text-sm font-sans" {...props} />,
+                      li: ({ node, ...props }) => <li className="text-slate-300 text-sm font-sans leading-relaxed" {...props} />,
                       code: ({ node, className, children, ...props }) => {
                         const match = /language-(\w+)/.exec(className || '');
                         const codeString = String(children).replace(/\n$/, '');

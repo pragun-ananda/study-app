@@ -21,9 +21,9 @@ export default {
         }
       },
       fontFamily: {
-        mono: ['"JetBrains Mono"', '"Fira Code"', 'monospace'],
-        display: ['"Orbitron"', '"Syne"', 'sans-serif'],
-        sans: ['"Inter"', 'sans-serif']
+        mono: ['"Plus Jakarta Sans"', '"JetBrains Mono"', '"Fira Code"', 'monospace'],
+        display: ['"Plus Jakarta Sans"', '"Orbitron"', 'sans-serif'],
+        sans: ['"Plus Jakarta Sans"', '"Inter"', 'sans-serif']
       }
     },
   },
