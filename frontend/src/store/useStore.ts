@@ -167,6 +167,10 @@ export const INITIAL_STATE: TelemetryState = {
   activeDiffUpdateId: null,
   isNotificationsOpen: false,
 
+  // Ingestion State (BAC-2 / Ingest UI)
+  isIngesting: false,
+  ingestError: null,
+
   isLoading: false,
   error: null
 };
@@ -194,11 +198,15 @@ export const useStore = create<TelemetryStore>((set, get) => ({
   loadInitialData: async () => {
     set({ isLoading: true, error: null });
     try {
-      const [topics, todos] = await Promise.all([
+      const [topics, todos, queueData] = await Promise.all([
         api.fetchTopics(),
-        api.fetchTodos()
+        api.fetchTodos(),
+        api.fetchReviewQueue().catch(() => null)
       ]);
-      set({ topicNodes: topics, todos, isLoading: false, error: null });
+      const updates = queueData?.updates && queueData.updates.length > 0
+        ? queueData.updates
+        : get().graphUpdates;
+      set({ topicNodes: topics, todos, graphUpdates: updates, isLoading: false, error: null });
     } catch (err: any) {
       set({
         error: err.message || 'Failed to load initial cosmos telemetry data',
@@ -447,7 +455,42 @@ export const useStore = create<TelemetryStore>((set, get) => ({
   setIsNotificationsOpen: (isNotificationsOpen: boolean) => set({ isNotificationsOpen }),
   setActiveDiffUpdateId: (activeDiffUpdateId: string | null) => set({ activeDiffUpdateId }),
 
-  approveGraphUpdate: (id: string) => {
+  fetchReviewQueue: async (filters?: { status?: string }) => {
+    try {
+      const res = await api.fetchReviewQueue(filters);
+      if (res?.updates && res.updates.length > 0) {
+        set({ graphUpdates: res.updates });
+      }
+    } catch (err: any) {
+      console.warn('[REVIEW_QUEUE_FETCH_WARN]:', err?.message);
+    }
+  },
+
+  ingestUrl: async (url: string) => {
+    if (!url || !url.trim()) return;
+    set({ isIngesting: true, ingestError: null });
+    try {
+      const result = await api.ingestFromUrl(url.trim());
+      // Refresh review queue to load newly staged updates
+      await get().fetchReviewQueue();
+      set({
+        isIngesting: false,
+        ingestError: null,
+        isNotificationsOpen: true
+      });
+      return result;
+    } catch (err: any) {
+      const errorMsg = err?.message || 'Failed to ingest URL';
+      set({
+        isIngesting: false,
+        ingestError: errorMsg
+      });
+      throw err;
+    }
+  },
+
+  approveGraphUpdate: async (id: string) => {
+    // 1. Optimistic update in state
     set((state) => {
       const update = state.graphUpdates.find((u) => u.id === id);
       if (!update) return state;
@@ -500,18 +543,36 @@ export const useStore = create<TelemetryStore>((set, get) => ({
         isInspectorOpen: targetSelectedId ? true : state.isInspectorOpen
       };
     });
+
+    // 2. Persist to PostgreSQL via review queue API
+    try {
+      await api.approveQueueUpdate(id);
+      const freshTopics = await api.fetchTopics();
+      if (freshTopics && freshTopics.length > 0) {
+        set({ topicNodes: freshTopics });
+      }
+    } catch (err: any) {
+      console.warn('[APPROVE_QUEUE_UPDATE_PERSIST_WARN]:', err?.message);
+    }
   },
 
-  rejectGraphUpdate: (id: string) => {
+  rejectGraphUpdate: async (id: string) => {
     set((state) => ({
       graphUpdates: state.graphUpdates.map((u) =>
         u.id === id ? { ...u, status: 'REJECTED' as const } : u
       ),
       activeDiffUpdateId: null
     }));
+
+    try {
+      await api.rejectQueueUpdate(id);
+    } catch (err: any) {
+      console.warn('[REJECT_QUEUE_UPDATE_PERSIST_WARN]:', err?.message);
+    }
   },
 
-  requestChangesGraphUpdate: (id: string, comments: LineReviewComment[], generalFeedback?: string) => {
+  requestChangesGraphUpdate: async (id: string, comments: LineReviewComment[], generalFeedback?: string) => {
+    // 1. Optimistic status update
     set((state) => ({
       graphUpdates: state.graphUpdates.map((u) =>
         u.id === id
@@ -525,6 +586,20 @@ export const useStore = create<TelemetryStore>((set, get) => ({
       ),
       activeDiffUpdateId: null
     }));
+
+    // 2. Trigger human-in-the-loop agent redrafting on backend
+    try {
+      const res = await api.requestChangesOnUpdate(id, { comments, generalFeedback });
+      if (res?.update) {
+        set((state) => ({
+          graphUpdates: state.graphUpdates.map((u) =>
+            u.id === id ? { ...u, ...res.update, status: 'PENDING' as const } : u
+          )
+        }));
+      }
+    } catch (err: any) {
+      console.warn('[REQUEST_CHANGES_PERSIST_WARN]:', err?.message);
+    }
   },
 
   addCommentToUpdate: (updateId: string, commentData: Omit<LineReviewComment, 'id' | 'createdAt'>) => {

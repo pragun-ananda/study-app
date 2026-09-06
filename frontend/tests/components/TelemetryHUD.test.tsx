@@ -220,6 +220,69 @@ describe('TelemetryHUD Component', () => {
 
     expect(useStore.getState().isInspectorOpen).toBe(false);
   });
+
+  describe('URL Ingest Plus-Icon Textbox', () => {
+    it('renders plus icon button and opens URL input textbox on click', async () => {
+      render(<TelemetryHUD />);
+
+      const plusBtn = screen.getByTestId('ingest-url-btn');
+      expect(plusBtn).toBeInTheDocument();
+
+      fireEvent.click(plusBtn);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('ingest-url-input')).toBeInTheDocument();
+        expect(screen.getByTestId('ingest-url-submit-btn')).toBeInTheDocument();
+      });
+    });
+
+    it('submits URL to ingestUrl when form is submitted', async () => {
+      const ingestSpy = vi.spyOn(useStore.getState(), 'ingestUrl').mockResolvedValueOnce({
+        status: 'success' as const,
+        url: 'https://example.com/system-design',
+        executedSteps: ['fetch_url' as const, 'clean_content' as const, 'extract_topics' as const, 'generate_content' as const, 'review_content' as const, 'add_to_review_queue' as const],
+        message: 'Success',
+        details: {} as any
+      });
+
+      render(<TelemetryHUD />);
+
+      fireEvent.click(screen.getByTestId('ingest-url-btn'));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('ingest-url-input')).toBeInTheDocument();
+      });
+
+      const input = screen.getByTestId('ingest-url-input');
+      fireEvent.change(input, { target: { value: 'https://example.com/system-design' } });
+
+      const submitBtn = screen.getByTestId('ingest-url-submit-btn');
+      fireEvent.click(submitBtn);
+
+      expect(ingestSpy).toHaveBeenCalledWith('https://example.com/system-design');
+      await waitFor(() => {
+        expect(screen.getByText('Content staged to review queue!')).toBeInTheDocument();
+      });
+      ingestSpy.mockRestore();
+    });
+
+    it('closes URL input popover when close button is clicked', async () => {
+      render(<TelemetryHUD />);
+
+      fireEvent.click(screen.getByTestId('ingest-url-btn'));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('ingest-url-input')).toBeInTheDocument();
+      });
+
+      const closeBtn = screen.getByTitle('Close');
+      fireEvent.click(closeBtn);
+
+      await waitFor(() => {
+        expect(screen.queryByTestId('ingest-url-input')).not.toBeInTheDocument();
+      });
+    });
+  });
 });
 
 

@@ -352,4 +352,100 @@ describe('Zustand State Store (useStore)', () => {
       expect(note?.content).toContain('def backward_propagation(dAL, caches):');
     });
   });
+
+  describe('Review Queue Hydration & URL Ingestion Workflow', () => {
+    it('fetches review queue updates from API and sets them in store', async () => {
+      const mockUpdates = [
+        {
+          id: 'UPDATE-LIVE-1',
+          type: 'NOTE_UPDATE' as const,
+          status: 'PENDING' as const,
+          category: 'CS' as const,
+          targetId: 'TOPIC-001',
+          targetName: 'Live Note',
+          title: 'Live Note Title',
+          description: 'Live Note Desc',
+          oldContent: '',
+          newContent: 'Live Note Content',
+          createdAt: new Date().toISOString()
+        }
+      ];
+
+      const spy = vi.spyOn(api, 'fetchReviewQueue').mockResolvedValueOnce({
+        queueItems: [],
+        updates: mockUpdates,
+        counts: { pending: 1, approved: 0, rejected: 0, changesRequested: 0, total: 1 }
+      });
+
+      await useStore.getState().fetchReviewQueue();
+      expect(useStore.getState().graphUpdates.length).toBe(1);
+      expect(useStore.getState().graphUpdates[0].id).toBe('UPDATE-LIVE-1');
+      spy.mockRestore();
+    });
+
+    it('ingestUrl triggers API ingest, refreshes review queue, and opens notifications', async () => {
+      const mockResult = {
+        status: 'success' as const,
+        url: 'https://example.com/test',
+        executedSteps: ['fetch_url' as const, 'clean_content' as const, 'extract_topics' as const, 'generate_content' as const, 'review_content' as const, 'add_to_review_queue' as const],
+        message: 'Success',
+        details: { fetchStatus: 200 } as any
+      };
+
+      const ingestSpy = vi.spyOn(api, 'ingestFromUrl').mockResolvedValueOnce(mockResult);
+      const queueSpy = vi.spyOn(api, 'fetchReviewQueue').mockResolvedValueOnce({
+        queueItems: [],
+        updates: [],
+        counts: { pending: 0, approved: 0, rejected: 0, changesRequested: 0, total: 0 }
+      });
+
+      expect(useStore.getState().isIngesting).toBe(false);
+      expect(useStore.getState().isNotificationsOpen).toBe(false);
+
+      const res = await useStore.getState().ingestUrl('https://example.com/test');
+
+      expect(ingestSpy).toHaveBeenCalledWith('https://example.com/test');
+      expect(queueSpy).toHaveBeenCalled();
+      expect(res).toEqual(mockResult);
+      expect(useStore.getState().isIngesting).toBe(false);
+      expect(useStore.getState().isNotificationsOpen).toBe(true);
+      expect(useStore.getState().ingestError).toBeNull();
+
+      ingestSpy.mockRestore();
+      queueSpy.mockRestore();
+    });
+
+    it('ingestUrl captures error and resets isIngesting on failure', async () => {
+      const ingestSpy = vi.spyOn(api, 'ingestFromUrl').mockRejectedValueOnce(new Error('Network error 500'));
+
+      await expect(useStore.getState().ingestUrl('https://example.com/fail')).rejects.toThrow('Network error 500');
+
+      expect(useStore.getState().isIngesting).toBe(false);
+      expect(useStore.getState().ingestError).toBe('Network error 500');
+
+      ingestSpy.mockRestore();
+    });
+
+    it('calls approveQueueUpdate and rejectQueueUpdate on API client', async () => {
+      const approveSpy = vi.spyOn(api, 'approveQueueUpdate').mockResolvedValueOnce({
+        success: true,
+        update: { id: 'UPDATE-001' } as any,
+        queueId: 'Q-1'
+      });
+      const rejectSpy = vi.spyOn(api, 'rejectQueueUpdate').mockResolvedValueOnce({
+        success: true,
+        update: { id: 'UPDATE-002' } as any,
+        queueId: 'Q-2'
+      });
+
+      await useStore.getState().approveGraphUpdate('UPDATE-001');
+      expect(approveSpy).toHaveBeenCalledWith('UPDATE-001');
+
+      await useStore.getState().rejectGraphUpdate('UPDATE-002');
+      expect(rejectSpy).toHaveBeenCalledWith('UPDATE-002');
+
+      approveSpy.mockRestore();
+      rejectSpy.mockRestore();
+    });
+  });
 });
