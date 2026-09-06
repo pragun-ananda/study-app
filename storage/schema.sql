@@ -96,7 +96,7 @@ CREATE INDEX IF NOT EXISTS idx_quiz_questions_type ON quiz_questions(type);
 CREATE TABLE IF NOT EXISTS ingest_review_queue (
     id VARCHAR(64) PRIMARY KEY,
     source_url TEXT NOT NULL,
-    status VARCHAR(32) NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'APPROVED', 'REJECTED')),
+    status VARCHAR(32) NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'APPROVED', 'REJECTED', 'CHANGES_REQUESTED')),
     payload JSONB NOT NULL,
     audit_report JSONB NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),

@@ -303,12 +303,11 @@ export async function generateContentStep(
         generatedNotes.push(mergeResult.mergedNote);
         mergeAudits.push(mergeResult.auditReport);
 
-        // Standardized NOTE_UPDATE
-        const isAutoApproved = mergeResult.auditReport.passed && mergeResult.auditReport.preservationScore >= 90;
+        // Standardized NOTE_UPDATE (staged as PENDING for human review)
         graphUpdates.push(
           createGraphUpdate({
             type: "NOTE_UPDATE",
-            status: isAutoApproved ? "APPROVED" : "PENDING",
+            status: "PENDING",
             category: topic.category,
             targetId: matchedTopicId,
             targetName: match.matchedTopic.name,
@@ -345,7 +344,7 @@ export async function generateContentStep(
           graphUpdates.push(
             createGraphUpdate({
               type: "QUIZ_UPDATE",
-              status: isAutoApproved ? "APPROVED" : "PENDING",
+              status: "PENDING",
               category: topic.category,
               targetId: matchedTopicId,
               targetName: match.matchedTopic.name,
@@ -379,15 +378,13 @@ export async function generateContentStep(
     generatedNotes.push(singleNoteRes.note);
     noteAudits.push(singleNoteRes.auditReport);
 
-    const isNoteAutoApproved = singleNoteRes.auditReport.passed && singleNoteRes.auditReport.coverageScore >= 90;
-
-    // Standardized TOPIC_UPDATE + NOTE_UPDATE
+    // Standardized TOPIC_UPDATE + NOTE_UPDATE (staged as PENDING for human review)
     const topicId = match.matchedTopic ? match.matchedTopic.id : generateEntityId("TOPIC");
     if (!match.matchedTopic) {
       graphUpdates.push(
         createGraphUpdate({
           type: "TOPIC_UPDATE",
-          status: isNoteAutoApproved ? "APPROVED" : "PENDING",
+          status: "PENDING",
           category: topic.category,
           targetId: topicId,
           targetName: topic.name,
@@ -412,7 +409,7 @@ export async function generateContentStep(
     graphUpdates.push(
       createGraphUpdate({
         type: "NOTE_UPDATE",
-        status: isNoteAutoApproved ? "APPROVED" : "PENDING",
+        status: "PENDING",
         category: topic.category,
         targetId: topicId,
         targetName: topic.name,
@@ -437,7 +434,7 @@ export async function generateContentStep(
       graphUpdates.push(
         createGraphUpdate({
           type: "QUIZ_UPDATE",
-          status: isNoteAutoApproved ? "APPROVED" : "PENDING",
+          status: "PENDING",
           category: topic.category,
           targetId: topicId,
           targetName: topic.name,
@@ -545,14 +542,6 @@ export async function addToReviewQueueStep(data: {
     graphUpdates?: GraphUpdate[];
   };
 }): Promise<AddToReviewQueueResult> {
-  const isPassed = data.reviewResult ? data.reviewResult.passed : Boolean(data.reviewPassed);
-  if (isPassed) {
-    return {
-      queueId: null,
-      status: "bypassed"
-    };
-  }
-
   const queueId = generateEntityId('QUEUE');
   try {
     const sourceUrl = data.url || 'http://unknown.source';

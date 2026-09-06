@@ -5,6 +5,7 @@ import prerequisitesRouter from './routes/prerequisites.js';
 import notesRouter from './routes/notes.js';
 import todosRouter from './routes/todos.js';
 import ingestRouter from './routes/ingest.js';
+import reviewQueueRouter from './routes/reviewQueue.js';
 
 export function createApp(): Express {
   const app = express();
@@ -30,6 +31,8 @@ export function createApp(): Express {
   app.use('/api/todos', todosRouter);
   app.use('/api/ingest', ingestRouter);
   app.use('/ingest', ingestRouter);
+  app.use('/api/review-queue', reviewQueueRouter);
+  app.use('/review-queue', reviewQueueRouter);
 
   // 404 Handler
   app.use((_req: Request, res: Response) => {

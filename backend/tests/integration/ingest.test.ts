@@ -75,7 +75,7 @@ describe("Integration: Ingestion API (POST /api/ingest & POST /ingest)", () => {
     expect(res.body.details.extractedTopicsCount).toBe(0);
     expect(res.body.details.generatedNotesCount).toBe(0);
     expect(res.body.details.reviewPassed).toBe(true);
-    expect(res.body.details.queueId).toBeNull();
+    expect(res.body.details.queueId).toMatch(/^QUEUE-/);
   });
 
   it("POST /ingest (root alias) behaves identically to /api/ingest", async () => {

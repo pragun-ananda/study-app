@@ -9,6 +9,7 @@ import {
   GraphUpdate,
   GraphUpdateType,
   GraphUpdateStatus,
+  LineReviewComment,
   MergeAuditReport,
   MergeContentResult,
   DomainCategory
@@ -571,3 +572,171 @@ export function createGraphUpdate(params: {
     payload: params.payload
   };
 }
+
+/**
+ * Re-drafts an existing study note draft based on human reviewer feedback and line comments.
+ * Incorporates line-level comments and general feedback, strictly respecting the 8-Part Master
+ * Architecture and zero-information-loss preservation guarantee.
+ */
+export async function reDraftNoteWithFeedback(
+  existingNoteContent: string,
+  currentDraftContent: string,
+  comments: LineReviewComment[],
+  generalFeedback?: string,
+  topic?: { name: string; category?: string; summary?: string },
+  options?: { llmClient?: any; timeoutMs?: number }
+): Promise<{
+  revisedMarkdown: string;
+  auditReport: MergeAuditReport;
+}> {
+  const client: LLMClient = options?.llmClient || getLLMClient();
+  const timeoutMs = options?.timeoutMs || 30000;
+
+  const generatorSystemPrompt = `You are a Technical Writer, Curriculum Architect, and Content Revision Specialist.
+You are tasked with revising a study note draft in response to specific line-by-line comments and feedback from a human reviewer.
+
+CRITICAL REQUIREMENTS:
+1. Maintain the 8-Part Master Architecture:
+   - Header with Prerequisites and Key Metric/Guarantee
+   - ## 1. Problem Context & The "Why"
+   - ## 2. Conceptual Core & Mental Model
+   - ## 3. Formal Deep-Dive Specification
+   - ## 4. Algorithmic Logic & Pseudocode
+   - ## 5. Step-by-Step Worked Trace / Execution Flow
+   - ## 6. Trade-Offs, Alternatives & Decision Matrix
+   - ## 7. Failure Modes, Edge Cases & Common Pitfalls
+   - ## 8. Summary & Key Takeaways Checklist
+2. ADDRESS HUMAN FEEDBACK:
+   - Directly resolve every line comment and incorporate requested modifications.
+3. ZERO INFORMATION LOSS:
+   - Do NOT drop any existing mathematical formulas, KaTeX blocks ($$), Mermaid diagrams, pseudocode branches, or failure modes from the original/current draft, unless explicitly instructed by the reviewer.
+4. Clean Markdown syntax without wrapping in json or meta-chatter.`;
+
+  let reviewerFeedbackText = '';
+  if (comments && comments.length > 0) {
+    reviewerFeedbackText += '### Specific Line Comments:\n' +
+      comments.map(c => `- Line ${c.lineNumber}${c.selectedText ? ` (re: "${c.selectedText}")` : ''}: "${c.comment}"`).join('\n') + '\n\n';
+  }
+  if (generalFeedback) {
+    reviewerFeedbackText += `### General Feedback:\n${generalFeedback}\n\n`;
+  }
+
+  const generatorPrompt = `<current_draft>
+${currentDraftContent}
+</current_draft>
+
+<original_content>
+${existingNoteContent || currentDraftContent}
+</original_content>
+
+<topic_info>
+Name: ${topic?.name || 'Technical Concept'}
+Category: ${topic?.category || 'Computer Science'}
+Summary: ${topic?.summary || ''}
+</topic_info>
+
+<human_reviewer_feedback>
+${reviewerFeedbackText.trim() || 'Please review and polish the content.'}
+</human_reviewer_feedback>
+
+Revise the study note to incorporate all human reviewer feedback while guaranteeing zero loss of technical depth, formulas, or diagrams.`;
+
+  const revisedMarkdown = await client.complete({
+    systemPrompt: generatorSystemPrompt,
+    prompt: generatorPrompt,
+    temperature: 0.2,
+    timeoutMs
+  });
+
+  // Run deterministic preservation validation
+  const baseline = existingNoteContent || currentDraftContent;
+  const preservationCheck = validateMergePreservation(baseline, revisedMarkdown);
+
+  // Run Critic evaluation
+  const criticSystemPrompt = `You are an exacting Merge Reviewer, Knowledge Graph Auditor, and System Design Critic.
+Your mission is to audit a revised study note against the reviewer's feedback and ensure zero unintentional loss of technical substance.
+
+EVALUATION RUBRIC:
+1. PRESERVATION AUDIT (ZERO INFORMATION LOSS):
+   - Ensure original mathematical formulas ($$), diagrams, and core technical concepts were retained.
+2. FEEDBACK INTEGRATION:
+   - Verify that reviewer comments were incorporated.
+
+SCORING:
+- preservationScore: 0 to 100 (100 = full retention).
+- coverageScore: 0 to 100.
+- passed: true ONLY if preservationScore >= 95 AND lostOriginalConcepts is empty.`;
+
+  const criticPrompt = `<original_baseline>
+${baseline}
+</original_baseline>
+
+<revised_note>
+${revisedMarkdown}
+</revised_note>
+
+<reviewer_feedback>
+${reviewerFeedbackText}
+</reviewer_feedback>
+
+Evaluate the revised note and return the JSON audit report.`;
+
+  let auditReport: MergeAuditReport = {
+    passed: true,
+    preservationScore: 100,
+    coverageScore: 95,
+    lostOriginalConcepts: [],
+    omittedNewConcepts: [],
+    unresolvedDuplicates: [],
+    refinementIterations: 1,
+    feedback: 'Human feedback integrated with zero technical regressions.'
+  };
+
+  try {
+    const criticResponseRaw = await client.complete({
+      systemPrompt: criticSystemPrompt,
+      prompt: criticPrompt,
+      responseFormat: {
+        type: 'json_schema',
+        json_schema: MERGE_AUDIT_JSON_SCHEMA
+      },
+      temperature: 0.0,
+      timeoutMs
+    });
+    auditReport = JSON.parse(criticResponseRaw);
+    if (typeof auditReport.refinementIterations !== 'number') {
+      auditReport.refinementIterations = 1;
+    }
+  } catch {
+    // If Critic fails, fallback to deterministic preservation result
+    auditReport = {
+      passed: preservationCheck.passed,
+      preservationScore: preservationCheck.passed ? 95 : 70,
+      coverageScore: 90,
+      lostOriginalConcepts: preservationCheck.lostItems,
+      omittedNewConcepts: [],
+      unresolvedDuplicates: [],
+      refinementIterations: 1,
+      feedback: preservationCheck.passed
+        ? 'Deterministically verified preservation of formulas, diagrams, and structure.'
+        : `Deterministic validation flagged lost items: ${preservationCheck.lostItems.join('; ')}`
+    };
+  }
+
+  // If deterministic check failed, enforce failure on auditReport
+  if (!preservationCheck.passed) {
+    auditReport.passed = false;
+    for (const lost of preservationCheck.lostItems) {
+      if (!auditReport.lostOriginalConcepts.includes(lost)) {
+        auditReport.lostOriginalConcepts.push(lost);
+      }
+    }
+    auditReport.preservationScore = Math.min(auditReport.preservationScore, 70);
+  }
+
+  return {
+    revisedMarkdown,
+    auditReport
+  };
+}
+
