@@ -75,7 +75,7 @@ export interface QuizQuestionRow {
 export interface IngestReviewQueueRow {
   id: string;
   source_url: string;
-  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CHANGES_REQUESTED';
   payload: any;
   audit_report: any;
   created_at: string | Date;
@@ -343,6 +343,14 @@ export type GraphUpdateType =
 
 export type GraphUpdateStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CHANGES_REQUESTED';
 
+export interface LineReviewComment {
+  id: string;
+  lineNumber: number;
+  selectedText?: string;
+  comment: string;
+  createdAt: string;
+}
+
 export interface GraphUpdate {
   id: string; // UPDATE-UUID
   type: GraphUpdateType;
@@ -356,14 +364,51 @@ export interface GraphUpdate {
   newContent: string; // The resulting content
   sourceUrl?: string; // Source article/document URL
   createdAt: string;
+  comments?: LineReviewComment[];
+  generalFeedback?: string;
   payload?: {
     topicId?: string;
     noteId?: string;
     quizId?: string;
+    summary?: string;
+    coord_x?: number;
+    coord_y?: number;
+    coord_z?: number;
+    questions?: GeneratedQuizQuestion[];
+    prerequisites?: string[];
     edge?: { fromId: string; toId: string; action: 'ADD' | 'REMOVE' };
     patch?: any;
     notePatch?: any;
+    [key: string]: any;
   };
+}
+
+export interface ReviewQueueItemDTO {
+  id: string;
+  sourceUrl: string;
+  status: GraphUpdateStatus;
+  payload: any;
+  auditReport: any;
+  createdAt: string;
+  reviewedAt: string | null;
+  updates: GraphUpdate[];
+}
+
+export interface ReviewQueueResponseDTO {
+  queueItems: ReviewQueueItemDTO[];
+  updates: GraphUpdate[];
+  counts: {
+    pending: number;
+    approved: number;
+    rejected: number;
+    changesRequested: number;
+    total: number;
+  };
+}
+
+export interface RequestChangesPayload {
+  comments: LineReviewComment[];
+  generalFeedback?: string;
 }
 
 export interface MergeAuditReport {

@@ -307,10 +307,10 @@ describe("Unit: Ingestion Pipeline Service (src/services/ingestPipeline.ts)", ()
       expect(result.summary).toContain("Audit flagged warnings");
     });
 
-    it("addToReviewQueueStep returns bypassed status when review passed cleanly", async () => {
+    it("addToReviewQueueStep unconditionally stages content into the review queue (no auto-approval bypass)", async () => {
       const result = await addToReviewQueueStep({ reviewPassed: true });
-      expect(result.status).toBe("bypassed");
-      expect(result.queueId).toBeNull();
+      expect(result.status).toBe("queued");
+      expect(result.queueId).toMatch(/^QUEUE-/);
     });
 
     it("addToReviewQueueStep stages flagged content into the review queue when review fails", async () => {
@@ -352,7 +352,7 @@ describe("Unit: Ingestion Pipeline Service (src/services/ingestPipeline.ts)", ()
       expect(result.details.extractedTopicsCount).toBe(0);
       expect(result.details.generatedNotesCount).toBe(0);
       expect(result.details.reviewPassed).toBe(true);
-      expect(result.details.queueId).toBeNull();
+      expect(result.details.queueId).toMatch(/^QUEUE-/);
     });
 
     it("populates extracted topics, notes, quizzes, and audit metrics when ingesting rich article content (BAC-19 & BAC-20)", async () => {
