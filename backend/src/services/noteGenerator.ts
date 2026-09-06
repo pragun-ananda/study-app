@@ -141,6 +141,12 @@ export async function generateSingleTopicNote(
 Your mission is to generate an EXTREMELY HIGH-QUALITY, comprehensive, and definitive master study note for the topic "${topic.name}".
 The note must achieve 100% coverage of the important concepts, formulas, code mechanics, edge cases, and architectural trade-offs present in the source text.
 
+PLAIN LANGUAGE & INTUITIVE CLARITY (MANDATORY):
+- Write in simple, clear, and straightforward language. Do NOT overcomplicate explanations or use unnecessary academic jargon.
+- Convey all technical depth, formulas, and edge cases accurately, but explain them in an approachable, easy-to-understand way.
+- When an advanced technical term is essential, immediately explain what it means in plain English with an intuitive real-world analogy.
+- Keep sentences direct, active, and conversational. Avoid flowery, dense, or convoluted phrasing.
+
 MANDATORY MASTER NOTE STRUCTURE:
 Your output MUST be in GitHub-Flavored Markdown and strictly adhere to this section hierarchy:
 

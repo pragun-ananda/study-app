@@ -165,12 +165,12 @@ export default function IngestionWalkthroughModal() {
               <div className="flex items-center gap-2 mb-2">
                 <Database size={15} className="text-[#00f0ff]" />
                 <h3 className="text-xs font-extrabold text-[#00f0ff] uppercase tracking-wider">
-                  Executive Pedagogical Summary
+                  Summary & Key Takeaways
                 </h3>
               </div>
               <p className="text-xs sm:text-sm text-slate-200 leading-relaxed font-sans">
                 {walkthrough?.executiveSummary ||
-                  'Content was parsed, cleaned, and synthesized into atomic knowledge graph entities with verified pedagogical coverage.'}
+                  'Content was processed and organized into clear knowledge graph topics with complete study notes and quizzes.'}
               </p>
             </div>
 
@@ -248,7 +248,7 @@ export default function IngestionWalkthroughModal() {
                 <div className="flex items-center gap-2">
                   <HelpCircle size={16} className="text-purple-400" />
                   <h4 className="text-xs font-black text-purple-300 uppercase tracking-wider">
-                    Assessment Completeness & Coverage Justification
+                    Quiz & Practice Questions Coverage
                   </h4>
                 </div>
                 {walkthrough?.quizCoverageJustification?.coverageScore !== undefined && (
@@ -260,7 +260,7 @@ export default function IngestionWalkthroughModal() {
 
               <p className="text-xs text-slate-300 leading-relaxed">
                 {walkthrough?.quizCoverageJustification?.completenessRationale ||
-                  'Questions comprehensively test core theoretical assumptions, worked execution traces, and failure modes.'}
+                  'Questions test your understanding of the core concepts, real-world trade-offs, and common pitfalls.'}
               </p>
 
               {walkthrough?.quizCoverageJustification?.testedFailureModes &&

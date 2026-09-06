@@ -187,13 +187,16 @@ IDENTIFIED FAILURE MODES IN NOTES:
 ${failureModesTested.join(', ') || 'Standard edge cases and boundary conditions'}
 
 Please produce a structured JSON walkthrough covering:
-1. executiveSummary: A 2-3 sentence high-level overview of what this source contributes to the knowledge graph.
-2. extractedConcepts: An array of objects with { name, rationale } describing why each extracted concept is high-yield.
-3. omittedContent: An array of objects with { contentSnippetOrTheme, reason } identifying specific sections, introductory filler, or non-actionable trivia that was deliberately excluded and why.
+1. executiveSummary: A 2-3 sentence high-level overview of what this source contributes to the knowledge graph. Write in simple, clear, and plain English that is easy to understand. Avoid unnecessary jargon.
+2. extractedConcepts: An array of objects with { name, rationale } describing why each extracted concept is important. Explain the rationale in straightforward, accessible terms.
+3. omittedContent: An array of objects with { contentSnippetOrTheme, reason } identifying specific sections, introductory filler, or non-actionable trivia that was deliberately excluded and why. Keep reasons plain and intuitive.
 4. quizCoverageJustification: An object with:
-   - completenessRationale: Detailed explanation of how the quiz questions test comprehension across conceptual foundations, trade-offs, and implementation edge cases.
+   - completenessRationale: Clear explanation of how the quiz questions test comprehension across conceptual foundations, trade-offs, and practical edge cases in plain language.
    - testedFailureModes: List of specific gotchas/failure modes tested.
    - coverageScore: Numerical coverage estimate (0 - 100).
+
+STYLE REQUIREMENT:
+Use plain, direct, and straightforward language throughout. The explanations should be effortless to interpret while remaining technically accurate.
 `.trim();
 
   try {

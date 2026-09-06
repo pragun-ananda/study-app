@@ -8,8 +8,10 @@ import { setPool, closePool } from './db.js';
 
 dotenv.config();
 
-// Ensure test server operates in test mode so getLLMClient() uses fast deterministic MockLLMClient
-process.env.NODE_ENV = 'test';
+// Operate in test mode by default unless USE_REAL_LLM is explicitly requested
+if (process.env.USE_REAL_LLM !== 'true') {
+  process.env.NODE_ENV = 'test';
+}
 
 // Initialize in-memory postgres with schema & seeds
 const db = newDb();

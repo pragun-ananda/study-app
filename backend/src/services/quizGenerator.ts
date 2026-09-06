@@ -160,8 +160,10 @@ QUESTION FORMAT TAXONOMY (PRIORITIZE CHALLENGING FORMATS):
    - MUST provide 'memorizationReason'. Do NOT use for general concepts.
 
 CRITICAL RULES:
+- Write question stems, choices, and explanations in plain, simple, and straightforward language. Avoid convoluted phrasing, double negatives, or needlessly dense wording.
 - Exactly ONE unambiguously correct answer per question.
 - No giveaway distractors ("All of the above", "None of the above", or absurd options).
+- Distractor explanations must be clear, direct, and easy to interpret.
 - Reference the specific 'sourceAssertion' from the note for each question.
 
 Output format must be a JSON object with a 'questions' array.`;
