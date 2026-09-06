@@ -50,7 +50,7 @@ export default function NotificationsDropdown() {
   }, [isNotificationsOpen, setIsNotificationsOpen]);
 
   return (
-    <div className="relative font-mono" ref={dropdownRef}>
+    <div className="relative" ref={dropdownRef}>
       {/* Trigger Bell Button in Header */}
       <button
         type="button"

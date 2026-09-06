@@ -644,7 +644,7 @@ const KnowledgeNode = React.memo(({ node, isConnectedComponent }: { node: TopicN
               borderColor: nodeColor,
               boxShadow: isSelected || isHovered ? `0 0 16px ${nodeColor}80` : undefined
             }}
-            className={`px-2 py-0.5 rounded font-mono font-bold transition-all whitespace-nowrap overflow-hidden text-ellipsis shadow-lg ${getSingleLineFontSize(
+            className={`px-2 py-0.5 rounded font-sans font-bold transition-all whitespace-nowrap overflow-hidden text-ellipsis shadow-lg ${getSingleLineFontSize(
               node.name.length
             )} ${
               isSelected || isHovered
