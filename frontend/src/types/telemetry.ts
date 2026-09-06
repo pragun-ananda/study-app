@@ -111,6 +111,29 @@ export interface GraphUpdate {
   };
 }
 
+export interface ReviewQueueItemDTO {
+  id: string;
+  sourceUrl: string;
+  status: GraphUpdateStatus;
+  payload: any;
+  auditReport: any;
+  createdAt: string;
+  reviewedAt: string | null;
+  updates: GraphUpdate[];
+}
+
+export interface ReviewQueueResponseDTO {
+  queueItems: ReviewQueueItemDTO[];
+  updates: GraphUpdate[];
+  counts: {
+    pending: number;
+    approved: number;
+    rejected: number;
+    changesRequested: number;
+    total: number;
+  };
+}
+
 export interface TelemetryState {
   // System State & Shaders
   systemStatus: SystemStatus;
@@ -137,6 +160,10 @@ export interface TelemetryState {
   graphUpdates: GraphUpdate[];
   activeDiffUpdateId: string | null;
   isNotificationsOpen: boolean;
+
+  // Ingestion State (BAC-2 / Ingest UI)
+  isIngesting: boolean;
+  ingestError: string | null;
 
   // Server Synchronization State
   isLoading: boolean;
@@ -186,9 +213,11 @@ export interface TelemetryActions {
   // Diff Review Actions (FRO-11)
   setIsNotificationsOpen: (open: boolean) => void;
   setActiveDiffUpdateId: (id: string | null) => void;
-  approveGraphUpdate: (id: string) => void;
-  rejectGraphUpdate: (id: string) => void;
-  requestChangesGraphUpdate: (id: string, comments: LineReviewComment[], generalFeedback?: string) => void;
+  fetchReviewQueue: (filters?: { status?: string }) => Promise<void>;
+  ingestUrl: (url: string) => Promise<IngestPipelineResult | void>;
+  approveGraphUpdate: (id: string) => Promise<void> | void;
+  rejectGraphUpdate: (id: string) => Promise<void> | void;
+  requestChangesGraphUpdate: (id: string, comments: LineReviewComment[], generalFeedback?: string) => Promise<void> | void;
   addCommentToUpdate: (updateId: string, comment: Omit<LineReviewComment, 'id' | 'createdAt'>) => void;
   deleteCommentFromUpdate: (updateId: string, commentId: string) => void;
   resetGraphUpdates: () => void;

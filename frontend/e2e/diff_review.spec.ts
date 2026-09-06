@@ -65,6 +65,22 @@ test.describe('Diff-Based Content Review System (FRO-11)', () => {
   });
 
   test('Authors inline review comment on diff line and executes Request Changes workflow', async ({ page }) => {
+    // Intercept request-changes to return revised update with CHANGES_REQUESTED status for the feedback tab
+    await page.route('**/api/review-queue/updates/**/request-changes', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          update: {
+            id: 'UPDATE-001',
+            title: 'Backpropagation & Autograd Refinement',
+            status: 'CHANGES_REQUESTED'
+          }
+        })
+      });
+    });
+
     // Open diff modal for Backpropagation
     const bellBtn = page.getByRole('button', { name: /Review Updates \/ Notifications/i });
     await bellBtn.click();
@@ -93,11 +109,10 @@ test.describe('Diff-Based Content Review System (FRO-11)', () => {
     // Modal closes upon request changes
     await expect(commentInput).not.toBeVisible();
 
-    // Reopen notifications: verify badge decrements and item is in FEEDBACK tab
+    // Reopen notifications: verify the update is re-staged in the review queue ready for re-review
     await bellBtn.click();
-    await page.getByRole('button', { name: 'FEEDBACK' }).click();
     await expect(page.getByText('Backpropagation & Autograd Refinement')).toBeVisible();
-    await expect(page.getByText('FEEDBACK', { exact: true }).first()).toBeVisible();
+    await expect(page.getByText(/2 notes/i)).toBeVisible();
   });
 
   test('Approves content update and merges changes into live knowledge graph and inspector', async ({ page }) => {
@@ -131,5 +146,45 @@ test.describe('Diff-Based Content Review System (FRO-11)', () => {
 
     // All 3 updates restored to pending
     await expect(bellBtn.locator('span')).toHaveText('3');
+  });
+
+  test('Opens URL Ingest input via Plus icon and submits content for pipeline ingestion', async ({ page }) => {
+    // Intercept /api/ingest to return a successful staged result deterministically
+    await page.route('**/api/ingest', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          status: 'success',
+          url: 'https://example.com/dynamic-programming',
+          executedSteps: ['fetch_url', 'clean_content', 'extract_topics', 'generate_content', 'review_content', 'add_to_review_queue'],
+          message: 'Ingestion pipeline executed successfully',
+          details: {
+            extractedTopicsCount: 2,
+            generatedNotesCount: 2,
+            generatedQuizzesCount: 2,
+            queueId: 'QUEUE-PLAYWRIGHT-001',
+            graphUpdates: []
+          }
+        })
+      });
+    });
+
+    const plusBtn = page.getByTestId('ingest-url-btn');
+    await expect(plusBtn).toBeVisible();
+
+    // Click plus button to reveal the URL ingest popover
+    await plusBtn.click();
+    const urlInput = page.getByTestId('ingest-url-input');
+    const submitBtn = page.getByTestId('ingest-url-submit-btn');
+    await expect(urlInput).toBeVisible();
+    await expect(submitBtn).toBeVisible();
+
+    // Fill URL and submit
+    await urlInput.fill('https://example.com/dynamic-programming');
+    await submitBtn.click();
+
+    // After submission, review queue notifications dropdown opens automatically
+    await expect(page.getByText('REVIEW QUEUE', { exact: true })).toBeVisible({ timeout: 10000 });
   });
 });

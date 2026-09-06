@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   CheckSquare,
@@ -17,7 +17,10 @@ import {
   ShieldAlert,
   Zap,
   X,
-  FileText
+  FileText,
+  Loader2,
+  CheckCircle2,
+  AlertCircle
 } from 'lucide-react';
 import NoteViewerModal from './NoteViewerModal';
 import NotificationsDropdown from './NotificationsDropdown';
@@ -52,11 +55,63 @@ export default function TelemetryHUD() {
   const toggleTodo = useStore((state) => state.toggleTodo);
   const deleteTodo = useStore((state) => state.deleteTodo);
 
+  // Ingestion State & Actions
+  const ingestUrl = useStore((state) => state.ingestUrl);
+  const isIngesting = useStore((state) => state.isIngesting);
+  const ingestError = useStore((state) => state.ingestError);
+
   const [activeTab, setActiveTab] = useState<'TOPICS' | 'TODOS'>('TOPICS');
   const [isSubgraphsOpen, setIsSubgraphsOpen] = useState(false);
   const [newTodoTitle, setNewTodoTitle] = useState('');
   const [newTodoCategory, setNewTodoCategory] = useState<DomainCategory>('AI & ML');
   const [newTodoPriority, setNewTodoPriority] = useState<TodoPriority>('HIGH');
+
+  // URL Ingest Plus-Icon Textbox State
+  const [isUrlInputOpen, setIsUrlInputOpen] = useState(false);
+  const [inputUrl, setInputUrl] = useState('');
+  const [ingestSuccessMsg, setIngestSuccessMsg] = useState<string | null>(null);
+  const urlInputRef = useRef<HTMLDivElement>(null);
+
+  // Click outside and Escape key handler for URL input
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (urlInputRef.current && !urlInputRef.current.contains(event.target as Node)) {
+        setIsUrlInputOpen(false);
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && isUrlInputOpen) {
+        setIsUrlInputOpen(false);
+      }
+    };
+    if (isUrlInputOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('keydown', handleKeyDown);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isUrlInputOpen]);
+
+  const handleIngestSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const url = inputUrl.trim();
+    if (!url || isIngesting) return;
+
+    try {
+      setIngestSuccessMsg(null);
+      await ingestUrl(url);
+      setIngestSuccessMsg('Content staged to review queue!');
+      setInputUrl('');
+      setTimeout(() => {
+        setIngestSuccessMsg(null);
+        setIsUrlInputOpen(false);
+      }, 2000);
+    } catch {
+      // Error is tracked in ingestError state
+    }
+  };
 
   // Auto expand panel when search is opened
   React.useEffect(() => {
@@ -194,8 +249,99 @@ export default function TelemetryHUD() {
           </AnimatePresence>
         </div>
 
-        {/* 2. Top Right Cluster: Notifications Dropdown + Quick Search Bar */}
+        {/* 2. Top Right Cluster: URL Ingest Button + Notifications Dropdown + Quick Search Bar */}
         <div className="flex items-center gap-2 flex-shrink-0">
+          {/* Plus icon to open URL Ingest Textbox */}
+          <div className="relative font-mono" ref={urlInputRef}>
+            <button
+              type="button"
+              onClick={() => setIsUrlInputOpen(!isUrlInputOpen)}
+              className={`p-2 rounded-lg border transition-all flex items-center justify-center cursor-pointer ${
+                isUrlInputOpen
+                  ? 'bg-[#00f0ff]/20 border-[#00f0ff] text-[#00f0ff] shadow-[0_0_15px_rgba(0,240,255,0.3)]'
+                  : 'bg-[#080c16]/70 border-white/10 text-slate-400 hover:text-slate-200 hover:border-white/20'
+              }`}
+              title="Add content from URL (+)"
+              aria-label="Add content from URL"
+              data-testid="ingest-url-btn"
+            >
+              <Plus size={15} />
+            </button>
+
+            <AnimatePresence>
+              {isUrlInputOpen && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 8, scale: 0.95 }}
+                  transition={{ duration: 0.15, ease: 'easeOut' }}
+                  className="absolute right-0 mt-2 w-80 md:w-96 p-3 bg-[#080c16]/95 border border-[#00f0ff]/30 rounded-xl shadow-2xl backdrop-blur-xl z-50 flex flex-col gap-2"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-[#00f0ff] tracking-wider flex items-center gap-1.5">
+                      <Plus size={13} /> INGEST FROM URL
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsUrlInputOpen(false)}
+                      className="text-slate-400 hover:text-slate-200 p-0.5 rounded cursor-pointer"
+                      title="Close"
+                    >
+                      <X size={13} />
+                    </button>
+                  </div>
+
+                  <form onSubmit={handleIngestSubmit} className="flex flex-col gap-2">
+                    <div className="flex items-center gap-2 bg-slate-950/80 border border-white/10 focus-within:border-[#00f0ff]/50 rounded-lg px-2.5 py-1.5 transition-all">
+                      <input
+                        type="url"
+                        autoFocus
+                        required
+                        placeholder="https://example.com/article..."
+                        value={inputUrl}
+                        onChange={(e) => setInputUrl(e.target.value)}
+                        disabled={isIngesting}
+                        className="bg-transparent font-mono text-xs text-slate-100 placeholder-slate-500 focus:outline-none flex-1 min-w-0"
+                        data-testid="ingest-url-input"
+                      />
+                      <button
+                        type="submit"
+                        disabled={isIngesting || !inputUrl.trim()}
+                        className="px-2.5 py-1 rounded bg-[#00f0ff]/20 border border-[#00f0ff]/40 text-[#00f0ff] hover:bg-[#00f0ff]/30 disabled:opacity-40 disabled:cursor-not-allowed font-bold text-[11px] transition-all flex items-center gap-1 cursor-pointer flex-shrink-0"
+                        data-testid="ingest-url-submit-btn"
+                      >
+                        {isIngesting ? (
+                          <>
+                            <Loader2 size={12} className="animate-spin" />
+                            <span>INGESTING...</span>
+                          </>
+                        ) : (
+                          <>
+                            <span>INGEST</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                    {ingestError && (
+                      <div className="text-[10px] text-red-400 bg-red-950/40 border border-red-500/30 rounded p-1.5 flex items-start gap-1">
+                        <AlertCircle size={12} className="flex-shrink-0 mt-0.5" />
+                        <span>{ingestError}</span>
+                      </div>
+                    )}
+
+                    {ingestSuccessMsg && (
+                      <div className="text-[10px] text-emerald-400 bg-emerald-950/40 border border-emerald-500/30 rounded p-1.5 flex items-center gap-1">
+                        <CheckCircle2 size={12} className="flex-shrink-0" />
+                        <span>{ingestSuccessMsg}</span>
+                      </div>
+                    )}
+                  </form>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
           <NotificationsDropdown />
 
           <div className="flex items-center bg-[#080c16]/70 border border-white/10 rounded-lg p-1 font-mono text-xs flex-shrink-0 backdrop-blur-md">

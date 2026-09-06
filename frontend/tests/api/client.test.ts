@@ -19,7 +19,14 @@ import {
   fetchTodoById,
   createTodo,
   updateTodo,
-  deleteTodo
+  deleteTodo,
+  fetchReviewQueue,
+  fetchUpdateById,
+  approveQueueUpdate,
+  rejectQueueUpdate,
+  requestChangesOnUpdate,
+  approveEntireQueueItem,
+  rejectEntireQueueItem
 } from '../../src/api/client';
 
 describe('Frontend API Client (src/api/client.ts)', () => {
@@ -267,6 +274,105 @@ describe('Frontend API Client (src/api/client.ts)', () => {
         headers: { 'Content-Type': 'application/json' },
         method: 'POST',
         body: JSON.stringify({ url: 'https://example.com/article', options: { timeoutMs: 3000 } })
+      });
+    });
+  });
+
+  describe('Review Queue API Endpoints', () => {
+    it('calls fetchReviewQueue with optional status filter', async () => {
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ queueItems: [], updates: [], counts: { pending: 0, total: 0 } })
+      });
+      setCustomFetch(mockFetch as any);
+
+      await fetchReviewQueue();
+      expect(mockFetch).toHaveBeenCalledWith('/api/review-queue', {
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      await fetchReviewQueue({ status: 'PENDING' });
+      expect(mockFetch).toHaveBeenCalledWith('/api/review-queue?status=PENDING', {
+        headers: { 'Content-Type': 'application/json' }
+      });
+    });
+
+    it('calls fetchUpdateById with update ID', async () => {
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ update: { id: 'UPDATE-1' } })
+      });
+      setCustomFetch(mockFetch as any);
+
+      const res = await fetchUpdateById('UPDATE-1');
+      expect(res.update.id).toBe('UPDATE-1');
+      expect(mockFetch).toHaveBeenCalledWith('/api/review-queue/updates/UPDATE-1', {
+        headers: { 'Content-Type': 'application/json' }
+      });
+    });
+
+    it('calls approveQueueUpdate and rejectQueueUpdate', async () => {
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ success: true, update: { id: 'UPDATE-2' } })
+      });
+      setCustomFetch(mockFetch as any);
+
+      await approveQueueUpdate('UPDATE-2');
+      expect(mockFetch).toHaveBeenCalledWith('/api/review-queue/updates/UPDATE-2/approve', {
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST'
+      });
+
+      await rejectQueueUpdate('UPDATE-2');
+      expect(mockFetch).toHaveBeenCalledWith('/api/review-queue/updates/UPDATE-2/reject', {
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST'
+      });
+    });
+
+    it('calls requestChangesOnUpdate with line comments and general feedback', async () => {
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ success: true, update: { id: 'UPDATE-3' } })
+      });
+      setCustomFetch(mockFetch as any);
+
+      const payload = {
+        comments: [{ id: 'c1', lineNumber: 10, comment: 'Clarify formula', createdAt: 'now' }],
+        generalFeedback: 'Preserve 8-part architecture'
+      };
+
+      await requestChangesOnUpdate('UPDATE-3', payload);
+      expect(mockFetch).toHaveBeenCalledWith('/api/review-queue/updates/UPDATE-3/request-changes', {
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
+    });
+
+    it('calls approveEntireQueueItem and rejectEntireQueueItem', async () => {
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ success: true })
+      });
+      setCustomFetch(mockFetch as any);
+
+      await approveEntireQueueItem('Q-100');
+      expect(mockFetch).toHaveBeenCalledWith('/api/review-queue/items/Q-100/approve', {
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST'
+      });
+
+      await rejectEntireQueueItem('Q-100');
+      expect(mockFetch).toHaveBeenCalledWith('/api/review-queue/items/Q-100/reject', {
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST'
       });
     });
   });

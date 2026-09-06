@@ -1,4 +1,13 @@
-import { TopicNode, NoteItem, StudyTodo, IngestPipelineResult, IngestRequestOptions } from '../types/telemetry';
+import {
+  TopicNode,
+  NoteItem,
+  StudyTodo,
+  IngestPipelineResult,
+  IngestRequestOptions,
+  ReviewQueueResponseDTO,
+  GraphUpdate,
+  LineReviewComment
+} from '../types/telemetry';
 
 export class ApiError extends Error {
   constructor(
@@ -220,4 +229,61 @@ export async function ingestFromUrl(
     body: JSON.stringify({ url, options })
   });
 }
+
+// ==========================================
+// Review Queue API
+// ==========================================
+
+export async function fetchReviewQueue(filters?: { status?: string }): Promise<ReviewQueueResponseDTO> {
+  const queryParams = new URLSearchParams();
+  if (filters?.status) queryParams.set('status', filters.status);
+  const qs = queryParams.toString();
+  return request<ReviewQueueResponseDTO>(`/api/review-queue${qs ? `?${qs}` : ''}`);
+}
+
+export async function fetchUpdateById(updateId: string): Promise<{ update: GraphUpdate; queueItem: any }> {
+  return request<{ update: GraphUpdate; queueItem: any }>(`/api/review-queue/updates/${encodeURIComponent(updateId)}`);
+}
+
+export async function approveQueueUpdate(updateId: string): Promise<{ success: boolean; update: GraphUpdate; queueId: string }> {
+  return request<{ success: boolean; update: GraphUpdate; queueId: string }>(
+    `/api/review-queue/updates/${encodeURIComponent(updateId)}/approve`,
+    { method: 'POST' }
+  );
+}
+
+export async function rejectQueueUpdate(updateId: string): Promise<{ success: boolean; update: GraphUpdate; queueId: string }> {
+  return request<{ success: boolean; update: GraphUpdate; queueId: string }>(
+    `/api/review-queue/updates/${encodeURIComponent(updateId)}/reject`,
+    { method: 'POST' }
+  );
+}
+
+export async function requestChangesOnUpdate(
+  updateId: string,
+  payload: { comments: LineReviewComment[]; generalFeedback?: string }
+): Promise<{ success: boolean; update: GraphUpdate; auditReport: any; queueId: string }> {
+  return request<{ success: boolean; update: GraphUpdate; auditReport: any; queueId: string }>(
+    `/api/review-queue/updates/${encodeURIComponent(updateId)}/request-changes`,
+    {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    }
+  );
+}
+
+export async function approveEntireQueueItem(queueId: string): Promise<{ success: boolean; queueItem: any }> {
+  return request<{ success: boolean; queueItem: any }>(
+    `/api/review-queue/items/${encodeURIComponent(queueId)}/approve`,
+    { method: 'POST' }
+  );
+}
+
+export async function rejectEntireQueueItem(queueId: string): Promise<{ success: boolean; queueItem: any }> {
+  return request<{ success: boolean; queueItem: any }>(
+    `/api/review-queue/items/${encodeURIComponent(queueId)}/reject`,
+    { method: 'POST' }
+  );
+}
+
 
