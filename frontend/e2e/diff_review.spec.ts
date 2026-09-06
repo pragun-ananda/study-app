@@ -207,7 +207,7 @@ test.describe('Diff-Based Content Review System (FRO-11)', () => {
     // Verify Ingestion Walkthrough modal opened with executive summary and breakdown
     const modal = page.getByTestId('ingestion-walkthrough-modal');
     await expect(modal).toBeVisible();
-    await expect(page.getByText(/PEDAGOGICAL AUDIT & WALKTHROUGH/i)).toBeVisible();
+    await expect(page.getByText(/AI WALKTHROUGH/i)).toBeVisible();
     await expect(page.getByText('96% COVERAGE')).toBeVisible();
     await expect(page.getByText('Reverse-Mode Automatic Differentiation', { exact: true })).toBeVisible();
     await expect(page.getByText(/Hardware cluster node topologies/i)).toBeVisible();

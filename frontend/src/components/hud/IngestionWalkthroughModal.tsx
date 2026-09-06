@@ -80,7 +80,7 @@ export default function IngestionWalkthroughModal() {
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-[#00f0ff]/15 text-[#00f0ff] border border-[#00f0ff]/30 tracking-wider">
                   <Sparkles size={12} className="animate-spin-slow" />
-                  PEDAGOGICAL AUDIT & WALKTHROUGH
+                  AI WALKTHROUGH
                 </span>
                 {sourceMetadata?.domain && (
                   <span className="text-[11px] font-mono text-slate-400 bg-slate-900/80 px-2 py-0.5 rounded border border-white/5">
@@ -344,8 +344,7 @@ export default function IngestionWalkthroughModal() {
           </div>
 
           {/* Modal Footer */}
-          <div className="p-3 bg-slate-950/90 border-t border-white/10 flex items-center justify-between text-xs text-slate-500">
-            <span>Source ID: <code className="text-slate-400">{queueItem.id}</code></span>
+          <div className="p-3 bg-slate-950/90 border-t border-white/10 flex items-center justify-end text-xs text-slate-500">
             <button
               type="button"
               onClick={() => setActiveWalkthroughQueueId(null)}

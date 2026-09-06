@@ -25,7 +25,7 @@ describe('IngestionWalkthroughModal Component', () => {
     render(<IngestionWalkthroughModal />);
 
     expect(screen.getByTestId('ingestion-walkthrough-modal')).toBeInTheDocument();
-    expect(screen.getByText(/PEDAGOGICAL AUDIT & WALKTHROUGH/i)).toBeInTheDocument();
+    expect(screen.getByText(/AI WALKTHROUGH/i)).toBeInTheDocument();
     expect(screen.getByText('Attention Is All You Need (ArXiv:1706.03762)')).toBeInTheDocument();
     expect(screen.getByText('arxiv.org')).toBeInTheDocument();
     expect(screen.getByText('96% COVERAGE')).toBeInTheDocument();
