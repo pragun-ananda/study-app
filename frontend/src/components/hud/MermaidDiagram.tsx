@@ -8,7 +8,7 @@ if (typeof window !== 'undefined') {
   mermaid.initialize({
     startOnLoad: false,
     theme: 'dark',
-    securityLevel: 'loose',
+    securityLevel: 'antiscript',
     themeVariables: {
       darkMode: true,
       background: '#060a14',
@@ -69,7 +69,7 @@ export function MermaidDiagram({ codeString, nodeColor = '#00f0ff' }: MermaidDia
         <div className="flex items-center justify-between px-3.5 py-1.5 bg-slate-950/90 border-b border-white/10 text-[11px] font-mono">
           <div className="flex items-center gap-2">
             <Terminal size={12} style={{ color: nodeColor }} />
-            <span className="font-bold tracking-wider" style={{ color: nodeColor }}>
+            <span className="font-bold tracking-wider" style={{ color: error ? '#f43f5e' : nodeColor }}>
               {error ? 'MERMAID CODE (SYNTAX ERROR)' : 'MERMAID CODE'}
             </span>
           </div>
@@ -101,6 +101,11 @@ export function MermaidDiagram({ codeString, nodeColor = '#00f0ff' }: MermaidDia
             </button>
           </div>
         </div>
+        {error && (
+          <div className="px-3.5 py-1.5 bg-rose-500/10 border-b border-rose-500/20 text-rose-400 text-[11px] font-mono leading-tight">
+            {error}
+          </div>
+        )}
         <div className="overflow-x-auto text-[11.5px] font-mono leading-relaxed">
           <SyntaxHighlighter
             language="mermaid"
