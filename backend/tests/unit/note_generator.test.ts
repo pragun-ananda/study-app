@@ -91,6 +91,50 @@ print("missing closing fence")
       expect(result.valid).toBe(false);
       expect(result.errors.some((e) => e.includes('code fences'))).toBe(true);
     });
+
+    it('passes valid Mermaid flowchart and sequence diagrams', () => {
+      const valid = `
+# System Architecture
+\`\`\`mermaid
+flowchart TD
+  A[Client] --> B[Load Balancer]
+  B --> C[Service]
+\`\`\`
+
+\`\`\`mermaid
+sequenceDiagram
+  Client->>Server: Request
+  Server-->>Client: Response
+\`\`\`
+      `;
+      const result = validateNoteFormatting(valid);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it('flags invalid Mermaid diagram without recognized diagram keyword', () => {
+      const invalid = `
+# Broken Diagram
+\`\`\`mermaid
+something random that is not a valid diagram
+A --> B
+\`\`\`
+      `;
+      const result = validateNoteFormatting(invalid);
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.includes('Invalid Mermaid diagram type'))).toBe(true);
+    });
+
+    it('flags empty Mermaid diagram block', () => {
+      const invalid = `
+# Empty Diagram
+\`\`\`mermaid
+\`\`\`
+      `;
+      const result = validateNoteFormatting(invalid);
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.includes('Empty Mermaid diagram block'))).toBe(true);
+    });
   });
 
   describe('Topic-Context Windowing', () => {

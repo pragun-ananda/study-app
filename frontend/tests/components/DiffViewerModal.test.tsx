@@ -122,4 +122,41 @@ describe('DiffViewerModal Component (FRO-11)', () => {
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(useStore.getState().activeDiffUpdateId).toBeNull();
   });
+
+  it('renders Mermaid diagram properly in RENDERED PREVIEW mode', async () => {
+    useStore.setState({
+      activeDiffUpdateId: 'UPDATE-MERMAID',
+      graphUpdates: [
+        {
+          id: 'UPDATE-MERMAID',
+          title: 'Graph Flow Proposal',
+          description: 'Adds architectural Mermaid diagram',
+          category: 'AI & ML',
+          type: 'NOTE_UPDATE',
+          status: 'PENDING',
+          createdAt: '1m ago',
+          targetId: 'TOPIC-001',
+          targetName: 'Transformer Architecture',
+          oldContent: '# Old Architecture Note',
+          newContent: `# New Architecture Note
+
+\`\`\`mermaid
+flowchart TD
+  A[Attention] --> B[FeedForward]
+  B --> C[LayerNorm]
+\`\`\`
+`
+        }
+      ]
+    });
+
+    render(<DiffViewerModal />);
+
+    // Switch to preview mode
+    const previewBtn = screen.getByText('RENDERED PREVIEW');
+    fireEvent.click(previewBtn);
+
+    // Verify Mermaid diagram container renders (either rendered SVG badge or syntax fallback)
+    expect(await screen.findByText(/MERMAID/i)).toBeInTheDocument();
+  });
 });

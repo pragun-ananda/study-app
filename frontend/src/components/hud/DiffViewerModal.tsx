@@ -27,6 +27,7 @@ import { useStore } from '../../store/useStore';
 import { computeLineDiff } from '../../utils/diff';
 import { LineReviewComment, DomainCategory } from '../../types/telemetry';
 import { DOMAIN_BASE_COLORS } from '../../utils/theme';
+import { MermaidDiagram } from './MermaidDiagram';
 
 export default function DiffViewerModal() {
   const activeDiffUpdateId = useStore((state) => state.activeDiffUpdateId);
@@ -454,6 +455,9 @@ export default function DiffViewerModal() {
                               {children}
                             </code>
                           );
+                        }
+                        if (match && match[1]?.toLowerCase() === 'mermaid') {
+                          return <MermaidDiagram codeString={codeString} nodeColor={catColor} />;
                         }
                         return (
                           <div className="my-3 rounded-lg overflow-hidden border border-white/10 bg-[#060a14]">
