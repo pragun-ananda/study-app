@@ -648,6 +648,7 @@ export async function runIngestionPipeline(
     cleanedTitle: cleanResult.title,
     rawContent: cleanResult.cleanedContent,
     extractedTopics: extractResult.topics,
+    rejectedTopics: extractResult.validationReport?.rejectedTopics,
     notes: generateResult.notes,
     quizzes: generateResult.quizzes,
     noteAudits: generateResult.auditReports,

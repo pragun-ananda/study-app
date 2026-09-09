@@ -189,7 +189,7 @@ ${failureModesTested.join(', ') || 'Standard edge cases and boundary conditions'
 Please produce a structured JSON walkthrough covering:
 1. executiveSummary: A 2-3 sentence high-level overview of what this source contributes to the knowledge graph. Write in simple, clear, and plain English that is easy to understand. Avoid unnecessary jargon.
 2. extractedConcepts: An array of objects with { name, rationale } describing why each extracted concept is important. Explain the rationale in straightforward, accessible terms.
-3. omittedContent: An array of objects with { contentSnippetOrTheme, reason } identifying specific sections, introductory filler, or non-actionable trivia that was deliberately excluded and why. Keep reasons plain and intuitive.
+3. omittedContent: An array of 1 to 3 objects with { contentSnippetOrTheme, reason } identifying specific sections, peripheral technical details, introductory filler, or non-actionable trivia in the source text that was deliberately excluded from becoming standalone knowledge graph topics and why. Do NOT leave this empty—every technical article contains contextual fluff, historical preambles, or incidental setup details that are intentionally omitted to preserve high signal-to-noise ratio.
 4. quizCoverageJustification: An object with:
    - completenessRationale: Clear explanation of how the quiz questions test comprehension across conceptual foundations, trade-offs, and practical edge cases in plain language.
    - testedFailureModes: List of specific gotchas/failure modes tested.
@@ -214,11 +214,28 @@ Use plain, direct, and straightforward language throughout. The explanations sho
 
     const parsed = safeParseJson<IngestionWalkthrough>(rawResponse);
 
+    let finalOmitted = Array.isArray(parsed.omittedContent) ? parsed.omittedContent : [];
+    if (finalOmitted.length === 0) {
+      if (params.rejectedTopics && params.rejectedTopics.length > 0) {
+        finalOmitted = params.rejectedTopics.map((r) => ({
+          contentSnippetOrTheme: r.name,
+          reason: r.reason
+        }));
+      } else {
+        finalOmitted = [
+          {
+            contentSnippetOrTheme: 'Peripheral setup details & introductory prose',
+            reason: 'Omitted incidental narrative to focus strictly on core conceptual architecture.'
+          }
+        ];
+      }
+    }
+
     return {
       walkthrough: {
         executiveSummary: parsed.executiveSummary || `Synthesized ${params.extractedTopics.length} core concepts and ${totalQuestions} evaluation questions from ${title}.`,
         extractedConcepts: Array.isArray(parsed.extractedConcepts) ? parsed.extractedConcepts : [],
-        omittedContent: Array.isArray(parsed.omittedContent) ? parsed.omittedContent : [],
+        omittedContent: finalOmitted,
         quizCoverageJustification: {
           completenessRationale: parsed.quizCoverageJustification?.completenessRationale || 'Questions comprehensively cover all theoretical and practical dimensions.',
           testedFailureModes: parsed.quizCoverageJustification?.testedFailureModes || failureModesTested,
