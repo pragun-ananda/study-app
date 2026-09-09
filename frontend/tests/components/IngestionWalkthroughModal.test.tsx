@@ -88,4 +88,23 @@ describe('IngestionWalkthroughModal Component', () => {
 
     expect(useStore.getState().activeWalkthroughQueueId).toBeNull();
   });
+
+  it('groups updates by topic node and displays topic header with parts count', () => {
+    useStore.setState({
+      activeWalkthroughQueueId: 'QUEUE-INIT-002',
+      queueItems: INITIAL_QUEUE_ITEMS,
+      graphUpdates: INITIAL_UPDATES
+    });
+
+    render(<IngestionWalkthroughModal />);
+
+    // Should render the topic group cards
+    expect(screen.getByText('Binary Search Trees')).toBeInTheDocument();
+    expect(screen.getByText('SVD & Matrix Factorization')).toBeInTheDocument();
+    expect(screen.getByText('Across 2 Topics')).toBeInTheDocument();
+
+    // Verify badges and updates inside group
+    expect(screen.getByText('TOPIC UPDATE')).toBeInTheDocument();
+    expect(screen.getByText('EDGE UPDATE')).toBeInTheDocument();
+  });
 });

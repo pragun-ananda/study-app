@@ -12,9 +12,11 @@ import {
   HelpCircle,
   Layers,
   Database,
-  Check
+  Check,
+  FolderGit2
 } from 'lucide-react';
 import { useStore } from '../../store/useStore';
+import { GraphUpdate } from '../../types/telemetry';
 
 export default function IngestionWalkthroughModal() {
   const activeWalkthroughQueueId = useStore((state) => state.activeWalkthroughQueueId);
@@ -42,6 +44,45 @@ export default function IngestionWalkthroughModal() {
   );
 
   const pendingCount = itemUpdates.filter((u) => u.status === 'PENDING').length;
+
+  // Group updates by topic node
+  const groupedTopicUpdates = useMemo(() => {
+    const groupsMap = new Map<
+      string,
+      {
+        topicKey: string;
+        topicName: string;
+        category?: string;
+        updates: GraphUpdate[];
+      }
+    >();
+
+    for (const update of itemUpdates) {
+      const topicKey =
+        update.payload?.topicId ||
+        (update.type === 'TOPIC_UPDATE' || update.type === 'NOTE_UPDATE' || update.type === 'QUIZ_UPDATE'
+          ? update.targetId
+          : update.targetName || update.targetId || 'general');
+
+      const topicName =
+        update.targetName ||
+        update.payload?.patch?.name ||
+        (update.type === 'EDGE_UPDATE' ? 'Graph Relationships' : 'General Updates');
+
+      if (!groupsMap.has(topicKey)) {
+        groupsMap.set(topicKey, {
+          topicKey,
+          topicName,
+          category: update.category,
+          updates: []
+        });
+      }
+
+      groupsMap.get(topicKey)!.updates.push(update);
+    }
+
+    return Array.from(groupsMap.values());
+  }, [itemUpdates]);
 
   // Handle ESC key
   useEffect(() => {
@@ -270,7 +311,7 @@ export default function IngestionWalkthroughModal() {
                 )}
             </div>
 
-            {/* Nested Staged Updates List */}
+            {/* Nested Staged Updates List Grouped by Topic Node */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -279,49 +320,93 @@ export default function IngestionWalkthroughModal() {
                     Proposed Knowledge Graph Updates ({itemUpdates.length})
                   </h4>
                 </div>
+                {groupedTopicUpdates.length > 1 && (
+                  <span className="text-[10px] font-mono text-slate-400">
+                    Across {groupedTopicUpdates.length} Topics
+                  </span>
+                )}
               </div>
 
-              <div className="space-y-2">
-                {itemUpdates.map((update) => (
+              <div className="space-y-3">
+                {groupedTopicUpdates.map((group) => (
                   <div
-                    key={update.id}
-                    className="p-3 rounded-xl bg-slate-950/80 border border-white/10 hover:border-[#00f0ff]/40 transition-all flex items-center justify-between gap-3"
+                    key={group.topicKey}
+                    className="rounded-xl bg-slate-950/70 border border-white/10 overflow-hidden shadow-lg"
+                    data-testid={`walkthrough-topic-group-${group.topicKey}`}
                   >
-                    <div className="space-y-0.5 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-[#00f0ff]/15 text-[#00f0ff] border border-[#00f0ff]/30">
-                          {update.type.replace('_', ' ')}
+                    {/* Topic Node Card Header */}
+                    <div className="px-3.5 py-2 bg-slate-900/90 border-b border-white/5 flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <FolderGit2 size={13} className="text-[#00f0ff] flex-shrink-0" />
+                        <span className="text-xs font-bold text-slate-100 truncate">
+                          {group.topicName}
                         </span>
-                        <span className="text-xs font-bold text-slate-200 truncate">
-                          {update.title}
-                        </span>
+                        {group.category && (
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-white/5 text-slate-300 border border-white/10">
+                            {group.category}
+                          </span>
+                        )}
                       </div>
-                      <p className="text-[11px] text-slate-400 truncate">
-                        {update.description}
-                      </p>
+                      <span className="text-[10px] font-mono text-slate-400 flex-shrink-0">
+                        {group.updates.length} {group.updates.length === 1 ? 'part' : 'parts'}
+                      </span>
                     </div>
 
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      {update.status === 'APPROVED' ? (
-                        <span className="text-[10px] text-[#00ff9d] font-bold flex items-center gap-1">
-                          <CheckCircle2 size={12} /> APPROVED
-                        </span>
-                      ) : update.status === 'REJECTED' ? (
-                        <span className="text-[10px] text-[#ff3366] font-bold flex items-center gap-1">
-                          <XCircle size={12} /> REJECTED
-                        </span>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setActiveDiffUpdateId(update.id);
-                            setActiveWalkthroughQueueId(null);
-                          }}
-                          className="px-2.5 py-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-200 border border-white/15 text-[11px] font-bold transition-all cursor-pointer"
+                    {/* Grouped Topic Updates (Topic Update, Note Update, Quiz Update, etc.) */}
+                    <div className="p-2 space-y-2">
+                      {group.updates.map((update) => (
+                        <div
+                          key={update.id}
+                          className="p-2.5 rounded-lg bg-slate-950/60 border border-white/5 hover:border-[#00f0ff]/30 transition-all flex items-center justify-between gap-3"
                         >
-                          Review Diff
-                        </button>
-                      )}
+                          <div className="space-y-0.5 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span
+                                className={`px-1.5 py-0.5 rounded text-[9px] font-bold border ${
+                                  update.type === 'TOPIC_UPDATE'
+                                    ? 'bg-blue-500/15 text-blue-400 border-blue-500/30'
+                                    : update.type === 'NOTE_UPDATE'
+                                    ? 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30'
+                                    : update.type === 'QUIZ_UPDATE'
+                                    ? 'bg-purple-500/15 text-purple-400 border-purple-500/30'
+                                    : 'bg-amber-500/15 text-amber-400 border-amber-500/30'
+                                }`}
+                              >
+                                {update.type.replace('_', ' ')}
+                              </span>
+                              <span className="text-xs font-semibold text-slate-200 truncate">
+                                {update.title}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-slate-400 truncate">
+                              {update.description}
+                            </p>
+                          </div>
+
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            {update.status === 'APPROVED' ? (
+                              <span className="text-[10px] text-[#00ff9d] font-bold flex items-center gap-1">
+                                <CheckCircle2 size={12} /> APPROVED
+                              </span>
+                            ) : update.status === 'REJECTED' ? (
+                              <span className="text-[10px] text-[#ff3366] font-bold flex items-center gap-1">
+                                <XCircle size={12} /> REJECTED
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setActiveDiffUpdateId(update.id);
+                                  setActiveWalkthroughQueueId(null);
+                                }}
+                                className="px-2.5 py-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-200 border border-white/15 text-[11px] font-bold transition-all cursor-pointer"
+                              >
+                                Review Diff
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 ))}
