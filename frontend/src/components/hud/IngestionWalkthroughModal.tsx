@@ -12,8 +12,7 @@ import {
   HelpCircle,
   Layers,
   Database,
-  Check,
-  Award
+  Check
 } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 
@@ -85,12 +84,6 @@ export default function IngestionWalkthroughModal() {
                 {sourceMetadata?.domain && (
                   <span className="text-[11px] font-mono text-slate-400 bg-slate-900/80 px-2 py-0.5 rounded border border-white/5">
                     {sourceMetadata.domain}
-                  </span>
-                )}
-                {walkthrough?.quizCoverageJustification?.coverageScore !== undefined && (
-                  <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#00ff9d]/15 text-[#00ff9d] border border-[#00ff9d]/30">
-                    <Award size={11} />
-                    {walkthrough.quizCoverageJustification.coverageScore}% COVERAGE
                   </span>
                 )}
               </div>
@@ -244,18 +237,11 @@ export default function IngestionWalkthroughModal() {
 
             {/* Quiz Coverage Justification */}
             <div className="p-4 rounded-xl bg-slate-950/70 border border-purple-500/30 space-y-3">
-              <div className="flex items-center justify-between pb-2 border-b border-white/5">
-                <div className="flex items-center gap-2">
-                  <HelpCircle size={16} className="text-purple-400" />
-                  <h4 className="text-xs font-black text-purple-300 uppercase tracking-wider">
-                    Quiz & Practice Questions Coverage
-                  </h4>
-                </div>
-                {walkthrough?.quizCoverageJustification?.coverageScore !== undefined && (
-                  <span className="text-xs font-extrabold text-purple-400 font-mono">
-                    Score: {walkthrough.quizCoverageJustification.coverageScore}/100
-                  </span>
-                )}
+              <div className="flex items-center gap-2 pb-2 border-b border-white/5">
+                <HelpCircle size={16} className="text-purple-400" />
+                <h4 className="text-xs font-black text-purple-300 uppercase tracking-wider">
+                  Quiz & Practice Questions
+                </h4>
               </div>
 
               <p className="text-xs text-slate-300 leading-relaxed">

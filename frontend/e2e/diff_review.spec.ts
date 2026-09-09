@@ -208,7 +208,7 @@ test.describe('Diff-Based Content Review System (FRO-11)', () => {
     const modal = page.getByTestId('ingestion-walkthrough-modal');
     await expect(modal).toBeVisible();
     await expect(page.getByText(/AI WALKTHROUGH/i)).toBeVisible();
-    await expect(page.getByText('96% COVERAGE')).toBeVisible();
+    await expect(page.getByText('Quiz & Practice Questions')).toBeVisible();
     await expect(page.getByText('Reverse-Mode Automatic Differentiation', { exact: true })).toBeVisible();
     await expect(page.getByText(/Hardware cluster node topologies/i)).toBeVisible();
     await expect(page.getByText(/Loss of precision in unscaled softmax gradients/i)).toBeVisible();
