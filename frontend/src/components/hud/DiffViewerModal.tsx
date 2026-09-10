@@ -18,11 +18,14 @@ import {
 import { useStore } from '../../store/useStore';
 import { computeLineDiff } from '../../utils/diff';
 import { LineReviewComment, DomainCategory } from '../../types/telemetry';
-import { DOMAIN_BASE_COLORS } from '../../utils/theme';
+import { DOMAIN_BASE_COLORS, DOMAIN_LIGHT_COLORS, getCategoryShade } from '../../utils/theme';
 import { MarkdownContent } from './MarkdownContent';
 import { QuizViewer } from './QuizViewer';
 
 export default function DiffViewerModal() {
+  const theme = useStore((state) => state.theme);
+  const isLight = theme === 'light';
+
   const activeDiffUpdateId = useStore((state) => state.activeDiffUpdateId);
   const setActiveDiffUpdateId = useStore((state) => state.setActiveDiffUpdateId);
   const setActiveWalkthroughQueueId = useStore((state) => state.setActiveWalkthroughQueueId);
@@ -77,9 +80,9 @@ export default function DiffViewerModal() {
   }, [activeUpdate?.oldContent, activeUpdate?.newContent]);
 
   const catColor = useMemo(() => {
-    if (!activeUpdate) return '#00f0ff';
-    return DOMAIN_BASE_COLORS[activeUpdate.category as DomainCategory] || '#00f0ff';
-  }, [activeUpdate]);
+    if (!activeUpdate) return isLight ? '#0284c7' : '#00f0ff';
+    return getCategoryShade(activeUpdate.id || '', activeUpdate.category as DomainCategory, theme);
+  }, [activeUpdate, theme, isLight]);
 
   if (!activeUpdate) return null;
 
@@ -133,9 +136,13 @@ export default function DiffViewerModal() {
             transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
             style={{
               borderColor: `${catColor}60`,
-              boxShadow: `0 0 50px ${catColor}30, 0 0 20px ${catColor}15, inset 0 0 20px ${catColor}08`
+              boxShadow: isLight
+                ? `0 10px 40px rgba(0, 0, 0, 0.15)`
+                : `0 0 50px ${catColor}30, 0 0 20px ${catColor}15, inset 0 0 20px ${catColor}08`
             }}
-            className="relative w-full max-w-4xl max-h-[88vh] flex flex-col bg-[#080c16]/95 border rounded-2xl overflow-hidden z-50 shadow-2xl"
+            className={`relative w-full max-w-4xl max-h-[88vh] flex flex-col border rounded-2xl overflow-hidden z-50 shadow-2xl ${
+              isLight ? 'bg-white/95 border-slate-200 text-slate-900' : 'bg-[#080c16]/95 border-white/10 text-slate-100'
+            }`}
           >
             {/* Top Accent Scanline */}
             <div
@@ -146,7 +153,9 @@ export default function DiffViewerModal() {
             />
 
             {/* Modal Header */}
-            <div className="flex items-center justify-between px-5 py-3 border-b border-white/10 bg-slate-950/80 flex-shrink-0 gap-3">
+            <div className={`flex items-center justify-between px-5 py-3 border-b flex-shrink-0 gap-3 ${
+              isLight ? 'bg-slate-50 border-slate-200' : 'border-white/10 bg-slate-950/80'
+            }`}>
               <div className="flex items-center gap-3 truncate">
                 <div
                   className="p-2 rounded-lg flex-shrink-0"
@@ -155,7 +164,7 @@ export default function DiffViewerModal() {
                     borderColor: `${catColor}45`,
                     borderWidth: '1px',
                     color: catColor,
-                    boxShadow: `0 0 12px ${catColor}35`
+                    boxShadow: isLight ? 'none' : `0 0 12px ${catColor}35`
                   }}
                 >
                   <FileCode size={16} />
@@ -172,11 +181,13 @@ export default function DiffViewerModal() {
                     >
                       {activeUpdate.type.replace('_', ' ')}
                     </span>
-                    <span className="text-slate-400 text-xs truncate">
+                    <span className={`text-xs truncate ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
                       Target: {activeUpdate.targetName}
                     </span>
                   </div>
-                  <h2 className="text-slate-100 font-bold text-xs uppercase tracking-wider truncate mt-0.5">
+                  <h2 className={`font-bold text-xs uppercase tracking-wider truncate mt-0.5 ${
+                    isLight ? 'text-slate-900' : 'text-slate-100'
+                  }`}>
                     {activeUpdate.title}
                   </h2>
                 </div>
@@ -184,13 +195,16 @@ export default function DiffViewerModal() {
 
               {/* View Switcher & Close */}
               <div className="flex items-center gap-2 flex-shrink-0">
-                <div className="flex items-center bg-slate-900/90 p-0.5 rounded-lg border border-white/10 text-[10px]">
+                <div className={`flex items-center p-0.5 rounded-lg border text-[10px] ${
+                  isLight ? 'bg-slate-200/70 border-slate-300' : 'bg-slate-900/90 border-white/10'
+                }`}>
                   <button
                     type="button"
                     onClick={() => setViewMode('DIFF')}
                     style={{
-                      backgroundColor: viewMode === 'DIFF' ? `${catColor}25` : 'transparent',
-                      color: viewMode === 'DIFF' ? catColor : '#94a3b8'
+                      backgroundColor: viewMode === 'DIFF' ? (isLight ? '#ffffff' : `${catColor}25`) : 'transparent',
+                      color: viewMode === 'DIFF' ? catColor : (isLight ? '#64748b' : '#94a3b8'),
+                      boxShadow: viewMode === 'DIFF' && isLight ? '0 1px 2px rgba(0,0,0,0.06)' : undefined
                     }}
                     className="px-2 py-1 rounded font-bold transition-all flex items-center gap-1 cursor-pointer"
                   >
@@ -201,8 +215,9 @@ export default function DiffViewerModal() {
                     type="button"
                     onClick={() => setViewMode('PREVIEW')}
                     style={{
-                      backgroundColor: viewMode === 'PREVIEW' ? `${catColor}25` : 'transparent',
-                      color: viewMode === 'PREVIEW' ? catColor : '#94a3b8'
+                      backgroundColor: viewMode === 'PREVIEW' ? (isLight ? '#ffffff' : `${catColor}25`) : 'transparent',
+                      color: viewMode === 'PREVIEW' ? catColor : (isLight ? '#64748b' : '#94a3b8'),
+                      boxShadow: viewMode === 'PREVIEW' && isLight ? '0 1px 2px rgba(0,0,0,0.06)' : undefined
                     }}
                     className="px-2 py-1 rounded font-bold transition-all flex items-center gap-1 cursor-pointer"
                   >
@@ -218,7 +233,11 @@ export default function DiffViewerModal() {
                       setActiveWalkthroughQueueId(activeUpdate.queueId!);
                       setActiveDiffUpdateId(null);
                     }}
-                    className="px-2.5 py-1 rounded-lg border border-[#00f0ff]/40 bg-[#00f0ff]/15 hover:bg-[#00f0ff]/25 text-[#00f0ff] font-bold text-[10px] transition-all flex items-center gap-1 cursor-pointer"
+                    className={`px-2.5 py-1 rounded-lg border font-bold text-[10px] transition-all flex items-center gap-1 cursor-pointer ${
+                      isLight
+                        ? 'border-sky-300 bg-sky-50 hover:bg-sky-100 text-sky-700'
+                        : 'border-[#00f0ff]/40 bg-[#00f0ff]/15 hover:bg-[#00f0ff]/25 text-[#00f0ff]'
+                    }`}
                     title="View Pedagogical Source Walkthrough"
                     data-testid="diff-view-walkthrough-btn"
                   >
@@ -230,7 +249,11 @@ export default function DiffViewerModal() {
                 <button
                   type="button"
                   onClick={() => setActiveDiffUpdateId(null)}
-                  className="p-1.5 rounded-lg border border-white/10 hover:border-[#ff3366]/50 text-slate-400 hover:text-[#ff3366] bg-slate-900/60 hover:bg-[#ff3366]/10 transition-all cursor-pointer"
+                  className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
+                    isLight
+                      ? 'border-slate-200 hover:border-rose-300 text-slate-500 hover:text-rose-600 bg-white hover:bg-rose-50'
+                      : 'border-white/10 hover:border-[#ff3366]/50 text-slate-400 hover:text-[#ff3366] bg-slate-900/60 hover:bg-[#ff3366]/10'
+                  }`}
                   title="Close (ESC)"
                 >
                   <X size={16} />
@@ -239,19 +262,25 @@ export default function DiffViewerModal() {
             </div>
 
             {/* Modal Body */}
-            <div className="flex-1 overflow-y-auto p-5 space-y-4 overscroll-contain text-slate-200 min-h-[380px] flex flex-col">
+            <div className={`flex-1 overflow-y-auto p-5 space-y-4 overscroll-contain min-h-[380px] flex flex-col ${
+              isLight ? 'text-slate-800' : 'text-slate-200'
+            }`}>
               {viewMode === 'DIFF' ? (
                 /* 1. Line-by-Line Diff View with Inline Commenting */
                 <div className="flex-1 flex flex-col space-y-1">
-                  <div className="text-[10px] text-slate-400 flex items-center justify-between px-1 pb-1">
+                  <div className={`text-[10px] flex items-center justify-between px-1 pb-1 ${
+                    isLight ? 'text-slate-500' : 'text-slate-400'
+                  }`}>
                     <span>Hover over any line to add inline review feedback:</span>
                     <span className="flex items-center gap-3">
-                      <span className="text-[#00ff9d] font-bold">+ Additions</span>
-                      <span className="text-[#ff3366] font-bold">- Deletions</span>
+                      <span className={`font-bold ${isLight ? 'text-emerald-700' : 'text-[#00ff9d]'}`}>+ Additions</span>
+                      <span className={`font-bold ${isLight ? 'text-rose-700' : 'text-[#ff3366]'}`}>- Deletions</span>
                     </span>
                   </div>
 
-                  <div className="rounded-xl border border-white/10 bg-[#060a14] overflow-hidden text-xs">
+                  <div className={`rounded-xl border overflow-hidden text-xs ${
+                    isLight ? 'border-slate-200 bg-white shadow-sm' : 'border-white/10 bg-[#060a14]'
+                  }`}>
                     {diffLines.map((line, idx) => {
                       const targetLineNum = line.newLineNumber || line.oldLineNumber || idx + 1;
                       const isComposerOpen = activeRowIndex === idx;
@@ -274,18 +303,28 @@ export default function DiffViewerModal() {
                         <div
                           key={idx}
                           onMouseUp={() => handleTextSelection(idx)}
-                          className={`group flex flex-col border-b border-white/5 transition-colors ${
+                          className={`group flex flex-col transition-colors border-b ${
+                            isLight ? 'border-slate-100' : 'border-white/5'
+                          } ${
                             line.type === 'added'
-                              ? 'bg-[#00ff9d]/10 hover:bg-[#00ff9d]/15 text-[#00ff9d]'
+                              ? isLight
+                                ? 'bg-emerald-50 hover:bg-emerald-100/70 text-emerald-900'
+                                : 'bg-[#00ff9d]/10 hover:bg-[#00ff9d]/15 text-[#00ff9d]'
                               : line.type === 'removed'
-                              ? 'bg-[#ff3366]/10 hover:bg-[#ff3366]/15 text-[#ff3366]'
+                              ? isLight
+                                ? 'bg-rose-50 hover:bg-rose-100/70 text-rose-900'
+                                : 'bg-[#ff3366]/10 hover:bg-[#ff3366]/15 text-[#ff3366]'
+                              : isLight
+                              ? 'hover:bg-slate-50 text-slate-700'
                               : 'hover:bg-white/[0.02] text-slate-300'
                           }`}
                         >
                           {/* Diff Line Row */}
                           <div className="flex items-start px-2 py-0.5 leading-relaxed font-mono">
                             {/* Line Numbers Gutter */}
-                            <div className="flex items-center select-none text-[10px] text-slate-500 w-16 flex-shrink-0 gap-1 font-mono">
+                            <div className={`flex items-center select-none text-[10px] w-16 flex-shrink-0 gap-1 font-mono ${
+                              isLight ? 'text-slate-400' : 'text-slate-500'
+                            }`}>
                               <span className="w-6 text-right opacity-60">
                                 {line.oldLineNumber || ''}
                               </span>
@@ -309,9 +348,13 @@ export default function DiffViewerModal() {
                                 e.stopPropagation();
                                 setActiveRowIndex(isComposerOpen ? null : idx);
                               }}
-                              className={`p-0.5 rounded text-slate-400 hover:text-[#00f0ff] hover:bg-slate-800 transition-all flex-shrink-0 ${
+                              className={`p-0.5 rounded transition-all flex-shrink-0 cursor-pointer ${
+                                isLight
+                                  ? 'text-slate-400 hover:text-cyan-700 hover:bg-slate-100'
+                                  : 'text-slate-400 hover:text-[#00f0ff] hover:bg-slate-800'
+                              } ${
                                 isComposerOpen || lineComments.length > 0
-                                  ? 'opacity-100 text-[#00f0ff]'
+                                  ? isLight ? 'opacity-100 text-cyan-700' : 'opacity-100 text-[#00f0ff]'
                                   : 'opacity-0 group-hover:opacity-100'
                               }`}
                               title="Add comment to line"
@@ -326,27 +369,37 @@ export default function DiffViewerModal() {
                               {lineComments.map((c) => (
                                 <div
                                   key={c.id}
-                                  className="p-2.5 rounded-lg bg-slate-950/90 border border-[#ffaa00]/40 text-slate-200 text-xs shadow-md space-y-1"
+                                  className={`p-2.5 rounded-lg border text-xs shadow-md space-y-1 ${
+                                    isLight
+                                      ? 'bg-amber-50/90 border-amber-300 text-slate-800'
+                                      : 'bg-slate-950/90 border-[#ffaa00]/40 text-slate-200'
+                                  }`}
                                 >
                                   {c.selectedText && (
-                                    <div className="text-[10px] text-slate-400 border-l-2 border-[#ffaa00] pl-2 italic">
+                                    <div className={`text-[10px] border-l-2 pl-2 italic ${
+                                      isLight ? 'text-amber-800 border-amber-400' : 'text-slate-400 border-[#ffaa00]'
+                                    }`}>
                                       "{c.selectedText}"
                                     </div>
                                   )}
                                   <div className="flex items-start justify-between gap-2">
-                                    <p className="text-[11px] text-slate-100 font-sans leading-relaxed">
+                                    <p className={`text-[11px] font-sans leading-relaxed ${
+                                      isLight ? 'text-slate-800' : 'text-slate-100'
+                                    }`}>
                                       {c.comment}
                                     </p>
                                     <button
                                       type="button"
                                       onClick={() => deleteCommentFromUpdate(activeUpdate.id, c.id)}
-                                      className="text-slate-500 hover:text-[#ff3366] transition-colors p-0.5 flex-shrink-0"
+                                      className={`transition-colors p-0.5 flex-shrink-0 cursor-pointer ${
+                                        isLight ? 'text-slate-400 hover:text-rose-600' : 'text-slate-500 hover:text-[#ff3366]'
+                                      }`}
                                       title="Delete comment"
                                     >
                                       <Trash2 size={11} />
                                     </button>
                                   </div>
-                                  <div className="text-[9px] text-slate-500 font-mono">
+                                  <div className={`text-[9px] font-mono ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
                                     {c.createdAt}
                                   </div>
                                 </div>
@@ -356,14 +409,18 @@ export default function DiffViewerModal() {
 
                           {/* Inline Comment Composer */}
                           {isComposerOpen && (
-                            <div className="ml-16 mr-3 my-2 p-2.5 rounded-lg bg-slate-950 border border-[#00f0ff]/40 shadow-xl space-y-2">
+                            <div className={`ml-16 mr-3 my-2 p-2.5 rounded-lg border shadow-xl space-y-2 ${
+                              isLight ? 'bg-white border-sky-400' : 'bg-slate-950 border-[#00f0ff]/40'
+                            }`}>
                               {draftQuote && (
-                                <div className="text-[10px] text-[#00f0ff] border-l-2 border-[#00f0ff] pl-2 flex items-center justify-between">
+                                <div className={`text-[10px] border-l-2 pl-2 flex items-center justify-between ${
+                                  isLight ? 'text-sky-700 border-sky-500' : 'text-[#00f0ff] border-[#00f0ff]'
+                                }`}>
                                   <span className="italic truncate">"{draftQuote}"</span>
                                   <button
                                     type="button"
                                     onClick={() => setDraftQuote(undefined)}
-                                    className="text-slate-500 hover:text-slate-300 ml-2"
+                                    className={`ml-2 cursor-pointer ${isLight ? 'text-slate-400 hover:text-slate-600' : 'text-slate-500 hover:text-slate-300'}`}
                                   >
                                     <X size={11} />
                                   </button>
@@ -379,7 +436,11 @@ export default function DiffViewerModal() {
                                   }
                                 }}
                                 placeholder="Add review feedback for this line... (Cmd+Enter to save)"
-                                className="w-full h-16 p-2 rounded bg-slate-900/90 border border-white/10 text-xs text-slate-100 focus:outline-none focus:border-[#00f0ff] resize-none font-mono"
+                                className={`w-full h-16 p-2 rounded border text-xs resize-none font-mono focus:outline-none ${
+                                  isLight
+                                    ? 'bg-slate-50 border-slate-200 text-slate-900 focus:border-sky-500'
+                                    : 'bg-slate-900/90 border-white/10 text-slate-100 focus:border-[#00f0ff]'
+                                }`}
                               />
                               <div className="flex items-center justify-end gap-2 text-[10px]">
                                 <button
@@ -389,14 +450,20 @@ export default function DiffViewerModal() {
                                     setDraftComment('');
                                     setDraftQuote(undefined);
                                   }}
-                                  className="px-2.5 py-1 rounded border border-white/10 text-slate-400 hover:text-slate-200"
+                                  className={`px-2.5 py-1 rounded border cursor-pointer ${
+                                    isLight ? 'border-slate-200 text-slate-600 hover:text-slate-900' : 'border-white/10 text-slate-400 hover:text-slate-200'
+                                  }`}
                                 >
                                   Cancel
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => handleSaveComment(targetLineNum)}
-                                  className="px-3 py-1 rounded bg-[#00f0ff] text-slate-950 font-bold hover:bg-[#00f0ff]/80 transition-colors"
+                                  className={`px-3 py-1 rounded font-bold transition-colors cursor-pointer ${
+                                    isLight
+                                      ? 'bg-sky-600 text-white hover:bg-sky-700'
+                                      : 'bg-[#00f0ff] text-slate-950 hover:bg-[#00f0ff]/80'
+                                  }`}
                                 >
                                   Save Comment
                                 </button>
@@ -410,7 +477,9 @@ export default function DiffViewerModal() {
                 </div>
               ) : (
                 /* 2. Rendered Preview: Quiz Question Cards for QUIZ_UPDATE or Markdown Note */
-                <div className="flex-1 p-4 rounded-xl bg-slate-950/80 border border-white/10 overflow-y-auto min-h-[350px]">
+                <div className={`flex-1 p-4 rounded-xl border overflow-y-auto min-h-[350px] ${
+                  isLight ? 'bg-white border-slate-200 shadow-sm' : 'bg-slate-950/80 border-white/10'
+                }`}>
                   {activeUpdate.type === 'QUIZ_UPDATE' || activeUpdate.title?.toLowerCase().includes('quiz') ? (
                     <QuizViewer
                       questions={activeUpdate.newContent}
@@ -428,26 +497,28 @@ export default function DiffViewerModal() {
             </div>
 
             {/* Modal Footer with 3-Way Decision Actions */}
-            <div className="px-5 py-3 border-t border-white/10 bg-slate-950/80 flex items-center justify-between text-xs flex-shrink-0 gap-3">
+            <div className={`px-5 py-3 border-t flex items-center justify-between text-xs flex-shrink-0 gap-3 ${
+              isLight ? 'bg-slate-50 border-slate-200' : 'border-white/10 bg-slate-950/80'
+            }`}>
               {/* Left Side: Status / Comments Summary */}
-              <div className="flex items-center gap-3 text-slate-400">
+              <div className={`flex items-center gap-3 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
                 {activeUpdate.status === 'APPROVED' && (
-                  <span className="flex items-center gap-1.5 text-[#00ff9d] font-bold">
+                  <span className={`flex items-center gap-1.5 font-bold ${isLight ? 'text-emerald-700' : 'text-[#00ff9d]'}`}>
                     <CheckCircle2 size={14} /> Update Approved & Merged
                   </span>
                 )}
                 {activeUpdate.status === 'REJECTED' && (
-                  <span className="flex items-center gap-1.5 text-[#ff3366] font-bold">
+                  <span className={`flex items-center gap-1.5 font-bold ${isLight ? 'text-rose-700' : 'text-[#ff3366]'}`}>
                     <XCircle size={14} /> Update Rejected
                   </span>
                 )}
                 {activeUpdate.status === 'CHANGES_REQUESTED' && (
-                  <span className="flex items-center gap-1.5 text-[#ffaa00] font-bold">
+                  <span className={`flex items-center gap-1.5 font-bold ${isLight ? 'text-amber-700' : 'text-[#ffaa00]'}`}>
                     <AlertCircle size={14} /> Feedback Sent ({commentsCount} notes)
                   </span>
                 )}
                 {activeUpdate.status === 'PENDING' && commentsCount > 0 && (
-                  <span className="flex items-center gap-1.5 text-[#ffaa00]">
+                  <span className={`flex items-center gap-1.5 ${isLight ? 'text-amber-700' : 'text-[#ffaa00]'}`}>
                     <MessageSquare size={14} /> {commentsCount} line feedback item{commentsCount > 1 ? 's' : ''} drafted
                   </span>
                 )}
@@ -459,7 +530,11 @@ export default function DiffViewerModal() {
                 <button
                   type="button"
                   onClick={() => rejectGraphUpdate(activeUpdate.id)}
-                  className="px-3.5 py-1.5 rounded-lg border border-[#ff3366]/40 text-[#ff3366] hover:bg-[#ff3366]/15 hover:border-[#ff3366] transition-all flex items-center gap-1.5 font-bold cursor-pointer"
+                  className={`px-3.5 py-1.5 rounded-lg border transition-all flex items-center gap-1.5 font-bold cursor-pointer ${
+                    isLight
+                      ? 'border-rose-300 text-rose-700 hover:bg-rose-50'
+                      : 'border-[#ff3366]/40 text-[#ff3366] hover:bg-[#ff3366]/15 hover:border-[#ff3366]'
+                  }`}
                 >
                   <X size={14} />
                   <span>REJECT</span>
@@ -469,7 +544,11 @@ export default function DiffViewerModal() {
                 <button
                   type="button"
                   onClick={handleRequestChanges}
-                  className="px-3.5 py-1.5 rounded-lg border border-[#ffaa00]/40 text-[#ffaa00] hover:bg-[#ffaa00]/15 hover:border-[#ffaa00] transition-all flex items-center gap-1.5 font-bold cursor-pointer"
+                  className={`px-3.5 py-1.5 rounded-lg border transition-all flex items-center gap-1.5 font-bold cursor-pointer ${
+                    isLight
+                      ? 'border-amber-300 text-amber-800 hover:bg-amber-50'
+                      : 'border-[#ffaa00]/40 text-[#ffaa00] hover:bg-[#ffaa00]/15 hover:border-[#ffaa00]'
+                  }`}
                 >
                   <CornerDownRight size={14} />
                   <span>REQUEST CHANGES {commentsCount > 0 ? `(${commentsCount})` : ''}</span>
@@ -480,10 +559,12 @@ export default function DiffViewerModal() {
                   type="button"
                   onClick={() => approveGraphUpdate(activeUpdate.id)}
                   style={{
-                    backgroundColor: '#00ff9d',
-                    boxShadow: '0 0 15px rgba(0, 255, 157, 0.4)'
+                    backgroundColor: isLight ? '#059669' : '#00ff9d',
+                    boxShadow: isLight ? '0 2px 8px rgba(5, 150, 105, 0.25)' : '0 0 15px rgba(0, 255, 157, 0.4)'
                   }}
-                  className="px-4 py-1.5 rounded-lg text-slate-950 font-bold transition-all flex items-center gap-1.5 hover:opacity-90 active:scale-95 cursor-pointer"
+                  className={`px-4 py-1.5 rounded-lg font-bold transition-all flex items-center gap-1.5 hover:opacity-90 active:scale-95 cursor-pointer ${
+                    isLight ? 'text-white' : 'text-slate-950'
+                  }`}
                 >
                   <Check size={14} />
                   <span>APPROVE & MERGE</span>

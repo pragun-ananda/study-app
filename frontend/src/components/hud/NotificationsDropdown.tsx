@@ -39,6 +39,9 @@ function formatRelativeTimestamp(dateStr?: string): string {
 }
 
 export default function NotificationsDropdown() {
+  const theme = useStore((state) => state.theme);
+  const isLight = theme === 'light';
+
   const isNotificationsOpen = useStore((state) => state.isNotificationsOpen);
   const setIsNotificationsOpen = useStore((state) => state.setIsNotificationsOpen);
   const graphUpdates = useStore((state) => state.graphUpdates);
@@ -178,9 +181,15 @@ export default function NotificationsDropdown() {
         onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
         className={`relative p-2 rounded-lg border transition-all flex items-center justify-center cursor-pointer ${
           isNotificationsOpen
-            ? 'bg-[#00f0ff]/20 border-[#00f0ff] text-[#00f0ff] shadow-[0_0_15px_rgba(0,240,255,0.3)]'
+            ? isLight
+              ? 'bg-sky-100 border-sky-500 text-sky-700 shadow-sm'
+              : 'bg-[#00f0ff]/20 border-[#00f0ff] text-[#00f0ff] shadow-[0_0_15px_rgba(0,240,255,0.3)]'
             : pendingCount > 0
-            ? 'bg-[#080c16]/80 border-[#00f0ff]/40 text-slate-200 hover:border-[#00f0ff] hover:text-[#00f0ff]'
+            ? isLight
+              ? 'bg-white border-sky-400 text-slate-800 hover:border-sky-600 hover:text-sky-700 shadow-xs'
+              : 'bg-[#080c16]/80 border-[#00f0ff]/40 text-slate-200 hover:border-[#00f0ff] hover:text-[#00f0ff]'
+            : isLight
+            ? 'bg-white border-slate-200 text-slate-500 hover:text-slate-800 hover:border-slate-300'
             : 'bg-[#080c16]/70 border-white/10 text-slate-400 hover:text-slate-200 hover:border-white/20'
         }`}
         title="Review Updates / Notifications"
@@ -189,7 +198,11 @@ export default function NotificationsDropdown() {
       >
         <Bell size={15} />
         {pendingCount > 0 && (
-          <span className="absolute -top-1.5 -right-1.5 flex h-4 min-w-[16px] px-1 items-center justify-center rounded-full bg-[#00f0ff] text-[9px] font-extrabold text-slate-950 shadow-[0_0_8px_#00f0ff] animate-pulse">
+          <span className={`absolute -top-1.5 -right-1.5 flex h-4 min-w-[16px] px-1 items-center justify-center rounded-full text-[9px] font-extrabold ${
+            isLight
+              ? 'bg-sky-600 text-white shadow-sm'
+              : 'bg-[#00f0ff] text-slate-950 shadow-[0_0_8px_#00f0ff] animate-pulse'
+          }`}>
             {pendingCount}
           </span>
         )}
@@ -203,29 +216,43 @@ export default function NotificationsDropdown() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 8, scale: 0.95 }}
             transition={{ duration: 0.15, ease: 'easeOut' }}
-            className="absolute right-0 mt-2 w-84 sm:w-96 max-h-[520px] flex flex-col bg-[#080c16]/95 border border-[#00f0ff]/30 rounded-xl shadow-2xl backdrop-blur-xl z-50 overflow-hidden"
+            className={`absolute right-0 mt-2 w-84 sm:w-96 max-h-[520px] flex flex-col border rounded-xl shadow-2xl backdrop-blur-xl z-50 overflow-hidden ${
+              isLight ? 'bg-white/95 border-slate-200 text-slate-900' : 'bg-[#080c16]/95 border-[#00f0ff]/30 text-slate-100'
+            }`}
           >
             {/* Top Accent Line */}
-            <div className="h-0.5 w-full bg-gradient-to-r from-transparent via-[#00f0ff] to-transparent opacity-80" />
+            <div className={`h-0.5 w-full bg-gradient-to-r from-transparent ${
+              isLight ? 'via-sky-500' : 'via-[#00f0ff]'
+            } to-transparent opacity-80`} />
 
             {/* Dropdown Header */}
-            <div className="p-3 bg-slate-950/80 border-b border-white/10 flex items-center justify-between flex-shrink-0">
+            <div className={`p-3 border-b flex items-center justify-between flex-shrink-0 ${
+              isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-950/80 border-white/10'
+            }`}>
               <div className="flex items-center gap-2">
-                <FileCode size={14} className="text-[#00f0ff]" />
-                <span className="text-xs font-bold text-slate-100 tracking-wider">REVIEW QUEUE</span>
-                <span className="px-1.5 py-0.2 rounded text-[10px] bg-[#00f0ff]/15 text-[#00f0ff] border border-[#00f0ff]/30 font-bold">
+                <FileCode size={14} className={isLight ? 'text-sky-600' : 'text-[#00f0ff]'} />
+                <span className={`text-xs font-bold tracking-wider ${isLight ? 'text-slate-900' : 'text-slate-100'}`}>REVIEW QUEUE</span>
+                <span className={`px-1.5 py-0.2 rounded text-[10px] font-bold border ${
+                  isLight ? 'bg-sky-100 text-sky-800 border-sky-200' : 'bg-[#00f0ff]/15 text-[#00f0ff] border-[#00f0ff]/30'
+                }`}>
                   {pendingCount} PENDING
                 </span>
               </div>
               <div className="flex items-center gap-2">
                 {/* View Mode Toggle */}
-                <div className="flex items-center rounded bg-slate-900 border border-white/10 p-0.5 text-[9px]">
+                <div className={`flex items-center rounded border p-0.5 text-[9px] ${
+                  isLight ? 'bg-slate-100 border-slate-200' : 'bg-slate-900 border-white/10'
+                }`}>
                   <button
                     type="button"
                     onClick={() => setViewGrouping('SOURCE')}
                     className={`px-1.5 py-0.5 rounded font-bold transition-all cursor-pointer ${
                       viewGrouping === 'SOURCE'
-                        ? 'bg-[#00f0ff]/20 text-[#00f0ff]'
+                        ? isLight
+                          ? 'bg-white text-sky-700 shadow-xs'
+                          : 'bg-[#00f0ff]/20 text-[#00f0ff]'
+                        : isLight
+                        ? 'text-slate-500 hover:text-slate-800'
                         : 'text-slate-400 hover:text-slate-200'
                     }`}
                     title="Group updates by source batch"
@@ -237,7 +264,11 @@ export default function NotificationsDropdown() {
                     onClick={() => setViewGrouping('ALL')}
                     className={`px-1.5 py-0.5 rounded font-bold transition-all cursor-pointer ${
                       viewGrouping === 'ALL'
-                        ? 'bg-[#00f0ff]/20 text-[#00f0ff]'
+                        ? isLight
+                          ? 'bg-white text-sky-700 shadow-xs'
+                          : 'bg-[#00f0ff]/20 text-[#00f0ff]'
+                        : isLight
+                        ? 'text-slate-500 hover:text-slate-800'
                         : 'text-slate-400 hover:text-slate-200'
                     }`}
                     title="Show flat list of updates"
@@ -249,7 +280,9 @@ export default function NotificationsDropdown() {
                 <button
                   type="button"
                   onClick={resetGraphUpdates}
-                  className="p-1 text-slate-400 hover:text-[#00f0ff] rounded hover:bg-slate-900 transition-colors cursor-pointer"
+                  className={`p-1 rounded transition-colors cursor-pointer ${
+                    isLight ? 'text-slate-400 hover:text-slate-700 hover:bg-slate-100' : 'text-slate-400 hover:text-[#00f0ff] hover:bg-slate-900'
+                  }`}
                   title="Reset Mock Updates Feed"
                 >
                   <RotateCcw size={12} />
@@ -258,7 +291,9 @@ export default function NotificationsDropdown() {
             </div>
 
             {/* Filter Tabs */}
-            <div className="flex items-center gap-1 px-3 py-1.5 bg-slate-950/40 border-b border-white/5 text-[10px]">
+            <div className={`flex items-center gap-1 px-3 py-1.5 border-b text-[10px] ${
+              isLight ? 'bg-slate-100/70 border-slate-200' : 'bg-slate-950/40 border-white/5'
+            }`}>
               {(['PENDING', 'CHANGES_REQUESTED', 'ALL'] as const).map((tab) => (
                 <button
                   key={tab}
@@ -266,7 +301,11 @@ export default function NotificationsDropdown() {
                   onClick={() => setActiveFilter(tab)}
                   className={`px-2 py-0.5 rounded font-bold transition-all cursor-pointer ${
                     activeFilter === tab
-                      ? 'bg-[#00f0ff]/20 text-[#00f0ff] border border-[#00f0ff]/40'
+                      ? isLight
+                        ? 'bg-white text-sky-700 border border-slate-300 shadow-xs'
+                        : 'bg-[#00f0ff]/20 text-[#00f0ff] border border-[#00f0ff]/40'
+                      : isLight
+                      ? 'text-slate-500 hover:text-slate-800'
                       : 'text-slate-400 hover:text-slate-200'
                   }`}
                 >
@@ -287,38 +326,52 @@ export default function NotificationsDropdown() {
                     return (
                       <div
                         key={group.id}
-                        className="rounded-xl border border-white/10 bg-slate-950/70 overflow-hidden shadow-sm hover:border-[#00f0ff]/30 transition-all"
+                        className={`rounded-xl border overflow-hidden shadow-sm transition-all ${
+                          isLight
+                            ? 'bg-slate-50/70 border-slate-200 hover:border-slate-300'
+                            : 'bg-slate-950/70 border-white/10 hover:border-[#00f0ff]/30'
+                        }`}
                         data-testid={`source-group-${group.id}`}
                       >
                         {/* Source Batch Header */}
-                        <div className="p-2.5 bg-slate-900/80 border-b border-white/5 flex flex-col gap-2">
+                        <div className={`p-2.5 border-b flex flex-col gap-2 ${
+                          isLight ? 'bg-slate-100/80 border-slate-200' : 'bg-slate-900/80 border-white/5'
+                        }`}>
                           <div className="flex items-start justify-between gap-2">
                             <button
                               type="button"
                               onClick={() => toggleSourceCollapse(group.id)}
                               className="flex items-start gap-1.5 text-left flex-1 min-w-0 group cursor-pointer"
                             >
-                              <span className="text-slate-400 group-hover:text-[#00f0ff] mt-0.5 transition-colors">
+                              <span className={`mt-0.5 transition-colors ${
+                                isLight
+                                  ? 'text-slate-400 group-hover:text-sky-600'
+                                  : 'text-slate-400 group-hover:text-[#00f0ff]'
+                              }`}>
                                 {isCollapsed ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
                               </span>
                               <div className="min-w-0">
-                                <p className="text-xs font-bold text-slate-100 group-hover:text-[#00f0ff] transition-colors truncate">
+                                <p className={`text-xs font-bold transition-colors truncate ${
+                                  isLight
+                                    ? 'text-slate-900 group-hover:text-sky-700'
+                                    : 'text-slate-100 group-hover:text-[#00f0ff]'
+                                }`}>
                                   {group.title}
                                 </p>
                                 <div className="flex items-center gap-1.5 mt-0.5">
                                   {group.domain && (
-                                    <span className="text-[10px] text-slate-400 font-mono">
+                                    <span className={`text-[10px] font-mono ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
                                       {group.domain}
                                     </span>
                                   )}
-                                  <span className="text-[10px] text-slate-500">•</span>
-                                  <span className="text-[10px] text-slate-400">
+                                  <span className="text-[10px] text-slate-400">•</span>
+                                  <span className={`text-[10px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
                                     {group.updates.length} change{group.updates.length > 1 ? 's' : ''}
                                   </span>
                                   {group.timestamp && (
                                     <>
-                                      <span className="text-[10px] text-slate-500">•</span>
-                                      <span className="text-[10px] text-slate-400 font-mono">
+                                      <span className="text-[10px] text-slate-400">•</span>
+                                      <span className={`text-[10px] font-mono ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
                                         {group.timestamp}
                                       </span>
                                     </>
@@ -328,7 +381,11 @@ export default function NotificationsDropdown() {
                             </button>
 
                             {group.score !== undefined && (
-                              <span className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-[#00ff9d]/15 text-[#00ff9d] border border-[#00ff9d]/30 flex-shrink-0">
+                              <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border flex-shrink-0 ${
+                                isLight
+                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                                  : 'bg-[#00ff9d]/15 text-[#00ff9d] border-[#00ff9d]/30'
+                              }`}>
                                 <Award size={10} />
                                 {group.score}%
                               </span>
@@ -336,7 +393,9 @@ export default function NotificationsDropdown() {
                           </div>
 
                           {/* Source Actions Row */}
-                          <div className="flex items-center justify-between pt-1 border-t border-white/5 text-[10px]">
+                          <div className={`flex items-center justify-between pt-1 border-t text-[10px] ${
+                            isLight ? 'border-slate-200' : 'border-white/5'
+                          }`}>
                             {/* Walkthrough Button */}
                             {group.queueItem && (
                               <button
@@ -345,7 +404,11 @@ export default function NotificationsDropdown() {
                                   setActiveWalkthroughQueueId(group.id);
                                   setIsNotificationsOpen(false);
                                 }}
-                                className="flex items-center gap-1 px-2 py-0.5 rounded bg-[#00f0ff]/15 hover:bg-[#00f0ff]/25 text-[#00f0ff] border border-[#00f0ff]/30 font-bold transition-all cursor-pointer"
+                                className={`flex items-center gap-1 px-2 py-0.5 rounded font-bold transition-all cursor-pointer border ${
+                                  isLight
+                                    ? 'bg-sky-50 hover:bg-sky-100 text-sky-700 border-sky-300'
+                                    : 'bg-[#00f0ff]/15 hover:bg-[#00f0ff]/25 text-[#00f0ff] border-[#00f0ff]/30'
+                                }`}
                                 data-testid={`view-walkthrough-btn-${group.id}`}
                               >
                                 <Sparkles size={11} />
@@ -359,7 +422,11 @@ export default function NotificationsDropdown() {
                                 <button
                                   type="button"
                                   onClick={() => approveEntireQueueItem(group.id)}
-                                  className="flex items-center gap-1 px-2 py-0.5 rounded bg-[#00ff9d]/15 hover:bg-[#00ff9d]/30 text-[#00ff9d] border border-[#00ff9d]/30 font-bold transition-all cursor-pointer"
+                                  className={`flex items-center gap-1 px-2 py-0.5 rounded font-bold transition-all cursor-pointer border ${
+                                    isLight
+                                      ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-300'
+                                      : 'bg-[#00ff9d]/15 hover:bg-[#00ff9d]/30 text-[#00ff9d] border-[#00ff9d]/30'
+                                  }`}
                                   title="Approve all updates in this source"
                                   data-testid={`batch-approve-btn-${group.id}`}
                                 >
@@ -369,7 +436,11 @@ export default function NotificationsDropdown() {
                                 <button
                                   type="button"
                                   onClick={() => rejectEntireQueueItem(group.id)}
-                                  className="flex items-center gap-1 px-2 py-0.5 rounded bg-[#ff3366]/15 hover:bg-[#ff3366]/30 text-[#ff3366] border border-[#ff3366]/30 font-bold transition-all cursor-pointer"
+                                  className={`flex items-center gap-1 px-2 py-0.5 rounded font-bold transition-all cursor-pointer border ${
+                                    isLight
+                                      ? 'bg-rose-50 hover:bg-rose-100 text-rose-800 border-rose-300'
+                                      : 'bg-[#ff3366]/15 hover:bg-[#ff3366]/30 text-[#ff3366] border-[#ff3366]/30'
+                                  }`}
                                   title="Reject all updates in this source"
                                   data-testid={`batch-reject-btn-${group.id}`}
                                 >
@@ -383,11 +454,12 @@ export default function NotificationsDropdown() {
 
                         {/* Collapsible Children Updates */}
                         {!isCollapsed && (
-                          <div className="p-2 space-y-1.5 bg-slate-950/40">
+                          <div className={`p-2 space-y-1.5 ${isLight ? 'bg-white' : 'bg-slate-950/40'}`}>
                             {group.updates.map((update) => (
                               <SingleUpdateCard
                                 key={update.id}
                                 update={update}
+                                isLight={isLight}
                                 onReviewDiff={() => {
                                   setActiveDiffUpdateId(update.id);
                                   setIsNotificationsOpen(false);
@@ -402,7 +474,7 @@ export default function NotificationsDropdown() {
                     );
                   })
                 ) : (
-                  <EmptyState />
+                  <EmptyState isLight={isLight} />
                 )
               ) : (
                 /* Flat Updates View */
@@ -411,6 +483,7 @@ export default function NotificationsDropdown() {
                     <SingleUpdateCard
                       key={update.id}
                       update={update}
+                      isLight={isLight}
                       onReviewDiff={() => {
                         setActiveDiffUpdateId(update.id);
                         setIsNotificationsOpen(false);
@@ -420,7 +493,7 @@ export default function NotificationsDropdown() {
                     />
                   ))
                 ) : (
-                  <EmptyState />
+                  <EmptyState isLight={isLight} />
                 )
               )}
             </div>
@@ -433,27 +506,37 @@ export default function NotificationsDropdown() {
 
 function SingleUpdateCard({
   update,
+  isLight = false,
   onReviewDiff,
   onApprove,
   onReject
 }: {
   update: GraphUpdate;
+  isLight?: boolean;
   onReviewDiff: () => void;
   onApprove: () => void;
   onReject: () => void;
 }) {
-  const catColor = DOMAIN_BASE_COLORS[update.category as DomainCategory] || '#00f0ff';
+  const catColor = DOMAIN_BASE_COLORS[update.category as DomainCategory] || (isLight ? '#0284c7' : '#00f0ff');
   const commentCount = update.comments?.length || 0;
 
   return (
     <div
       className={`p-2.5 rounded-lg border text-xs transition-all flex flex-col gap-2 ${
         update.status === 'PENDING'
-          ? 'bg-slate-950/80 border-white/10 hover:border-[#00f0ff]/50 shadow-sm'
+          ? isLight
+            ? 'bg-white border-slate-200 hover:border-sky-400 shadow-xs'
+            : 'bg-slate-950/80 border-white/10 hover:border-[#00f0ff]/50 shadow-sm'
           : update.status === 'CHANGES_REQUESTED'
-          ? 'bg-slate-950/80 border-[#ffaa00]/30 hover:border-[#ffaa00]'
+          ? isLight
+            ? 'bg-amber-50/70 border-amber-300 hover:border-amber-400'
+            : 'bg-slate-950/80 border-[#ffaa00]/30 hover:border-[#ffaa00]'
           : update.status === 'APPROVED'
-          ? 'bg-slate-950/40 border-[#00ff9d]/20 opacity-75'
+          ? isLight
+            ? 'bg-slate-50 border-slate-200 opacity-80'
+            : 'bg-slate-950/40 border-[#00ff9d]/20 opacity-75'
+          : isLight
+          ? 'bg-rose-50/40 border-rose-200 opacity-75'
           : 'bg-slate-950/30 border-[#ff3366]/20 opacity-60'
       }`}
     >
@@ -470,24 +553,24 @@ function SingleUpdateCard({
           >
             {update.type.replace('_', ' ')}
           </span>
-          <span className="text-[10px] text-slate-400 truncate max-w-[130px]">
+          <span className={`text-[10px] truncate max-w-[130px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
             {update.targetName}
           </span>
         </div>
 
         <div className="flex items-center gap-1.5">
           {update.status === 'APPROVED' && (
-            <span className="flex items-center gap-1 text-[9px] text-[#00ff9d] font-bold">
+            <span className={`flex items-center gap-1 text-[9px] font-bold ${isLight ? 'text-emerald-700' : 'text-[#00ff9d]'}`}>
               <CheckCircle2 size={11} /> APPROVED
             </span>
           )}
           {update.status === 'REJECTED' && (
-            <span className="flex items-center gap-1 text-[9px] text-[#ff3366] font-bold">
+            <span className={`flex items-center gap-1 text-[9px] font-bold ${isLight ? 'text-rose-700' : 'text-[#ff3366]'}`}>
               <XCircle size={11} /> REJECTED
             </span>
           )}
           {update.status === 'CHANGES_REQUESTED' && (
-            <span className="flex items-center gap-1 text-[9px] text-[#ffaa00] font-bold">
+            <span className={`flex items-center gap-1 text-[9px] font-bold ${isLight ? 'text-amber-700' : 'text-[#ffaa00]'}`}>
               <AlertCircle size={11} /> FEEDBACK
             </span>
           )}
@@ -496,19 +579,31 @@ function SingleUpdateCard({
 
       {/* Middle: Title & Description */}
       <div onClick={onReviewDiff} className="cursor-pointer group">
-        <p className="font-bold text-slate-200 group-hover:text-[#00f0ff] transition-colors leading-tight">
+        <p className={`font-bold transition-colors leading-tight ${
+          isLight
+            ? 'text-slate-900 group-hover:text-sky-700'
+            : 'text-slate-200 group-hover:text-[#00f0ff]'
+        }`}>
           {update.title}
         </p>
-        <p className="text-[11px] text-slate-400 mt-1 line-clamp-2 leading-relaxed">
+        <p className={`text-[11px] mt-1 line-clamp-2 leading-relaxed ${
+          isLight ? 'text-slate-600' : 'text-slate-400'
+        }`}>
           {update.description}
         </p>
       </div>
 
       {/* Bottom Row: Comments pill & Quick Action buttons */}
-      <div className="flex items-center justify-between pt-1 border-t border-white/5">
+      <div className={`flex items-center justify-between pt-1 border-t ${
+        isLight ? 'border-slate-100' : 'border-white/5'
+      }`}>
         <div className="flex items-center gap-2">
           {commentCount > 0 && (
-            <span className="flex items-center gap-1 text-[10px] text-[#ffaa00] bg-[#ffaa00]/10 px-1.5 py-0.5 rounded border border-[#ffaa00]/25">
+            <span className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border ${
+              isLight
+                ? 'text-amber-800 bg-amber-100 border-amber-300'
+                : 'text-[#ffaa00] bg-[#ffaa00]/10 border-[#ffaa00]/25'
+            }`}>
               <MessageSquare size={10} /> {commentCount} note{commentCount > 1 ? 's' : ''}
             </span>
           )}
@@ -518,7 +613,11 @@ function SingleUpdateCard({
           <button
             type="button"
             onClick={onReviewDiff}
-            className="px-2 py-0.5 rounded bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-white/10 text-[10px] font-bold transition-all cursor-pointer"
+            className={`px-2 py-0.5 rounded border text-[10px] font-bold transition-all cursor-pointer ${
+              isLight
+                ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
+                : 'bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border-white/10'
+            }`}
           >
             Review Diff
           </button>
@@ -528,7 +627,11 @@ function SingleUpdateCard({
               <button
                 type="button"
                 onClick={onApprove}
-                className="p-1 rounded bg-[#00ff9d]/15 hover:bg-[#00ff9d]/30 text-[#00ff9d] border border-[#00ff9d]/30 transition-all cursor-pointer"
+                className={`p-1 rounded border transition-all cursor-pointer ${
+                  isLight
+                    ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-300'
+                    : 'bg-[#00ff9d]/15 hover:bg-[#00ff9d]/30 text-[#00ff9d] border-[#00ff9d]/30'
+                }`}
                 title="Quick Approve & Merge"
                 aria-label="Quick Approve & Merge"
               >
@@ -537,7 +640,11 @@ function SingleUpdateCard({
               <button
                 type="button"
                 onClick={onReject}
-                className="p-1 rounded bg-[#ff3366]/15 hover:bg-[#ff3366]/30 text-[#ff3366] border border-[#ff3366]/30 transition-all cursor-pointer"
+                className={`p-1 rounded border transition-all cursor-pointer ${
+                  isLight
+                    ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-300'
+                    : 'bg-[#ff3366]/15 hover:bg-[#ff3366]/30 text-[#ff3366] border-[#ff3366]/30'
+                }`}
                 title="Quick Reject"
                 aria-label="Quick Reject"
               >
@@ -551,12 +658,12 @@ function SingleUpdateCard({
   );
 }
 
-function EmptyState() {
+function EmptyState({ isLight = false }: { isLight?: boolean }) {
   return (
-    <div className="py-8 text-center text-slate-500 text-xs">
-      <CheckCircle2 size={24} className="mx-auto mb-2 text-[#00ff9d]/80" />
-      <p className="text-slate-300 font-bold">All neural feeds synchronized</p>
-      <p className="text-[11px] text-slate-500 mt-0.5">0 updates in current view</p>
+    <div className={`py-8 text-center text-xs ${isLight ? 'text-slate-500' : 'text-slate-500'}`}>
+      <CheckCircle2 size={24} className={`mx-auto mb-2 ${isLight ? 'text-emerald-600' : 'text-[#00ff9d]/80'}`} />
+      <p className={`font-bold ${isLight ? 'text-slate-800' : 'text-slate-300'}`}>All neural feeds synchronized</p>
+      <p className={`text-[11px] mt-0.5 ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>0 updates in current view</p>
     </div>
   );
 }

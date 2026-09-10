@@ -27,12 +27,41 @@ Object.defineProperty(window, 'matchMedia', {
   }))
 });
 
-// 3. Polyfill navigator.clipboard
+// 3. Polyfill navigator.clipboard and localStorage
 Object.assign(navigator, {
   clipboard: {
     writeText: vi.fn().mockResolvedValue(undefined),
     readText: vi.fn().mockResolvedValue('')
   }
+});
+
+const localStorageStore: Record<string, string> = {};
+const localStorageMock = {
+  getItem: vi.fn((key: string) => localStorageStore[key] ?? null),
+  setItem: vi.fn((key: string, value: string) => {
+    localStorageStore[key] = String(value);
+  }),
+  removeItem: vi.fn((key: string) => {
+    delete localStorageStore[key];
+  }),
+  clear: vi.fn(() => {
+    for (const key of Object.keys(localStorageStore)) {
+      delete localStorageStore[key];
+    }
+  }),
+  get length() {
+    return Object.keys(localStorageStore).length;
+  },
+  key: vi.fn((idx: number) => Object.keys(localStorageStore)[idx] ?? null)
+};
+
+Object.defineProperty(window, 'localStorage', {
+  value: localStorageMock,
+  writable: true
+});
+Object.defineProperty(globalThis, 'localStorage', {
+  value: localStorageMock,
+  writable: true
 });
 
 // 4. Polyfill HTMLCanvasElement.getContext for 2D/WebGL
@@ -212,6 +241,7 @@ setCustomFetch(mockFetch);
 
 // 6. Reset Zustand Store cleanly before each test run
 beforeEach(() => {
+  localStorageMock.clear();
   setCustomFetch(mockFetch);
   useStore.getState().resetState();
   useStore.getState().hydrate(INITIAL_TOPICS, INITIAL_TODOS);

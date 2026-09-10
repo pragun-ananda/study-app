@@ -49,6 +49,17 @@ describe('App Component', () => {
     expect(useStore.getState().systemStatus).toBe('OPTIMAL');
   });
 
+  it('handles KeyT shortcut to toggle theme', () => {
+    render(<App />);
+    expect(useStore.getState().theme).toBe('dark');
+
+    fireEvent.keyDown(window, { code: 'KeyT' });
+    expect(useStore.getState().theme).toBe('light');
+
+    fireEvent.keyDown(window, { code: 'KeyT' });
+    expect(useStore.getState().theme).toBe('dark');
+  });
+
   it('handles KeyR shortcut to reset state', () => {
     render(<App />);
     act(() => {

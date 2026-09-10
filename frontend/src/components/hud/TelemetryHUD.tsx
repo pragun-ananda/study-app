@@ -23,7 +23,9 @@ import {
   AlertCircle,
   HelpCircle,
   Edit3,
-  Save
+  Save,
+  Sun,
+  Moon
 } from 'lucide-react';
 import NoteViewerModal from './NoteViewerModal';
 import NotificationsDropdown from './NotificationsDropdown';
@@ -32,10 +34,14 @@ import IngestionWalkthroughModal from './IngestionWalkthroughModal';
 import CreateNodeModal from './CreateNodeModal';
 import { useStore } from '../../store/useStore';
 import { TopicNode, DomainCategory, TodoPriority, DEFAULT_DOMAINS, TopicStatus } from '../../types/telemetry';
-import { DOMAIN_BASE_COLORS, getCategoryShade } from '../../utils/theme';
+import { DOMAIN_BASE_COLORS, DOMAIN_LIGHT_COLORS, getCategoryShade } from '../../utils/theme';
 import { getTopologicalPrerequisites } from '../../utils/graph';
 
 export default function TelemetryHUD() {
+  const theme = useStore((state) => state.theme);
+  const toggleTheme = useStore((state) => state.toggleTheme);
+  const isLight = theme === 'light';
+
   const hudVisible = useStore((state) => state.hudVisible);
   const setHudVisibility = useStore((state) => state.setHudVisibility);
   const selectedCategory = useStore((state) => state.selectedCategory);
@@ -144,7 +150,9 @@ export default function TelemetryHUD() {
   const categories = ['ALL', 'AI & ML', 'CS', 'SYSTEMS', 'MATH', 'PHYSICS', 'CYBERSECURITY', 'ARCH'];
   const completedTodosCount = todos.filter((t) => t.completed).length;
   const selectedNode = topicNodes.find((n) => n.id === selectedTopicId);
-  const selectedNodeColor = selectedNode ? getCategoryShade(selectedNode.id, selectedNode.category) : '#00f0ff';
+  const selectedNodeColor = selectedNode
+    ? getCategoryShade(selectedNode.id, selectedNode.category, theme)
+    : (isLight ? '#0284c7' : '#00f0ff');
   const topologicalPrereqs = useMemo(
     () => (selectedNode ? getTopologicalPrerequisites(selectedNode.id, topicNodes) : []),
     [selectedNode?.id, topicNodes]
@@ -224,7 +232,11 @@ export default function TelemetryHUD() {
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
           onClick={() => setHudVisibility(true)}
-          className="pointer-events-auto px-4 py-2 bg-[#080c16]/90 backdrop-blur-md border border-[#00f0ff]/40 text-[#00f0ff] text-xs tracking-widest font-mono rounded hover:bg-[#00f0ff]/10 transition-all flex items-center gap-2 shadow-[0_0_15px_rgba(0,240,255,0.2)]"
+          className={`pointer-events-auto px-4 py-2 backdrop-blur-md border text-xs tracking-widest font-mono rounded transition-all flex items-center gap-2 shadow-lg ${
+            isLight
+              ? 'bg-white/90 border-sky-300 text-sky-700 hover:bg-sky-50'
+              : 'bg-[#080c16]/90 border-[#00f0ff]/40 text-[#00f0ff] hover:bg-[#00f0ff]/10 shadow-[0_0_15px_rgba(0,240,255,0.2)]'
+          }`}
         >
           <Eye size={14} /> RESTORE HUD [H]
         </motion.button>
@@ -251,7 +263,9 @@ export default function TelemetryHUD() {
       {/* ================= TRANSPARENT TOP SUBGRAPHS & SEARCH BAR ================= */}
       <header className="pointer-events-auto flex items-center justify-between gap-4 bg-transparent py-1 px-1">
         {/* 1. Collapsible Subgraphs Navigation Bar (Minimized by default) */}
-        <div className="flex items-center bg-[#080c16]/70 border border-white/10 rounded-lg p-1 text-xs flex-shrink-0 backdrop-blur-md">
+        <div className={`flex items-center border rounded-lg p-1 text-xs flex-shrink-0 backdrop-blur-md ${
+          isLight ? 'bg-white/85 border-slate-200 shadow-sm' : 'bg-[#080c16]/70 border-white/10'
+        }`}>
           <AnimatePresence initial={false} mode="wait">
             {isSubgraphsOpen ? (
               <motion.div
@@ -262,12 +276,16 @@ export default function TelemetryHUD() {
                 transition={{ duration: 0.2 }}
                 className="flex items-center gap-1.5 overflow-x-auto py-0.5 max-w-full no-scrollbar px-1"
               >
-                <span className="text-slate-400 font-bold items-center gap-1.5 mr-1 flex flex-shrink-0 text-[11px]">
-                  <Compass size={13} className="text-[#00f0ff]" /> SUBGRAPHS:
+                <span className={`font-bold items-center gap-1.5 mr-1 flex flex-shrink-0 text-[11px] ${
+                  isLight ? 'text-slate-600' : 'text-slate-400'
+                }`}>
+                  <Compass size={13} className={isLight ? 'text-sky-600' : 'text-[#00f0ff]'} /> SUBGRAPHS:
                 </span>
                 {categories.map((cat) => {
                   const isSelected = (cat === 'ALL' && !selectedCategory) || selectedCategory === cat;
-                  const catColor = cat === 'ALL' ? '#00f0ff' : DOMAIN_BASE_COLORS[cat] || '#00f0ff';
+                  const catColor = cat === 'ALL'
+                    ? (isLight ? '#0284c7' : '#00f0ff')
+                    : (isLight ? DOMAIN_LIGHT_COLORS[cat] || '#0284c7' : DOMAIN_BASE_COLORS[cat] || '#00f0ff');
                   return (
                     <button
                       key={cat}
@@ -281,7 +299,9 @@ export default function TelemetryHUD() {
                       className={`px-2.5 py-1 rounded text-[11px] font-bold transition-all border whitespace-nowrap flex-shrink-0 cursor-pointer ${
                         isSelected
                           ? ''
-                          : 'bg-slate-950/60 text-slate-400 border-white/10 hover:text-slate-200 hover:border-white/25'
+                          : isLight
+                            ? 'bg-slate-100/80 text-slate-600 border-slate-200 hover:text-slate-900 hover:border-slate-300'
+                            : 'bg-slate-950/60 text-slate-400 border-white/10 hover:text-slate-200 hover:border-white/25'
                       }`}
                     >
                       {cat}
@@ -291,7 +311,7 @@ export default function TelemetryHUD() {
                 <button
                   type="button"
                   onClick={() => setIsSubgraphsOpen(false)}
-                  className="text-slate-400 hover:text-slate-100 p-1 flex-shrink-0 ml-1"
+                  className={`p-1 flex-shrink-0 ml-1 ${isLight ? 'text-slate-500 hover:text-slate-900' : 'text-slate-400 hover:text-slate-100'}`}
                   title="Minimize Subgraphs"
                 >
                   <X size={13} />
@@ -304,12 +324,18 @@ export default function TelemetryHUD() {
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.8, opacity: 0 }}
                 onClick={() => setIsSubgraphsOpen(true)}
-                className="px-2.5 py-1 text-slate-300 hover:text-[#00f0ff] transition-colors rounded flex items-center gap-2 font-bold text-[11px]"
+                className={`px-2.5 py-1 transition-colors rounded flex items-center gap-2 font-bold text-[11px] ${
+                  isLight ? 'text-slate-700 hover:text-sky-600' : 'text-slate-300 hover:text-[#00f0ff]'
+                }`}
                 title="Open Subgraphs filter"
               >
-                <Compass size={14} className="text-[#00f0ff]" />
+                <Compass size={14} className={isLight ? 'text-sky-600' : 'text-[#00f0ff]'} />
                 <span>SUBGRAPHS</span>
-                <span className="px-1.5 py-0.2 rounded text-[10px] bg-[#00f0ff]/15 text-[#00f0ff] border border-[#00f0ff]/30 font-extrabold">
+                <span className={`px-1.5 py-0.2 rounded text-[10px] font-extrabold border ${
+                  isLight
+                    ? 'bg-sky-50 text-sky-700 border-sky-200'
+                    : 'bg-[#00f0ff]/15 text-[#00f0ff] border-[#00f0ff]/30'
+                }`}>
                   {selectedCategory || 'ALL'}
                 </span>
               </motion.button>
@@ -317,17 +343,21 @@ export default function TelemetryHUD() {
           </AnimatePresence>
         </div>
 
-        {/* 2. Top Right Cluster: Add Node + URL Ingest Button + Notifications Dropdown + Quick Search Bar */}
+        {/* 2. Top Right Cluster: Add Node + URL Ingest Button + Theme Toggle + Notifications Dropdown + Quick Search Bar */}
         <div className="flex items-center gap-2 flex-shrink-0">
           {/* Manual Add Node Button */}
           <button
             type="button"
             onClick={() => setIsCreateNodeOpen(true)}
-            className="px-2.5 py-1.5 rounded-lg border border-white/10 bg-[#080c16]/70 text-slate-300 hover:text-[#00f0ff] hover:border-[#00f0ff]/40 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer backdrop-blur-md shadow-sm"
+            className={`px-2.5 py-1.5 rounded-lg border text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer backdrop-blur-md shadow-sm ${
+              isLight
+                ? 'border-slate-200 bg-white/85 text-slate-700 hover:text-sky-600 hover:border-sky-300 shadow-slate-200/50'
+                : 'border-white/10 bg-[#080c16]/70 text-slate-300 hover:text-[#00f0ff] hover:border-[#00f0ff]/40'
+            }`}
             title="Create new node manually (N)"
             data-testid="create-node-btn"
           >
-            <Plus size={14} className="text-[#00f0ff]" />
+            <Plus size={14} className={isLight ? 'text-sky-600' : 'text-[#00f0ff]'} />
             <span>NODE</span>
           </button>
 
@@ -338,8 +368,8 @@ export default function TelemetryHUD() {
               onClick={() => setIsUrlInputOpen(!isUrlInputOpen)}
               className={`p-2 rounded-lg border transition-all flex items-center justify-center cursor-pointer ${
                 isUrlInputOpen
-                  ? 'bg-[#00f0ff]/20 border-[#00f0ff] text-[#00f0ff] shadow-[0_0_15px_rgba(0,240,255,0.3)]'
-                  : 'bg-[#080c16]/70 border-white/10 text-slate-400 hover:text-slate-200 hover:border-white/20'
+                  ? (isLight ? 'bg-sky-500/20 border-sky-500 text-sky-600 shadow-sm' : 'bg-[#00f0ff]/20 border-[#00f0ff] text-[#00f0ff] shadow-[0_0_15px_rgba(0,240,255,0.3)]')
+                  : (isLight ? 'bg-white/85 border-slate-200 text-slate-600 hover:text-slate-900 hover:border-slate-300 shadow-sm' : 'bg-[#080c16]/70 border-white/10 text-slate-400 hover:text-slate-200 hover:border-white/20')
               }`}
               title="Add content from URL (+)"
               aria-label="Add content from URL"
@@ -355,16 +385,22 @@ export default function TelemetryHUD() {
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 8, scale: 0.95 }}
                   transition={{ duration: 0.15, ease: 'easeOut' }}
-                  className="absolute right-0 mt-2 w-80 md:w-96 p-3 bg-[#080c16]/95 border border-[#00f0ff]/30 rounded-xl shadow-2xl backdrop-blur-xl z-50 flex flex-col gap-2"
+                  className={`absolute right-0 mt-2 w-80 md:w-96 p-3 rounded-xl backdrop-blur-xl z-50 flex flex-col gap-2 border ${
+                    isLight
+                      ? 'bg-white/95 border-slate-200 text-slate-900 shadow-xl'
+                      : 'bg-[#080c16]/95 border-[#00f0ff]/30 text-slate-100 shadow-2xl'
+                  }`}
                 >
                   <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-bold text-[#00f0ff] tracking-wider flex items-center gap-1.5">
+                    <span className={`text-[11px] font-bold tracking-wider flex items-center gap-1.5 ${
+                      isLight ? 'text-sky-600' : 'text-[#00f0ff]'
+                    }`}>
                       <Plus size={13} /> INGEST FROM URL
                     </span>
                     <button
                       type="button"
                       onClick={() => setIsUrlInputOpen(false)}
-                      className="text-slate-400 hover:text-slate-200 p-0.5 rounded cursor-pointer"
+                      className={`p-0.5 rounded cursor-pointer ${isLight ? 'text-slate-400 hover:text-slate-700' : 'text-slate-400 hover:text-slate-200'}`}
                       title="Close"
                     >
                       <X size={13} />
@@ -372,7 +408,11 @@ export default function TelemetryHUD() {
                   </div>
 
                   <form onSubmit={handleIngestSubmit} className="flex flex-col gap-2">
-                    <div className="flex items-center gap-2 bg-slate-950/80 border border-white/10 focus-within:border-[#00f0ff]/50 rounded-lg px-2.5 py-1.5 transition-all">
+                    <div className={`flex items-center gap-2 border rounded-lg px-2.5 py-1.5 transition-all ${
+                      isLight
+                        ? 'bg-slate-50 border-slate-200 focus-within:border-sky-500'
+                        : 'bg-slate-950/80 border-white/10 focus-within:border-[#00f0ff]/50'
+                    }`}>
                       <input
                         type="url"
                         autoFocus
@@ -381,13 +421,19 @@ export default function TelemetryHUD() {
                         value={inputUrl}
                         onChange={(e) => setInputUrl(e.target.value)}
                         disabled={isIngesting}
-                        className="bg-transparent font-sans text-xs text-slate-100 placeholder-slate-500 focus:outline-none flex-1 min-w-0"
+                        className={`bg-transparent font-sans text-xs focus:outline-none flex-1 min-w-0 ${
+                          isLight ? 'text-slate-900 placeholder-slate-400' : 'text-slate-100 placeholder-slate-500'
+                        }`}
                         data-testid="ingest-url-input"
                       />
                       <button
                         type="submit"
                         disabled={isIngesting || !inputUrl.trim()}
-                        className="px-2.5 py-1 rounded bg-[#00f0ff]/20 border border-[#00f0ff]/40 text-[#00f0ff] hover:bg-[#00f0ff]/30 disabled:opacity-40 disabled:cursor-not-allowed font-bold text-[11px] transition-all flex items-center gap-1 cursor-pointer flex-shrink-0"
+                        className={`px-2.5 py-1 rounded disabled:opacity-40 disabled:cursor-not-allowed font-bold text-[11px] transition-all flex items-center gap-1 cursor-pointer flex-shrink-0 border ${
+                          isLight
+                            ? 'bg-sky-500/15 border-sky-500/40 text-sky-600 hover:bg-sky-500/25'
+                            : 'bg-[#00f0ff]/20 border-[#00f0ff]/40 text-[#00f0ff] hover:bg-[#00f0ff]/30'
+                        }`}
                         data-testid="ingest-url-submit-btn"
                       >
                         {isIngesting ? (
@@ -404,14 +450,22 @@ export default function TelemetryHUD() {
                     </div>
 
                     {ingestError && (
-                      <div className="text-[10px] text-red-400 bg-red-950/40 border border-red-500/30 rounded p-1.5 flex items-start gap-1">
+                      <div className={`text-[10px] rounded p-1.5 flex items-start gap-1 border ${
+                        isLight
+                          ? 'text-rose-600 bg-rose-50 border-rose-200'
+                          : 'text-red-400 bg-red-950/40 border-red-500/30'
+                      }`}>
                         <AlertCircle size={12} className="flex-shrink-0 mt-0.5" />
                         <span>{ingestError}</span>
                       </div>
                     )}
 
                     {ingestSuccessMsg && (
-                      <div className="text-[10px] text-emerald-400 bg-emerald-950/40 border border-emerald-500/30 rounded p-1.5 flex items-center gap-1">
+                      <div className={`text-[10px] rounded p-1.5 flex items-center gap-1 border ${
+                        isLight
+                          ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
+                          : 'text-emerald-400 bg-emerald-950/40 border-emerald-500/30'
+                      }`}>
                         <CheckCircle2 size={12} className="flex-shrink-0" />
                         <span>{ingestSuccessMsg}</span>
                       </div>
@@ -422,10 +476,27 @@ export default function TelemetryHUD() {
             </AnimatePresence>
           </div>
 
+          {/* Light / Dark Mode Toggle Button */}
+          <button
+            type="button"
+            onClick={() => toggleTheme()}
+            className={`p-2 rounded-lg border transition-all flex items-center justify-center cursor-pointer ${
+              isLight
+                ? 'bg-white/85 border-slate-200 text-amber-500 hover:text-amber-600 hover:border-slate-300 shadow-sm'
+                : 'bg-[#080c16]/70 border-white/10 text-slate-300 hover:text-[#00f0ff] hover:border-white/20'
+            }`}
+            title={`Switch to ${isLight ? 'Dark' : 'Light'} Mode [T]`}
+            aria-label={`Switch to ${isLight ? 'dark' : 'light'} mode`}
+            data-testid="theme-toggle-btn"
+          >
+            {isLight ? <Sun size={15} /> : <Moon size={15} />}
+          </button>
+
           <NotificationsDropdown />
 
-          <div className="flex items-center bg-[#080c16]/70 border border-white/10 rounded-lg p-1 text-xs flex-shrink-0 backdrop-blur-md">
-
+          <div className={`flex items-center border rounded-lg p-1 text-xs flex-shrink-0 backdrop-blur-md ${
+            isLight ? 'bg-white/85 border-slate-200' : 'bg-[#080c16]/70 border-white/10'
+          }`}>
             <AnimatePresence initial={false} mode="wait">
               {isSearchOpen ? (
                 <motion.div
@@ -436,7 +507,7 @@ export default function TelemetryHUD() {
                   transition={{ duration: 0.2 }}
                   className="flex items-center gap-2 px-1.5 py-0.5 overflow-hidden"
                 >
-                  <Search size={14} className="text-[#00f0ff] flex-shrink-0" />
+                  <Search size={14} className={isLight ? 'text-sky-600 flex-shrink-0' : 'text-[#00f0ff] flex-shrink-0'} />
                   <input
                     type="text"
                     autoFocus
@@ -451,7 +522,9 @@ export default function TelemetryHUD() {
                         setActiveTab('TOPICS');
                       }
                     }}
-                    className="bg-transparent font-sans text-xs text-slate-100 placeholder-slate-500 focus:outline-none w-36 md:w-48"
+                    className={`bg-transparent font-sans text-xs focus:outline-none w-36 md:w-48 ${
+                      isLight ? 'text-slate-900 placeholder-slate-400' : 'text-slate-100 placeholder-slate-500'
+                    }`}
                   />
                   <button
                     type="button"
@@ -460,7 +533,7 @@ export default function TelemetryHUD() {
                       setIsSearchOpen(false);
                       setIsSidebarOpen(false);
                     }}
-                    className="text-slate-400 hover:text-slate-100 p-0.5 flex-shrink-0"
+                    className={`p-0.5 flex-shrink-0 ${isLight ? 'text-slate-400 hover:text-slate-700' : 'text-slate-400 hover:text-slate-100'}`}
                     title="Close search"
                   >
                     <X size={13} />
@@ -477,12 +550,14 @@ export default function TelemetryHUD() {
                     setIsSidebarOpen(true);
                     setActiveTab('TOPICS');
                   }}
-                  className="p-1 text-slate-400 hover:text-[#00f0ff] transition-colors rounded flex items-center gap-1.5"
+                  className={`p-1 transition-colors rounded flex items-center gap-1.5 ${
+                    isLight ? 'text-slate-500 hover:text-sky-600' : 'text-slate-400 hover:text-[#00f0ff]'
+                  }`}
                   title="Open concept search"
                 >
                   <Search size={15} />
                   {searchQuery && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#00f0ff]" />
+                    <span className={`w-1.5 h-1.5 rounded-full ${isLight ? 'bg-sky-600' : 'bg-[#00f0ff]'}`} />
                   )}
                 </motion.button>
               )}
@@ -505,7 +580,11 @@ export default function TelemetryHUD() {
           <button
             onClick={() => toggleSidebar()}
             aria-label="Toggle study panel"
-            className="absolute -right-3 top-4 bg-[#080c16] border border-white/20 text-slate-300 p-1 rounded-full hover:text-[#00f0ff] transition-colors z-30"
+            className={`absolute -right-3 top-4 border p-1 rounded-full transition-colors z-30 ${
+              isLight
+                ? 'bg-white border-slate-300 text-slate-600 hover:text-sky-600 shadow-sm'
+                : 'bg-[#080c16] border-white/20 text-slate-300 hover:text-[#00f0ff]'
+            }`}
           >
             {isSidebarOpen ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}
           </button>
@@ -513,14 +592,14 @@ export default function TelemetryHUD() {
           {isSidebarOpen ? (
             <div className="flex flex-col h-full space-y-4 overflow-hidden">
 
-              <div className="flex items-center justify-between border-b border-white/10 pb-2">
-                <div className="flex items-center gap-1 bg-slate-950/60 p-1 rounded-lg">
+              <div className={`flex items-center justify-between border-b pb-2 ${isLight ? 'border-slate-200' : 'border-white/10'}`}>
+                <div className={`flex items-center gap-1 p-1 rounded-lg ${isLight ? 'bg-slate-200/70' : 'bg-slate-950/60'}`}>
                   <button
                     onClick={() => setActiveTab('TOPICS')}
                     className={`px-3 py-1 rounded text-xs font-bold transition-all flex items-center gap-1.5 ${
                       activeTab === 'TOPICS'
-                        ? 'bg-[#00f0ff] text-slate-950 shadow-[0_0_10px_rgba(0,240,255,0.3)]'
-                        : 'text-slate-400 hover:text-slate-200'
+                        ? (isLight ? 'bg-sky-600 text-white shadow-sm' : 'bg-[#00f0ff] text-slate-950 shadow-[0_0_10px_rgba(0,240,255,0.3)]')
+                        : (isLight ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-slate-200')
                     }`}
                   >
                     <BookOpen size={13} /> GRAPH NODES ({filteredTopics.length})
@@ -529,8 +608,8 @@ export default function TelemetryHUD() {
                     onClick={() => setActiveTab('TODOS')}
                     className={`px-3 py-1 rounded text-xs font-bold transition-all flex items-center gap-1.5 ${
                       activeTab === 'TODOS'
-                        ? 'bg-[#00f0ff] text-slate-950 shadow-[0_0_10px_rgba(0,240,255,0.3)]'
-                        : 'text-slate-400 hover:text-slate-200'
+                        ? (isLight ? 'bg-sky-600 text-white shadow-sm' : 'bg-[#00f0ff] text-slate-950 shadow-[0_0_10px_rgba(0,240,255,0.3)]')
+                        : (isLight ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-slate-200')
                     }`}
                   >
                     <CheckSquare size={13} /> TASKS ({completedTodosCount}/{todos.length})
@@ -541,17 +620,19 @@ export default function TelemetryHUD() {
               {/* TAB 1: 200+ TOPICS GRAPH LIST */}
               {activeTab === 'TOPICS' && (
                 <div className="flex-1 flex flex-col space-y-3 overflow-hidden">
-                  <div className="flex justify-between items-center text-[11px] text-slate-400">
+                  <div className={`flex justify-between items-center text-[11px] ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
                     <button
                       type="button"
                       onClick={() => setIsCreateNodeOpen(true)}
-                      className="text-[11px] font-bold text-[#00f0ff] hover:underline flex items-center gap-1 cursor-pointer"
+                      className={`text-[11px] font-bold hover:underline flex items-center gap-1 cursor-pointer ${
+                        isLight ? 'text-sky-600' : 'text-[#00f0ff]'
+                      }`}
                       data-testid="sidebar-add-node-btn"
                     >
                       <Plus size={12} />
                       <span>CREATE NODE</span>
                     </button>
-                    <span className="text-[#00f0ff] font-bold">{filteredTopics.length} Nodes</span>
+                    <span className={`font-bold ${isLight ? 'text-sky-600' : 'text-[#00f0ff]'}`}>{filteredTopics.length} Nodes</span>
                   </div>
 
                   <div className="flex-1 overflow-y-auto space-y-2 pr-1.5 pb-6 overscroll-contain" onWheel={(e) => e.stopPropagation()}>
@@ -562,33 +643,33 @@ export default function TelemetryHUD() {
                         onClick={() => setSelectedTopicId(topic.id)}
                         className={`p-2.5 rounded-lg border text-xs cursor-pointer transition-all ${
                           selectedTopicId === topic.id
-                            ? 'border-[#00f0ff] bg-[#00f0ff]/15 shadow-[0_0_12px_rgba(0,240,255,0.25)]'
-                            : 'border-white/10 bg-slate-950/70 hover:border-white/20'
+                            ? (isLight ? 'border-sky-500 bg-sky-50 shadow-sm' : 'border-[#00f0ff] bg-[#00f0ff]/15 shadow-[0_0_12px_rgba(0,240,255,0.25)]')
+                            : (isLight ? 'border-slate-200 bg-white/90 hover:border-slate-300 shadow-sm' : 'border-white/10 bg-slate-950/70 hover:border-white/20')
                         }`}
                       >
                         <div className="flex justify-between items-center mb-1">
-                          <span className="font-sans font-bold text-slate-200">{topic.name}</span>
+                          <span className={`font-sans font-bold ${isLight ? 'text-slate-900' : 'text-slate-200'}`}>{topic.name}</span>
                           <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${
                             topic.status === 'MASTERED'
-                              ? 'bg-[#00ff9d]/20 text-[#00ff9d]'
+                              ? (isLight ? 'bg-emerald-100 text-emerald-700' : 'bg-[#00ff9d]/20 text-[#00ff9d]')
                               : topic.status === 'LEARNING'
-                              ? 'bg-[#00f0ff]/20 text-[#00f0ff]'
+                              ? (isLight ? 'bg-sky-100 text-sky-700' : 'bg-[#00f0ff]/20 text-[#00f0ff]')
                               : topic.status === 'DUE'
-                              ? 'bg-[#ffaa00]/20 text-[#ffaa00]'
-                              : 'bg-[#ff3366]/20 text-[#ff3366]'
+                              ? (isLight ? 'bg-amber-100 text-amber-700' : 'bg-[#ffaa00]/20 text-[#ffaa00]')
+                              : (isLight ? 'bg-rose-100 text-rose-700' : 'bg-[#ff3366]/20 text-[#ff3366]')
                           }`}>
                             {topic.status}
                           </span>
                         </div>
 
                         <div className="mt-1.5">
-                          <div className="flex justify-between text-[10px] text-slate-400 mb-0.5">
+                          <div className={`flex justify-between text-[10px] mb-0.5 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
                             <span>{topic.category}</span>
-                            <span className="text-[#00f0ff] font-bold">{topic.mastery}% Mastery</span>
+                            <span className={`font-bold ${isLight ? 'text-sky-600' : 'text-[#00f0ff]'}`}>{topic.mastery}% Mastery</span>
                           </div>
-                          <div className="w-full bg-slate-900 rounded-full h-1 overflow-hidden">
+                          <div className={`w-full rounded-full h-1 overflow-hidden ${isLight ? 'bg-slate-200' : 'bg-slate-900'}`}>
                             <div
-                              className="bg-[#00f0ff] h-full transition-all duration-300"
+                              className={`h-full transition-all duration-300 ${isLight ? 'bg-sky-500' : 'bg-[#00f0ff]'}`}
                               style={{ width: `${topic.mastery}%` }}
                             />
                           </div>
@@ -609,11 +690,19 @@ export default function TelemetryHUD() {
                       placeholder="Add new study goal..."
                       value={newTodoTitle}
                       onChange={(e) => setNewTodoTitle(e.target.value)}
-                      className="flex-1 bg-slate-950/80 border border-white/10 rounded px-2.5 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-[#00f0ff]"
+                      className={`flex-1 border rounded px-2.5 py-1.5 text-xs focus:outline-none transition-colors ${
+                        isLight
+                          ? 'bg-white border-slate-300 text-slate-900 placeholder-slate-400 focus:border-sky-500'
+                          : 'bg-slate-950/80 border-white/10 text-slate-100 placeholder-slate-500 focus:border-[#00f0ff]'
+                      }`}
                     />
                     <button
                       type="submit"
-                      className="bg-[#00f0ff] text-slate-950 p-1.5 rounded hover:bg-[#00f0ff]/80 transition-colors"
+                      className={`p-1.5 rounded transition-colors ${
+                        isLight
+                          ? 'bg-sky-600 text-white hover:bg-sky-700'
+                          : 'bg-[#00f0ff] text-slate-950 hover:bg-[#00f0ff]/80'
+                      }`}
                     >
                       <Plus size={16} />
                     </button>
@@ -626,34 +715,38 @@ export default function TelemetryHUD() {
                         data-testid="sidebar-todo-item"
                         className={`p-2.5 rounded-lg border text-xs transition-all flex items-start justify-between gap-2 ${
                           todo.completed
-                            ? 'bg-slate-950/30 border-white/5 opacity-60'
-                            : 'bg-slate-950/70 border-white/10 hover:border-[#00f0ff]/40'
+                            ? (isLight ? 'bg-slate-100/70 border-slate-200 opacity-60' : 'bg-slate-950/30 border-white/5 opacity-60')
+                            : (isLight ? 'bg-white/95 border-slate-200 hover:border-sky-300 text-slate-800 shadow-sm' : 'bg-slate-950/70 border-white/10 hover:border-[#00f0ff]/40')
                         }`}
                       >
                         <div className="flex items-start gap-2 flex-1">
                           <button
                             type="button"
                             onClick={() => toggleTodo(todo.id)}
-                            className="mt-0.5 text-slate-400 hover:text-[#00f0ff] transition-colors"
+                            className={`mt-0.5 transition-colors ${isLight ? 'text-slate-400 hover:text-sky-600' : 'text-slate-400 hover:text-[#00f0ff]'}`}
                           >
                             {todo.completed ? (
-                              <CheckSquare size={15} className="text-[#00ff9d]" />
+                              <CheckSquare size={15} className={isLight ? 'text-emerald-600' : 'text-[#00ff9d]'} />
                             ) : (
                               <Square size={15} />
                             )}
                           </button>
                           <div>
-                            <p className={`font-semibold text-slate-200 ${todo.completed ? 'line-through' : ''}`}>
+                            <p className={`font-semibold ${
+                              todo.completed
+                                ? (isLight ? 'text-slate-400 line-through' : 'text-slate-500 line-through')
+                                : (isLight ? 'text-slate-800' : 'text-slate-200')
+                            }`}>
                               {todo.title}
                             </p>
                             <div className="flex items-center gap-2 mt-1 text-[10px]">
-                              <span className="text-[#00f0ff]">{todo.category}</span>
+                              <span className={isLight ? 'text-sky-600 font-medium' : 'text-[#00f0ff]'}>{todo.category}</span>
                               <span className={`px-1 rounded font-bold ${
                                 todo.priority === 'HIGH'
-                                  ? 'bg-[#ff3366]/20 text-[#ff3366]'
+                                  ? (isLight ? 'bg-rose-100 text-rose-700' : 'bg-[#ff3366]/20 text-[#ff3366]')
                                   : todo.priority === 'MEDIUM'
-                                  ? 'bg-[#ffaa00]/20 text-[#ffaa00]'
-                                  : 'bg-slate-800 text-slate-400'
+                                  ? (isLight ? 'bg-amber-100 text-amber-700' : 'bg-[#ffaa00]/20 text-[#ffaa00]')
+                                  : (isLight ? 'bg-slate-200 text-slate-600' : 'bg-slate-800 text-slate-400')
                               }`}>
                                 {todo.priority}
                               </span>
@@ -663,7 +756,7 @@ export default function TelemetryHUD() {
 
                         <button
                           onClick={() => deleteTodo(todo.id)}
-                          className="text-slate-500 hover:text-[#ff3366] transition-colors p-1"
+                          className="text-slate-400 hover:text-rose-500 transition-colors p-1"
                         >
                           <Trash2 size={13} />
                         </button>
@@ -696,10 +789,12 @@ export default function TelemetryHUD() {
                 onClick={() => setIsInspectorOpen(true)}
                 style={{
                   borderColor: selectedNodeColor,
-                  boxShadow: `0 0 24px ${selectedNodeColor}50`,
-                  backgroundColor: 'rgba(8, 12, 22, 0.92)'
+                  boxShadow: isLight ? `0 4px 20px rgba(0,0,0,0.12)` : `0 0 24px ${selectedNodeColor}50`,
+                  backgroundColor: isLight ? 'rgba(255, 255, 255, 0.96)' : 'rgba(8, 12, 22, 0.92)'
                 }}
-                className="px-5 py-3 rounded-xl border text-slate-100 font-sans text-xs font-bold tracking-wider hover:scale-105 transition-all flex items-center gap-3 backdrop-blur-md shadow-2xl cursor-pointer"
+                className={`px-5 py-3 rounded-xl border font-sans text-xs font-bold tracking-wider hover:scale-105 transition-all flex items-center gap-3 backdrop-blur-md shadow-2xl cursor-pointer ${
+                  isLight ? 'text-slate-800' : 'text-slate-100'
+                }`}
               >
                 <BookOpen size={16} style={{ color: selectedNodeColor }} />
                 <span>EXPLORE:</span>
@@ -707,7 +802,9 @@ export default function TelemetryHUD() {
                   {selectedNode.name}
                 </span>
                 <span
-                  className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-slate-950/80 border border-white/10"
+                  className={`px-2 py-0.5 rounded text-[10px] font-extrabold border ${
+                    isLight ? 'bg-slate-100 border-slate-200' : 'bg-slate-950/80 border-white/10'
+                  }`}
                   style={{ color: selectedNodeColor }}
                 >
                   {selectedNode.mastery}%
@@ -729,10 +826,10 @@ export default function TelemetryHUD() {
               className="pointer-events-auto glass-panel p-4 md:p-5 rounded-xl w-80 md:w-96 text-xs space-y-3.5 mr-6 max-h-[calc(100vh-140px)] flex flex-col shadow-2xl overscroll-contain"
             >
               {/* Fixed Header */}
-              <div className="flex items-center justify-between border-b border-white/10 pb-2.5 flex-shrink-0">
+              <div className={`flex items-center justify-between border-b pb-2.5 flex-shrink-0 ${isLight ? 'border-slate-200' : 'border-white/10'}`}>
                 <div className="flex items-center gap-2 truncate">
-                  <Target size={15} className="text-[#00f0ff] flex-shrink-0" />
-                  <span className="font-sans font-bold text-slate-100 uppercase tracking-wider truncate max-w-[170px]">
+                  <Target size={15} className={isLight ? 'text-sky-600' : 'text-[#00f0ff]'} />
+                  <span className={`font-sans font-bold uppercase tracking-wider truncate max-w-[170px] ${isLight ? 'text-slate-900' : 'text-slate-100'}`}>
                     {selectedNode.name}
                   </span>
                 </div>
@@ -756,7 +853,11 @@ export default function TelemetryHUD() {
                       color: isInspectorEditing ? selectedNodeColor : undefined,
                       borderColor: isInspectorEditing ? selectedNodeColor : undefined
                     }}
-                    className="px-2 py-0.5 rounded border border-white/15 bg-slate-900/80 hover:bg-slate-800 text-[10px] font-bold transition-colors flex items-center gap-1 cursor-pointer"
+                    className={`px-2 py-0.5 rounded border text-[10px] font-bold transition-colors flex items-center gap-1 cursor-pointer ${
+                      isLight
+                        ? 'border-slate-200 bg-white/90 hover:bg-slate-50 text-slate-700'
+                        : 'border-white/15 bg-slate-900/80 hover:bg-slate-800 text-slate-300'
+                    }`}
                     data-testid="inspector-edit-toggle-btn"
                     title={isInspectorEditing ? 'Cancel editing' : 'Edit topic metadata'}
                   >
@@ -768,7 +869,7 @@ export default function TelemetryHUD() {
                       setIsInspectorEditing(false);
                       setIsInspectorOpen(false);
                     }}
-                    className="text-slate-400 hover:text-slate-100 p-1 font-bold cursor-pointer"
+                    className={`p-1 font-bold ${isLight ? 'text-slate-400 hover:text-slate-800' : 'text-slate-400 hover:text-slate-100'}`}
                     title="Close Inspector"
                   >
                     ✕
@@ -797,13 +898,17 @@ export default function TelemetryHUD() {
 
                     {/* Topic Name */}
                     <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-400 tracking-wider">TOPIC NAME</label>
+                      <label className={`text-[10px] font-bold tracking-wider ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>TOPIC NAME</label>
                       <input
                         type="text"
                         required
                         value={editName}
                         onChange={(e) => setEditName(e.target.value)}
-                        className="w-full bg-slate-900/90 border border-white/15 focus:border-[#00f0ff] rounded-lg px-2.5 py-1.5 text-xs text-slate-100 focus:outline-none"
+                        className={`w-full rounded-lg px-2.5 py-1.5 text-xs focus:outline-none border ${
+                          isLight
+                            ? 'bg-white border-slate-300 text-slate-900 focus:border-sky-500'
+                            : 'bg-slate-900/90 border-white/15 focus:border-[#00f0ff] text-slate-100'
+                        }`}
                         data-testid="inspector-edit-name-input"
                       />
                     </div>
@@ -811,40 +916,48 @@ export default function TelemetryHUD() {
                     {/* Category & Status */}
                     <div className="grid grid-cols-2 gap-2">
                       <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-slate-400 tracking-wider">CATEGORY</label>
+                        <label className={`text-[10px] font-bold tracking-wider ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>CATEGORY</label>
                         <select
                           value={editCategory}
                           onChange={(e) => setEditCategory(e.target.value as DomainCategory)}
-                          className="w-full bg-slate-900/90 border border-white/15 focus:border-[#00f0ff] rounded-lg px-2 py-1 text-xs text-slate-100 focus:outline-none cursor-pointer"
+                          className={`w-full rounded-lg px-2 py-1 text-xs focus:outline-none cursor-pointer border ${
+                            isLight
+                              ? 'bg-white border-slate-300 text-slate-900 focus:border-sky-500'
+                              : 'bg-slate-900/90 border-white/15 focus:border-[#00f0ff] text-slate-100'
+                          }`}
                           data-testid="inspector-edit-category-select"
                         >
                           {DEFAULT_DOMAINS.map((dom) => (
-                            <option key={dom} value={dom} className="bg-slate-950 text-slate-100">{dom}</option>
+                            <option key={dom} value={dom} className={isLight ? 'bg-white text-slate-900' : 'bg-slate-950 text-slate-100'}>{dom}</option>
                           ))}
                         </select>
                       </div>
 
                       <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-slate-400 tracking-wider">STATUS</label>
+                        <label className={`text-[10px] font-bold tracking-wider ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>STATUS</label>
                         <select
                           value={editStatus}
                           onChange={(e) => setEditStatus(e.target.value as TopicStatus)}
-                          className="w-full bg-slate-900/90 border border-white/15 focus:border-[#00f0ff] rounded-lg px-2 py-1 text-xs text-slate-100 focus:outline-none cursor-pointer"
+                          className={`w-full rounded-lg px-2 py-1 text-xs focus:outline-none cursor-pointer border ${
+                            isLight
+                              ? 'bg-white border-slate-300 text-slate-900 focus:border-sky-500'
+                              : 'bg-slate-900/90 border-white/15 focus:border-[#00f0ff] text-slate-100'
+                          }`}
                           data-testid="inspector-edit-status-select"
                         >
-                          <option value="NEW" className="bg-slate-950 text-slate-100">NEW</option>
-                          <option value="LEARNING" className="bg-slate-950 text-slate-100">LEARNING</option>
-                          <option value="MASTERED" className="bg-slate-950 text-slate-100">MASTERED</option>
-                          <option value="DUE" className="bg-slate-950 text-slate-100">DUE</option>
+                          <option value="NEW" className={isLight ? 'bg-white text-slate-900' : 'bg-slate-950 text-slate-100'}>NEW</option>
+                          <option value="LEARNING" className={isLight ? 'bg-white text-slate-900' : 'bg-slate-950 text-slate-100'}>LEARNING</option>
+                          <option value="MASTERED" className={isLight ? 'bg-white text-slate-900' : 'bg-slate-950 text-slate-100'}>MASTERED</option>
+                          <option value="DUE" className={isLight ? 'bg-white text-slate-900' : 'bg-slate-950 text-slate-100'}>DUE</option>
                         </select>
                       </div>
                     </div>
 
                     {/* Mastery */}
                     <div className="space-y-1">
-                      <div className="flex justify-between items-center text-[10px] font-bold text-slate-400">
+                      <div className={`flex justify-between items-center text-[10px] font-bold ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
                         <span>MASTERY</span>
-                        <span className="text-[#00ff9d] font-mono">{editMastery}%</span>
+                        <span className={`font-mono ${isLight ? 'text-emerald-600' : 'text-[#00ff9d]'}`}>{editMastery}%</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <input
@@ -862,26 +975,34 @@ export default function TelemetryHUD() {
                           max={100}
                           value={editMastery}
                           onChange={(e) => setEditMastery(Math.max(0, Math.min(100, Number(e.target.value) || 0)))}
-                          className="w-14 bg-slate-900/90 border border-white/15 rounded px-1.5 py-0.5 text-center text-xs font-mono text-slate-100 focus:outline-none"
+                          className={`w-14 rounded px-1.5 py-0.5 text-center text-xs font-mono focus:outline-none border ${
+                            isLight
+                              ? 'bg-white border-slate-300 text-slate-900'
+                              : 'bg-slate-900/90 border-white/15 text-slate-100'
+                          }`}
                         />
                       </div>
                     </div>
 
                     {/* Summary */}
                     <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-400 tracking-wider">SUMMARY</label>
+                      <label className={`text-[10px] font-bold tracking-wider ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>SUMMARY</label>
                       <textarea
                         rows={3}
                         value={editSummary}
                         onChange={(e) => setEditSummary(e.target.value)}
-                        className="w-full bg-slate-900/90 border border-white/15 focus:border-[#00f0ff] rounded-lg p-2 text-xs text-slate-100 focus:outline-none resize-none leading-relaxed"
+                        className={`w-full rounded-lg p-2 text-xs focus:outline-none resize-none leading-relaxed border ${
+                          isLight
+                            ? 'bg-white border-slate-300 text-slate-900 focus:border-sky-500'
+                            : 'bg-slate-900/90 border-white/15 focus:border-[#00f0ff] text-slate-100'
+                        }`}
                         data-testid="inspector-edit-summary-input"
                       />
                     </div>
 
                     {/* Manage Prerequisites */}
-                    <div className="space-y-2 pt-2 border-t border-white/10">
-                      <div className="flex items-center justify-between text-[10px] font-bold text-[#ffaa00]">
+                    <div className={`space-y-2 pt-2 border-t ${isLight ? 'border-slate-200' : 'border-white/10'}`}>
+                      <div className="flex items-center justify-between text-[10px] font-bold text-amber-600">
                         <span className="flex items-center gap-1">
                           <ShieldAlert size={12} />
                           <span>MANAGE PREREQUISITES</span>
@@ -897,41 +1018,51 @@ export default function TelemetryHUD() {
                             return (
                               <div
                                 key={prereqId}
-                                className="px-2 py-1 rounded bg-slate-950/80 border border-white/10 flex items-center justify-between text-[11px]"
+                                className={`px-2 py-1 rounded border flex items-center justify-between text-[11px] ${
+                                  isLight
+                                    ? 'bg-white border-slate-200 text-slate-800'
+                                    : 'bg-slate-950/80 border-white/10 text-slate-200'
+                                }`}
                               >
-                                <span className="truncate text-slate-200">{prereqNode?.name || prereqId}</span>
+                                <span className="truncate mr-2 font-medium">
+                                  {prereqNode ? prereqNode.name : prereqId}
+                                </span>
                                 <button
                                   type="button"
                                   onClick={() => removePrerequisiteEdge(selectedNode.id, prereqId)}
-                                  className="text-slate-400 hover:text-red-400 p-0.5 ml-1 transition-colors cursor-pointer"
-                                  title="Remove prerequisite"
+                                  className="text-red-400 hover:text-red-300 font-bold px-1 rounded hover:bg-red-500/20 text-xs cursor-pointer"
+                                  title="Unlink prerequisite edge"
                                   data-testid={`remove-prereq-${prereqId}`}
                                 >
-                                  <X size={12} />
+                                  ✕
                                 </button>
                               </div>
                             );
                           })
                         ) : (
-                          <div className="text-[10px] text-slate-500 italic p-1">
+                          <div className={`text-[10px] italic p-1 ${isLight ? 'text-slate-500' : 'text-slate-500'}`}>
                             No prerequisites linked.
                           </div>
                         )}
                       </div>
 
-                      {/* Add another prerequisite dropdown */}
+                      {/* Add new prerequisite selector */}
                       <div className="flex items-center gap-1.5 pt-1">
                         <select
                           value={selectedPrereqToAdd}
                           onChange={(e) => setSelectedPrereqToAdd(e.target.value)}
-                          className="flex-1 bg-slate-900/90 border border-white/15 rounded px-2 py-1 text-[11px] text-slate-200 focus:outline-none cursor-pointer"
+                          className={`flex-1 rounded px-2 py-1 text-[11px] focus:outline-none cursor-pointer border ${
+                            isLight
+                              ? 'bg-white border-slate-300 text-slate-900'
+                              : 'bg-slate-900/90 border-white/15 text-slate-200'
+                          }`}
                           data-testid="inspector-add-prereq-select"
                         >
                           <option value="">+ Add prerequisite topic...</option>
                           {topicNodes
                             .filter((n) => n.id !== selectedNode.id && !selectedNode.prerequisites.includes(n.id))
                             .map((n) => (
-                              <option key={n.id} value={n.id} className="bg-slate-950 text-slate-100">
+                              <option key={n.id} value={n.id} className={isLight ? 'bg-white text-slate-900' : 'bg-slate-950 text-slate-100'}>
                                 {n.name} ({n.category})
                               </option>
                             ))}
@@ -945,7 +1076,11 @@ export default function TelemetryHUD() {
                               setSelectedPrereqToAdd('');
                             }
                           }}
-                          className="px-2 py-1 rounded bg-[#ffaa00]/20 border border-[#ffaa00]/40 text-[#ffaa00] hover:bg-[#ffaa00]/30 disabled:opacity-40 text-[10px] font-bold cursor-pointer"
+                          className={`px-2 py-1 rounded border text-[10px] font-bold cursor-pointer disabled:opacity-40 ${
+                            isLight
+                              ? 'bg-amber-100 border-amber-300 text-amber-800 hover:bg-amber-200'
+                              : 'bg-[#ffaa00]/20 border-[#ffaa00]/40 text-[#ffaa00] hover:bg-[#ffaa00]/30'
+                          }`}
                           data-testid="inspector-add-prereq-btn"
                         >
                           LINK
@@ -955,7 +1090,7 @@ export default function TelemetryHUD() {
                   </div>
 
                   {/* Edit Mode Footer Buttons */}
-                  <div className="pt-2 border-t border-white/10 flex items-center justify-between gap-2 flex-shrink-0">
+                  <div className={`pt-2 border-t flex items-center justify-between gap-2 flex-shrink-0 ${isLight ? 'border-slate-200' : 'border-white/10'}`}>
                     <button
                       type="button"
                       onClick={handleDeleteTopic}
@@ -971,7 +1106,11 @@ export default function TelemetryHUD() {
                       <button
                         type="button"
                         onClick={() => setIsInspectorEditing(false)}
-                        className="px-2.5 py-1.5 rounded border border-white/10 text-slate-400 hover:text-slate-200 bg-slate-900/60 text-[11px] font-mono transition-all cursor-pointer"
+                        className={`px-2.5 py-1.5 rounded border text-[11px] font-mono transition-all cursor-pointer ${
+                          isLight
+                            ? 'border-slate-200 text-slate-600 hover:text-slate-900 bg-slate-100'
+                            : 'border-white/10 text-slate-400 hover:text-slate-200 bg-slate-900/60'
+                        }`}
                       >
                         CANCEL
                       </button>
@@ -983,7 +1122,9 @@ export default function TelemetryHUD() {
                           backgroundColor: selectedNodeColor,
                           boxShadow: `0 0 10px ${selectedNodeColor}40`
                         }}
-                        className="px-3 py-1.5 rounded text-slate-950 font-bold text-[11px] hover:brightness-110 transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                        className={`px-3 py-1.5 rounded font-bold text-[11px] hover:brightness-110 transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50 ${
+                          isLight ? 'text-white' : 'text-slate-950'
+                        }`}
                         data-testid="inspector-save-topic-btn"
                       >
                         <Save size={12} />
@@ -994,251 +1135,275 @@ export default function TelemetryHUD() {
                 </form>
               ) : (
                 /* Read-Only Inspector Body */
-                <>
-                  <div
-                    className="flex-1 overflow-y-auto space-y-3.5 pr-1.5 pb-4 overscroll-contain"
-                    onWheel={(e) => e.stopPropagation()}
-                  >
-                    <p className="text-slate-300 text-[11px] leading-relaxed">
-                      {selectedNode.summary}
-                    </p>
+                <div
+                  className="flex-1 overflow-y-auto space-y-3.5 pr-1.5 pb-4 overscroll-contain"
+                  onWheel={(e) => e.stopPropagation()}
+                >
+                  <p className={`text-[11px] leading-relaxed ${isLight ? 'text-slate-600' : 'text-slate-300'}`}>
+                    {selectedNode.summary}
+                  </p>
 
-                    <div className="grid grid-cols-2 gap-2 text-[11px]">
-                      <div className="bg-slate-950/60 p-2.5 rounded border border-white/5">
-                        <span className="text-slate-400 block mb-0.5">CATEGORY</span>
-                        <span className="font-bold" style={{ color: selectedNodeColor }}>{selectedNode.category}</span>
+                  <div className="grid grid-cols-2 gap-2 text-[11px]">
+                    <div className={`p-2.5 rounded border ${isLight ? 'bg-slate-100/90 border-slate-200' : 'bg-slate-950/60 border-white/5'}`}>
+                      <span className={`block mb-0.5 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>CATEGORY</span>
+                      <span className="font-bold" style={{ color: selectedNodeColor }}>{selectedNode.category}</span>
+                    </div>
+                    <div className={`p-2.5 rounded border ${isLight ? 'bg-slate-100/90 border-slate-200' : 'bg-slate-950/60 border-white/5'}`}>
+                      <span className={`block mb-0.5 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>MASTERY</span>
+                      <span className={`font-bold ${isLight ? 'text-emerald-600' : 'text-[#00ff9d]'}`}>{selectedNode.mastery}%</span>
+                    </div>
+                  </div>
+
+                  {/* 1. TOPOLOGICAL PREREQUISITES SECTION */}
+                  <div className={`pt-2.5 border-t space-y-2 ${isLight ? 'border-slate-200' : 'border-white/10'}`}>
+                    <div className="flex items-center justify-between text-[11px] font-bold">
+                      <div className="flex items-center gap-1.5 text-amber-600">
+                        <ShieldAlert size={13} />
+                        <span>PREREQUISITES (TOPOLOGICAL ORDER)</span>
                       </div>
-                      <div className="bg-slate-950/60 p-2.5 rounded border border-white/5">
-                        <span className="text-slate-400 block mb-0.5">MASTERY</span>
-                        <span className="text-[#00ff9d] font-bold">{selectedNode.mastery}%</span>
-                      </div>
+                      {topologicalPrereqs.length > 0 && (
+                        <span className="text-[10px] text-amber-600 font-bold">
+                          {topologicalPrereqs.length} STEPS
+                        </span>
+                      )}
                     </div>
 
-                    {/* 1. TOPOLOGICAL PREREQUISITES SECTION */}
-                    <div className="pt-2.5 border-t border-white/10 space-y-2">
-                      <div className="flex items-center justify-between text-[11px] font-bold text-slate-200">
-                        <div className="flex items-center gap-1.5 text-[#ffaa00]">
-                          <ShieldAlert size={13} />
-                          <span>PREREQUISITES (TOPOLOGICAL ORDER)</span>
-                        </div>
-                        {topologicalPrereqs.length > 0 && (
-                          <span className="text-[10px] text-[#ffaa00] font-bold">
-                            {topologicalPrereqs.length} STEPS
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="space-y-1.5">
-                        {topologicalPrereqs.length > 0 ? (
-                          topologicalPrereqs.map((prereqNode, idx) => (
-                            <div
-                              key={prereqNode.id}
-                              onClick={() => setSelectedTopicId(prereqNode.id)}
-                              className="p-2 rounded bg-slate-950/80 border border-[#ffaa00]/30 hover:border-[#ffaa00] text-slate-200 text-[11px] cursor-pointer transition-all flex items-center justify-between group"
-                            >
-                              <div className="flex items-center gap-2 truncate">
-                                <span className="text-[10px] font-mono font-extrabold text-[#ffaa00] bg-[#ffaa00]/15 px-1.5 py-0.5 rounded flex-shrink-0">
-                                  {idx + 1}
-                                </span>
-                                <span className="truncate font-sans font-bold text-slate-200 group-hover:text-[#ffaa00]">
-                                  {prereqNode.name}
-                                </span>
-                              </div>
-                              <span className="text-[10px] text-[#ffaa00] font-bold ml-2 flex-shrink-0">
-                                {prereqNode.mastery}%
-                              </span>
-                            </div>
-                          ))
-                        ) : (
-                          <div className="text-[10px] text-slate-500 italic p-1">
-                            No prerequisites required for this foundational topic.
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* 2. NOTES SECTION */}
-                    <div className="pt-2.5 border-t border-white/10 space-y-2">
-                      <div className="flex items-center justify-between text-[11px] font-bold text-slate-200">
-                        <div className="flex items-center gap-1.5" style={{ color: selectedNodeColor }}>
-                          <FileText size={13} />
-                          <span>NOTES</span>
-                        </div>
-                        {selectedNode.notes && selectedNode.notes.length > 0 && (
-                          <span
-                            className="text-[10px] font-bold"
-                            style={{ color: selectedNodeColor }}
+                    <div className="space-y-1.5">
+                      {topologicalPrereqs.length > 0 ? (
+                        topologicalPrereqs.map((prereqNode, idx) => (
+                          <div
+                            key={prereqNode.id}
+                            onClick={() => setSelectedTopicId(prereqNode.id)}
+                            className={`p-2 rounded border text-[11px] cursor-pointer transition-all flex items-center justify-between group ${
+                              isLight
+                                ? 'bg-white/90 border-amber-500/30 hover:border-amber-500 text-slate-800 shadow-sm'
+                                : 'bg-slate-950/80 border-[#ffaa00]/30 hover:border-[#ffaa00] text-slate-200'
+                            }`}
                           >
-                            {selectedNode.notes.length} FILE{selectedNode.notes.length > 1 ? 'S' : ''}
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="space-y-1.5">
-                        {selectedNode.notes && selectedNode.notes.length > 0 ? (
-                          selectedNode.notes.map((note) => (
-                            <div
-                              key={note.id}
-                              data-testid="inspector-note-item"
-                              onClick={() => setActiveNote(note)}
-                              style={{
-                                borderColor: `${selectedNodeColor}40`
-                              }}
-                              className="p-2 rounded bg-slate-950/80 hover:bg-slate-900 border text-slate-200 text-[11px] cursor-pointer transition-all flex items-center justify-between group shadow-sm"
-                            >
-                              <div className="flex items-center gap-2 truncate">
-                                <FileText
-                                  size={13}
-                                  className="flex-shrink-0 group-hover:scale-110 transition-transform"
-                                  style={{ color: selectedNodeColor }}
-                                />
-                                <span className="truncate font-semibold text-slate-200 group-hover:text-white">
-                                  {note.title}
-                                </span>
-                              </div>
-                              {note.updatedAt && (
-                                <span className="text-[10px] text-slate-400 font-mono ml-2 flex-shrink-0">
-                                  {note.updatedAt}
-                                </span>
-                              )}
-                            </div>
-                          ))
-                        ) : (
-                          <div className="text-[10px] text-slate-500 italic p-1">
-                            No notes attached to this topic.
-                          </div>
-                        )}
-
-                        {/* Add New Note Button */}
-                        <button
-                          onClick={() => {
-                            setActiveNote(
-                              {
-                                id: '',
-                                title: 'Untitled Note',
-                                content: '',
-                                updatedAt: 'Just now'
-                              },
-                              true
-                            );
-                          }}
-                          style={{
-                            borderColor: `${selectedNodeColor}35`,
-                            color: selectedNodeColor
-                          }}
-                          className="w-full mt-1 p-2 rounded-lg border border-dashed hover:border-solid hover:bg-slate-900/80 text-[11px] font-mono font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm group"
-                        >
-                          <Plus size={13} className="group-hover:scale-125 transition-transform" />
-                          <span>+ ADD NOTE</span>
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* 2.5 PRACTICE QUIZZES SECTION */}
-                    {selectedNode.quizzes && selectedNode.quizzes.length > 0 && (
-                      <div className="pt-2.5 border-t border-white/10 space-y-2">
-                        <div className="flex items-center justify-between text-[11px] font-bold">
-                          <div className="flex items-center gap-1.5" style={{ color: selectedNodeColor }}>
-                            <HelpCircle size={13} />
-                            <span>PRACTICE QUIZZES</span>
-                          </div>
-                          <span className="text-[10px] font-mono opacity-80" style={{ color: selectedNodeColor }}>
-                            {selectedNode.quizzes.length} BANK{selectedNode.quizzes.length > 1 ? 'S' : ''}
-                          </span>
-                        </div>
-
-                        <div className="space-y-1.5">
-                          {selectedNode.quizzes.map((quiz) => (
-                            <div
-                              key={quiz.id}
-                              data-testid="inspector-quiz-item"
-                              onClick={() => setActiveQuiz(quiz)}
-                              style={{
-                                borderColor: `${selectedNodeColor}40`
-                              }}
-                              className="p-2 rounded bg-slate-950/80 hover:bg-slate-900 border text-slate-200 text-[11px] cursor-pointer transition-all flex items-center justify-between group shadow-sm"
-                            >
-                              <div className="flex items-center gap-2 truncate">
-                                <HelpCircle
-                                  size={13}
-                                  className="flex-shrink-0 group-hover:scale-110 transition-transform"
-                                  style={{ color: selectedNodeColor }}
-                                />
-                                <span className="truncate font-semibold text-slate-200 group-hover:text-white">
-                                  {quiz.title}
-                                </span>
-                              </div>
-                              <span
-                                className="text-[10px] font-mono px-1.5 py-0.5 rounded font-bold ml-2 flex-shrink-0"
-                                style={{
-                                  backgroundColor: `${selectedNodeColor}20`,
-                                  color: selectedNodeColor
-                                }}
-                              >
-                                {quiz.questions?.length || 0} Qs
+                            <div className="flex items-center gap-2 truncate">
+                              <span className={`text-[10px] font-mono font-extrabold px-1.5 py-0.5 rounded flex-shrink-0 ${
+                                isLight ? 'text-amber-700 bg-amber-100' : 'text-[#ffaa00] bg-[#ffaa00]/15'
+                              }`}>
+                                {idx + 1}
+                              </span>
+                              <span className={`truncate font-sans font-bold group-hover:text-amber-600 ${
+                                isLight ? 'text-slate-800' : 'text-slate-200'
+                              }`}>
+                                {prereqNode.name}
                               </span>
                             </div>
-                          ))}
+                            <span className="text-[10px] text-amber-600 font-bold ml-2 flex-shrink-0">
+                              {prereqNode.mastery}%
+                            </span>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-[10px] text-slate-400 italic p-1">
+                          No prerequisites required for this foundational topic.
                         </div>
-                      </div>
-                    )}
+                      )}
+                    </div>
+                  </div>
 
-                    {/* 3. LEARN NEXT SECTION */}
-                    <div className="pt-2.5 border-t border-white/10 space-y-2">
-                      <div className="flex items-center gap-1.5 text-[#00ff9d] text-[11px] font-bold">
-                        <Zap size={13} />
-                        <span>LEARN NEXT</span>
+                  {/* 2. NOTES SECTION */}
+                  <div className={`pt-2.5 border-t space-y-2 ${isLight ? 'border-slate-200' : 'border-white/10'}`}>
+                    <div className="flex items-center justify-between text-[11px] font-bold">
+                      <div className="flex items-center gap-1.5" style={{ color: selectedNodeColor }}>
+                        <FileText size={13} />
+                        <span>NOTES</span>
+                      </div>
+                      {selectedNode.notes && selectedNode.notes.length > 0 && (
+                        <span
+                          className="text-[10px] font-bold"
+                          style={{ color: selectedNodeColor }}
+                        >
+                          {selectedNode.notes.length} FILE{selectedNode.notes.length > 1 ? 'S' : ''}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="space-y-1.5">
+                      {selectedNode.notes && selectedNode.notes.length > 0 ? (
+                        selectedNode.notes.map((note) => (
+                          <div
+                            key={note.id}
+                            data-testid="inspector-note-item"
+                            onClick={() => setActiveNote(note)}
+                            style={{
+                              borderColor: `${selectedNodeColor}40`
+                            }}
+                            className={`p-2 rounded border text-[11px] cursor-pointer transition-all flex items-center justify-between group shadow-sm ${
+                              isLight
+                                ? 'bg-white/90 hover:bg-slate-50 text-slate-800'
+                                : 'bg-slate-950/80 hover:bg-slate-900 text-slate-200'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 truncate">
+                              <FileText
+                                size={13}
+                                className="flex-shrink-0 group-hover:scale-110 transition-transform"
+                                style={{ color: selectedNodeColor }}
+                              />
+                              <span className={`truncate font-semibold ${isLight ? 'text-slate-800 group-hover:text-slate-950' : 'text-slate-200 group-hover:text-white'}`}>
+                                {note.title}
+                              </span>
+                            </div>
+                            {note.updatedAt && (
+                              <span className={`text-[10px] font-mono ml-2 flex-shrink-0 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                                {note.updatedAt}
+                              </span>
+                            )}
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-[10px] text-slate-400 italic p-1">
+                          No notes attached to this topic.
+                        </div>
+                      )}
+
+                      {/* Add New Note Button */}
+                      <button
+                        onClick={() => {
+                          setActiveNote(
+                            {
+                              id: '',
+                              title: 'Untitled Note',
+                              content: '',
+                              updatedAt: 'Just now'
+                            },
+                            true
+                          );
+                        }}
+                        style={{
+                          borderColor: `${selectedNodeColor}35`,
+                          color: selectedNodeColor
+                        }}
+                        className={`w-full mt-1 p-2 rounded-lg border border-dashed hover:border-solid text-[11px] font-mono font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm group ${
+                          isLight ? 'hover:bg-slate-50' : 'hover:bg-slate-900/80'
+                        }`}
+                      >
+                        <Plus size={13} className="group-hover:scale-125 transition-transform" />
+                        <span>+ ADD NOTE</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 2.5 PRACTICE QUIZZES SECTION */}
+                  {selectedNode.quizzes && selectedNode.quizzes.length > 0 && (
+                    <div className={`pt-2.5 border-t space-y-2 ${isLight ? 'border-slate-200' : 'border-white/10'}`}>
+                      <div className="flex items-center justify-between text-[11px] font-bold">
+                        <div className="flex items-center gap-1.5" style={{ color: selectedNodeColor }}>
+                          <HelpCircle size={13} />
+                          <span>PRACTICE QUIZZES</span>
+                        </div>
+                        <span className="text-[10px] font-mono opacity-80" style={{ color: selectedNodeColor }}>
+                          {selectedNode.quizzes.length} BANK{selectedNode.quizzes.length > 1 ? 'S' : ''}
+                        </span>
                       </div>
 
                       <div className="space-y-1.5">
-                        {selectedNode.unlocks.length > 0 ? (
-                          selectedNode.unlocks.map((unlockId) => {
-                            const unlockNode = topicNodes.find((n) => n.id === unlockId);
-                            if (!unlockNode) return null;
-
-                            return (
-                              <div
-                                key={unlockId}
-                                onClick={() => setSelectedTopicId(unlockNode.id)}
-                                className="p-2 rounded bg-slate-950/80 border border-[#00ff9d]/30 hover:border-[#00ff9d] text-slate-200 text-[11px] cursor-pointer transition-all flex items-center justify-between group"
-                              >
-                                <div className="flex items-center gap-1.5 truncate">
-                                  <ArrowRight size={12} className="text-[#00ff9d] flex-shrink-0 group-hover:translate-x-0.5 transition-transform" />
-                                  <span className="truncate font-semibold text-slate-200 group-hover:text-[#00ff9d]">
-                                    {unlockNode.name}
-                                  </span>
-                                </div>
-                                <span className="text-[10px] text-[#00ff9d] font-bold ml-2">
-                                  {unlockNode.mastery}%
-                                </span>
-                              </div>
-                            );
-                          })
-                        ) : (
-                          <div className="text-[10px] text-slate-500 italic p-1">
-                            Advanced topic (end of current domain path).
+                        {selectedNode.quizzes.map((quiz) => (
+                          <div
+                            key={quiz.id}
+                            data-testid="inspector-quiz-item"
+                            onClick={() => setActiveQuiz(quiz)}
+                            style={{
+                              borderColor: `${selectedNodeColor}40`
+                            }}
+                            className={`p-2 rounded border text-[11px] cursor-pointer transition-all flex items-center justify-between group shadow-sm ${
+                              isLight
+                                ? 'bg-white/90 hover:bg-slate-50 text-slate-800'
+                                : 'bg-slate-950/80 hover:bg-slate-900 text-slate-200'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 truncate">
+                              <HelpCircle
+                                size={13}
+                                className="flex-shrink-0 group-hover:scale-110 transition-transform"
+                                style={{ color: selectedNodeColor }}
+                              />
+                              <span className={`truncate font-semibold ${isLight ? 'text-slate-800 group-hover:text-slate-950' : 'text-slate-200 group-hover:text-white'}`}>
+                                {quiz.title}
+                              </span>
+                            </div>
+                            <span
+                              className="text-[10px] font-mono px-1.5 py-0.5 rounded font-bold ml-2 flex-shrink-0"
+                              style={{
+                                backgroundColor: `${selectedNodeColor}20`,
+                                color: selectedNodeColor
+                              }}
+                            >
+                              {quiz.questions?.length || 0} Qs
+                            </span>
                           </div>
-                        )}
+                        ))}
                       </div>
                     </div>
+                  )}
 
-                    <div className="h-10 w-full flex-shrink-0 pointer-events-none" />
+                  {/* 3. LEARN NEXT SECTION */}
+                  <div className={`pt-2.5 border-t space-y-2 ${isLight ? 'border-slate-200' : 'border-white/10'}`}>
+                    <div className={`flex items-center gap-1.5 text-[11px] font-bold ${isLight ? 'text-emerald-700' : 'text-[#00ff9d]'}`}>
+                      <Zap size={13} />
+                      <span>LEARN NEXT</span>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      {selectedNode.unlocks.length > 0 ? (
+                        selectedNode.unlocks.map((unlockId) => {
+                          const unlockNode = topicNodes.find((n) => n.id === unlockId);
+                          if (!unlockNode) return null;
+
+                          return (
+                            <div
+                              key={unlockId}
+                              onClick={() => setSelectedTopicId(unlockNode.id)}
+                              className={`p-2 rounded border text-[11px] cursor-pointer transition-all flex items-center justify-between group ${
+                                isLight
+                                  ? 'bg-white/90 border-emerald-500/30 hover:border-emerald-500 text-slate-800 shadow-sm'
+                                  : 'bg-slate-950/80 border-[#00ff9d]/30 hover:border-[#00ff9d] text-slate-200'
+                              }`}
+                            >
+                              <div className="flex items-center gap-1.5 truncate">
+                                <ArrowRight size={12} className={`flex-shrink-0 group-hover:translate-x-0.5 transition-transform ${isLight ? 'text-emerald-600' : 'text-[#00ff9d]'}`} />
+                                <span className={`truncate font-semibold ${isLight ? 'text-slate-800 group-hover:text-emerald-700' : 'text-slate-200 group-hover:text-[#00ff9d]'}`}>
+                                  {unlockNode.name}
+                                </span>
+                              </div>
+                              <span className={`text-[10px] font-bold ml-2 ${isLight ? 'text-emerald-700' : 'text-[#00ff9d]'}`}>
+                                {unlockNode.mastery}%
+                              </span>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <div className="text-[10px] text-slate-400 italic p-1">
+                          Advanced topic (end of current domain path).
+                        </div>
+                      )}
+                    </div>
                   </div>
 
-                  {/* Action Button at bottom */}
-                  <div className="pt-2 flex-shrink-0">
-                    <button
-                      onClick={() => updateTopicMastery(selectedNode.id, selectedNode.mastery + 10)}
-                      style={{
-                        backgroundColor: selectedNodeColor,
-                        boxShadow: `0 0 14px ${selectedNodeColor}60`
-                      }}
-                      className="w-full text-slate-950 py-2 rounded font-bold text-center hover:opacity-90 transition-opacity shadow-md cursor-pointer"
-                    >
-                      +10% MASTERY RECALL
-                    </button>
-                  </div>
-                </>
+                  <div className="h-10 w-full flex-shrink-0 pointer-events-none" />
+                </div>
+              )}
+
+              {/* Action Button at bottom */}
+              {!isInspectorEditing && (
+                <div className="pt-2 flex-shrink-0">
+                  <button
+                    onClick={() => updateTopicMastery(selectedNode.id, selectedNode.mastery + 10)}
+                    style={{
+                      backgroundColor: selectedNodeColor,
+                      boxShadow: isLight ? `0 2px 10px rgba(0,0,0,0.15)` : `0 0 14px ${selectedNodeColor}60`
+                    }}
+                    className={`w-full py-2 rounded font-bold text-center hover:opacity-90 transition-opacity shadow-md cursor-pointer ${
+                      isLight ? 'text-white' : 'text-slate-950'
+                    }`}
+                  >
+                    +10% MASTERY RECALL
+                  </button>
+                </div>
               )}
             </motion.div>
           )}
@@ -1249,9 +1414,9 @@ export default function TelemetryHUD() {
       <footer className="pointer-events-auto flex items-center justify-start gap-3 mt-2">
         {/* Mastery Box (Dynamic per Subgraph) */}
         <div className="glass-panel px-3.5 py-2 rounded-lg flex items-center gap-2 font-mono text-xs shadow-lg">
-          <Award size={14} className="text-[#00ff9d]" />
-          <span className="text-slate-400 uppercase">{activeCategoryLabel}:</span>
-          <span className="text-[#00ff9d] font-bold">
+          <Award size={14} className={isLight ? 'text-emerald-600' : 'text-[#00ff9d]'} />
+          <span className={`uppercase ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>{activeCategoryLabel}:</span>
+          <span className={`font-bold ${isLight ? 'text-emerald-600' : 'text-[#00ff9d]'}`}>
             {currentMasteryScore}%
           </span>
         </div>

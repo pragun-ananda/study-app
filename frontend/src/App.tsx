@@ -1,13 +1,19 @@
 import React, { useEffect } from 'react';
 import SceneCanvas from './components/canvas/SceneCanvas';
 import TelemetryHUD from './components/hud/TelemetryHUD';
-import { useStore } from './store/useStore';
+import { useStore, applyThemeToDocument } from './store/useStore';
 
 export default function App() {
+  const theme = useStore((state) => state.theme);
+
   useEffect(() => {
     document.title = 'Knowledge Graph';
     useStore.getState().loadInitialData();
   }, []);
+
+  useEffect(() => {
+    applyThemeToDocument(theme);
+  }, [theme]);
 
   // Global Keyboard Shortcuts Listener
   useEffect(() => {
@@ -86,10 +92,10 @@ export default function App() {
         return;
       }
 
-
-
-      // 'H': Toggle HUD Visibility
-      if (event.code === 'KeyH') {
+      // 'T': Toggle Light / Dark Theme
+      if (event.code === 'KeyT') {
+        useStore.getState().toggleTheme();
+      } else if (event.code === 'KeyH') {
         useStore.getState().toggleHudVisibility();
       } else if (event.code === 'KeyO') {
         const nextState = !useStore.getState().isOverloaded;
@@ -104,16 +110,25 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-
   return (
-    <div className="relative w-full h-screen bg-[#050811] overflow-hidden select-none">
+    <div
+      className={`relative w-full h-screen overflow-hidden select-none transition-colors duration-200 ${
+        theme === 'light' ? 'bg-slate-100 text-slate-900 light' : 'bg-[#050811] text-slate-100 dark'
+      }`}
+      data-testid="app-container"
+      data-theme={theme}
+    >
       {/* Layer z-0: 3D Scene Viewport & WebGL Post Processing */}
       <div className="absolute inset-0 z-0">
         <SceneCanvas />
       </div>
 
       {/* Layer z-10: CRT Scanlines, Screen Vignette & Grain Overlay */}
-      <div className="pointer-events-none absolute inset-0 z-10 crt-scanlines crt-vignette opacity-80" />
+      <div
+        className={`pointer-events-none absolute inset-0 z-10 crt-scanlines crt-vignette transition-opacity duration-300 ${
+          theme === 'light' ? 'opacity-0' : 'opacity-80'
+        }`}
+      />
 
       {/* Layer z-20: HUD & Telemetry UI */}
       <TelemetryHUD />

@@ -227,12 +227,19 @@ export interface TelemetryState {
   isIngesting: boolean;
   ingestError: string | null;
 
+  // Theme Mode
+  theme: 'dark' | 'light';
+
   // Server Synchronization State
   isLoading: boolean;
   error: string | null;
 }
 
 export interface TelemetryActions {
+  // Theme Action
+  setTheme: (theme: 'dark' | 'light') => void;
+  toggleTheme: () => void;
+
   // System Setters
   setSystemStatus: (status: SystemStatus) => void;
   setIsOverloaded: (overloaded: boolean) => void;

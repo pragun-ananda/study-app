@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { useStore, INITIAL_TOPICS, INITIAL_TODOS, generateCosmosNodes } from '../../src/store/useStore';
+import { useStore, INITIAL_TOPICS, INITIAL_TODOS, generateCosmosNodes, getInitialTheme, applyThemeToDocument } from '../../src/store/useStore';
 import * as api from '../../src/api/client';
 
 describe('Zustand State Store (useStore)', () => {
@@ -532,6 +532,63 @@ describe('Zustand State Store (useStore)', () => {
 
       approveSpy.mockRestore();
       rejectSpy.mockRestore();
+    });
+  });
+
+  describe('Theme Management', () => {
+    it('initializes with default dark theme or saved preference', () => {
+      expect(useStore.getState().theme).toBe('dark');
+    });
+
+    it('toggles theme between dark and light', () => {
+      expect(useStore.getState().theme).toBe('dark');
+
+      useStore.getState().toggleTheme();
+      expect(useStore.getState().theme).toBe('light');
+      expect(document.documentElement.classList.contains('light')).toBe(true);
+      expect(document.documentElement.classList.contains('dark')).toBe(false);
+      expect(document.documentElement.getAttribute('data-theme')).toBe('light');
+      expect(localStorage.getItem('study-app-theme')).toBe('light');
+
+      useStore.getState().toggleTheme();
+      expect(useStore.getState().theme).toBe('dark');
+      expect(document.documentElement.classList.contains('dark')).toBe(true);
+      expect(document.documentElement.classList.contains('light')).toBe(false);
+      expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
+      expect(localStorage.getItem('study-app-theme')).toBe('dark');
+    });
+
+    it('sets theme explicitly via setTheme', () => {
+      useStore.getState().setTheme('light');
+      expect(useStore.getState().theme).toBe('light');
+      expect(localStorage.getItem('study-app-theme')).toBe('light');
+
+      useStore.getState().setTheme('dark');
+      expect(useStore.getState().theme).toBe('dark');
+      expect(localStorage.getItem('study-app-theme')).toBe('dark');
+    });
+
+    it('getInitialTheme retrieves theme from localStorage if valid', () => {
+      localStorage.setItem('study-app-theme', 'light');
+      expect(getInitialTheme()).toBe('light');
+
+      localStorage.setItem('study-app-theme', 'dark');
+      expect(getInitialTheme()).toBe('dark');
+
+      localStorage.removeItem('study-app-theme');
+      expect(getInitialTheme()).toBe('dark');
+    });
+
+    it('applyThemeToDocument updates DOM classes and data attribute', () => {
+      applyThemeToDocument('light');
+      expect(document.documentElement.classList.contains('light')).toBe(true);
+      expect(document.documentElement.classList.contains('dark')).toBe(false);
+      expect(document.documentElement.getAttribute('data-theme')).toBe('light');
+
+      applyThemeToDocument('dark');
+      expect(document.documentElement.classList.contains('dark')).toBe(true);
+      expect(document.documentElement.classList.contains('light')).toBe(false);
+      expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
     });
   });
 });
