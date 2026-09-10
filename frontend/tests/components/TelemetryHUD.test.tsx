@@ -283,6 +283,134 @@ describe('TelemetryHUD Component', () => {
       });
     });
   });
+
+  describe('Manual Node Creation and Content Editing', () => {
+    it('opens CreateNodeModal when header + NODE button is clicked', () => {
+      render(<TelemetryHUD />);
+
+      const createBtn = screen.getByTestId('create-node-btn');
+      expect(createBtn).toBeInTheDocument();
+
+      fireEvent.click(createBtn);
+      expect(useStore.getState().isCreateNodeOpen).toBe(true);
+    });
+
+    it('opens CreateNodeModal when sidebar CREATE NODE button is clicked', () => {
+      render(<TelemetryHUD />);
+
+      // Expand sidebar
+      fireEvent.click(screen.getByLabelText('Toggle study panel'));
+
+      const sidebarBtn = screen.getByTestId('sidebar-add-node-btn');
+      expect(sidebarBtn).toBeInTheDocument();
+
+      fireEvent.click(sidebarBtn);
+      expect(useStore.getState().isCreateNodeOpen).toBe(true);
+    });
+
+    it('toggles edit mode in Inspector and updates topic metadata on save', async () => {
+      const topic = useStore.getState().topicNodes[0];
+      useStore.getState().setSelectedTopicId(topic.id);
+      useStore.getState().setIsInspectorOpen(true);
+
+      const updateSpy = vi.spyOn(useStore.getState(), 'updateTopicNode').mockResolvedValueOnce({
+        ...topic,
+        name: 'Edited Topic Name',
+        summary: 'Updated summary content'
+      });
+
+      render(<TelemetryHUD />);
+
+      // Toggle edit mode
+      const editBtn = screen.getByTestId('inspector-edit-toggle-btn');
+      fireEvent.click(editBtn);
+
+      expect(screen.getByTestId('inspector-edit-form')).toBeInTheDocument();
+
+      // Change name and summary
+      const nameInput = screen.getByTestId('inspector-edit-name-input');
+      fireEvent.change(nameInput, { target: { value: 'Edited Topic Name' } });
+
+      const summaryInput = screen.getByTestId('inspector-edit-summary-input');
+      fireEvent.change(summaryInput, { target: { value: 'Updated summary content' } });
+
+      // Save
+      const saveBtn = screen.getByTestId('inspector-save-topic-btn');
+      fireEvent.click(saveBtn);
+
+      await waitFor(() => {
+        expect(updateSpy).toHaveBeenCalledWith(
+          topic.id,
+          expect.objectContaining({
+            name: 'Edited Topic Name',
+            summary: 'Updated summary content'
+          })
+        );
+      });
+
+      updateSpy.mockRestore();
+    });
+
+    it('allows adding and removing prerequisites directly in Inspector Edit Mode', async () => {
+      const topics = useStore.getState().topicNodes;
+      const mainTopic = topics[0];
+      const otherTopic = topics[1];
+
+      // Ensure mainTopic has otherTopic as prereq initially
+      mainTopic.prerequisites = [otherTopic.id];
+      useStore.getState().setSelectedTopicId(mainTopic.id);
+      useStore.getState().setIsInspectorOpen(true);
+
+      const removeSpy = vi.spyOn(useStore.getState(), 'removePrerequisiteEdge').mockResolvedValueOnce();
+      const addSpy = vi.spyOn(useStore.getState(), 'addPrerequisiteEdge').mockResolvedValueOnce();
+
+      render(<TelemetryHUD />);
+
+      // Open edit mode
+      fireEvent.click(screen.getByTestId('inspector-edit-toggle-btn'));
+
+      // Remove prereq
+      const removeBtn = screen.getByTestId(`remove-prereq-${otherTopic.id}`);
+      fireEvent.click(removeBtn);
+      expect(removeSpy).toHaveBeenCalledWith(mainTopic.id, otherTopic.id);
+
+      // Add third topic as prereq
+      const thirdTopic = topics[2];
+      const addSelect = screen.getByTestId('inspector-add-prereq-select');
+      fireEvent.change(addSelect, { target: { value: thirdTopic.id } });
+
+      const linkBtn = screen.getByTestId('inspector-add-prereq-btn');
+      fireEvent.click(linkBtn);
+      expect(addSpy).toHaveBeenCalledWith(mainTopic.id, thirdTopic.id);
+
+      removeSpy.mockRestore();
+      addSpy.mockRestore();
+    });
+
+    it('deletes topic from graph when DELETE button is clicked in Inspector', async () => {
+      const topic = useStore.getState().topicNodes[0];
+      useStore.getState().setSelectedTopicId(topic.id);
+      useStore.getState().setIsInspectorOpen(true);
+
+      const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+      const deleteSpy = vi.spyOn(useStore.getState(), 'deleteTopicNode').mockResolvedValueOnce();
+
+      render(<TelemetryHUD />);
+
+      // Open edit mode
+      fireEvent.click(screen.getByTestId('inspector-edit-toggle-btn'));
+
+      // Click delete
+      const deleteBtn = screen.getByTestId('inspector-delete-topic-btn');
+      fireEvent.click(deleteBtn);
+
+      expect(confirmSpy).toHaveBeenCalled();
+      expect(deleteSpy).toHaveBeenCalledWith(topic.id);
+
+      confirmSpy.mockRestore();
+      deleteSpy.mockRestore();
+    });
+  });
 });
 
 

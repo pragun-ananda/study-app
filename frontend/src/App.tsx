@@ -21,6 +21,10 @@ export default function App() {
         }
 
         const state = useStore.getState();
+        if (state.isCreateNodeOpen) {
+          state.setIsCreateNodeOpen(false);
+          return;
+        }
         if (state.activeNote) {
           state.setActiveNote(null);
           return;
@@ -53,6 +57,21 @@ export default function App() {
       // Avoid triggering typing shortcuts when focused inside input elements
       if (isInput) {
         return;
+      }
+
+      // Ignore if modifier keys are pressed (e.g. Cmd+N, Ctrl+N)
+      if (event.metaKey || event.ctrlKey || event.altKey) {
+        return;
+      }
+
+      // 'N': Open Create Node Modal
+      if (event.key === 'n' || event.key === 'N' || event.code === 'KeyN') {
+        const state = useStore.getState();
+        if (!state.isCreateNodeOpen && !state.activeNote && !state.activeDiffUpdateId) {
+          event.preventDefault();
+          state.setIsCreateNodeOpen(true);
+          return;
+        }
       }
 
       // '/': Focus Concept Search & Open Study Sidebar

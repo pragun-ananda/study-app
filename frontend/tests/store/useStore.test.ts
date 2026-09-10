@@ -47,9 +47,9 @@ describe('Zustand State Store (useStore)', () => {
       spy.mockRestore();
     });
 
-    it('adds a new topic node to the graph', async () => {
+    it('adds a new topic node to the graph and auto-selects it', async () => {
       const initialCount = useStore.getState().topicNodes.length;
-      await useStore.getState().addTopicNode({
+      const created = await useStore.getState().addTopicNode({
         name: 'Quantum Teleportation & Entanglement',
         category: 'PHYSICS',
         mastery: 0,
@@ -64,6 +64,92 @@ describe('Zustand State Store (useStore)', () => {
       expect(useStore.getState().topicNodes.length).toBe(initialCount + 1);
       const added = useStore.getState().topicNodes.find((n) => n.name === 'Quantum Teleportation & Entanglement');
       expect(added?.id).toBeDefined();
+      expect(useStore.getState().selectedTopicId).toBe(created?.id);
+      expect(useStore.getState().isInspectorOpen).toBe(true);
+    });
+
+    it('updates a topic node via updateTopicNode and rolls back on failure', async () => {
+      const topicId = useStore.getState().topicNodes[0].id;
+      const originalName = useStore.getState().topicNodes[0].name;
+
+      const updated = await useStore.getState().updateTopicNode(topicId, {
+        name: 'Updated Quantum Computing Topic',
+        summary: 'New summary text'
+      });
+
+      expect(updated?.name).toBe('Updated Quantum Computing Topic');
+      expect(useStore.getState().topicNodes.find((n) => n.id === topicId)?.name).toBe('Updated Quantum Computing Topic');
+      expect(useStore.getState().topicNodes.find((n) => n.id === topicId)?.summary).toBe('New summary text');
+
+      // Test failure rollback
+      const spy = vi.spyOn(api, 'updateTopic').mockRejectedValueOnce(new Error('Update failed'));
+      await useStore.getState().updateTopicNode(topicId, { name: 'Should Fail Name' });
+
+      expect(useStore.getState().topicNodes.find((n) => n.id === topicId)?.name).toBe('Updated Quantum Computing Topic');
+      expect(useStore.getState().error).toBe('Update failed');
+      spy.mockRestore();
+    });
+
+    it('deletes a topic node, cleans up reciprocal edges, unlinks todos, and closes inspector', async () => {
+      const targetTopic = useStore.getState().topicNodes[0];
+      const targetId = targetTopic.id;
+
+      // Establish prerequisite edge with second topic
+      const otherTopic = useStore.getState().topicNodes[1];
+      await useStore.getState().addPrerequisiteEdge(otherTopic.id, targetId);
+
+      // Add a todo linked to target topic
+      const createdTodo = await useStore.getState().addTodo({
+        title: 'Study target topic',
+        category: 'CS',
+        priority: 'HIGH',
+        completed: false,
+        dueDate: 'Today',
+        topicId: targetId
+      });
+
+      // Select target topic and open inspector
+      useStore.getState().setSelectedTopicId(targetId);
+      useStore.getState().setIsInspectorOpen(true);
+
+      // Delete the topic
+      await useStore.getState().deleteTopicNode(targetId);
+
+      // Target should be gone
+      expect(useStore.getState().topicNodes.some((n) => n.id === targetId)).toBe(false);
+
+      // Other topic should no longer have targetId in prerequisites
+      const updatedOther = useStore.getState().topicNodes.find((n) => n.id === otherTopic.id);
+      expect(updatedOther?.prerequisites.includes(targetId)).toBe(false);
+
+      // Todo should have topicId unlinked
+      const updatedTodo = useStore.getState().todos.find((t) => t.id === createdTodo?.id);
+      expect(updatedTodo?.topicId).toBeUndefined();
+
+      // Inspector and selection should be cleared
+      expect(useStore.getState().selectedTopicId).toBeNull();
+      expect(useStore.getState().isInspectorOpen).toBe(false);
+    });
+
+    it('rolls back deleteTopicNode when backend API fails', async () => {
+      const targetId = useStore.getState().topicNodes[0].id;
+      const initialCount = useStore.getState().topicNodes.length;
+
+      const spy = vi.spyOn(api, 'deleteTopic').mockRejectedValueOnce(new Error('Delete error'));
+      await useStore.getState().deleteTopicNode(targetId);
+
+      expect(useStore.getState().topicNodes.length).toBe(initialCount);
+      expect(useStore.getState().topicNodes.some((n) => n.id === targetId)).toBe(true);
+      expect(useStore.getState().error).toBe('Delete error');
+      spy.mockRestore();
+    });
+
+    it('toggles isCreateNodeOpen state', () => {
+      expect(useStore.getState().isCreateNodeOpen).toBe(false);
+      useStore.getState().setIsCreateNodeOpen(true);
+      expect(useStore.getState().isCreateNodeOpen).toBe(true);
+      useStore.getState().setIsCreateNodeOpen(false);
+      expect(useStore.getState().isCreateNodeOpen).toBe(false);
     });
 
     it('sets hovered topic and inspector open state', () => {

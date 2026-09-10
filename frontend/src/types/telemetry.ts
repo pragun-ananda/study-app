@@ -203,6 +203,7 @@ export interface TelemetryState {
   isSearchOpen: boolean;
   isSidebarOpen: boolean;
   selectedCategory: string | null;
+  isCreateNodeOpen: boolean;
 
   // Knowledge Graph & Study Data
   topicNodes: TopicNode[];
@@ -246,6 +247,7 @@ export interface TelemetryActions {
   toggleSidebar: () => void;
   setSelectedCategory: (category: string | null) => void;
   setHoveredTopicId: (id: string | null) => void;
+  setIsCreateNodeOpen: (open: boolean) => void;
 
   // Server Hydration & Direct State Injection
   loadInitialData: () => Promise<void>;
@@ -264,6 +266,8 @@ export interface TelemetryActions {
   updateNoteInTopic: (topicId: string, note: NoteItem) => Promise<NoteItem | void>;
   deleteNoteFromTopic: (topicId: string, noteId: string) => Promise<void>;
   addTopicNode: (node: Omit<TopicNode, 'id'>) => Promise<TopicNode | void>;
+  updateTopicNode: (id: string, updates: Partial<TopicNode>) => Promise<TopicNode | void>;
+  deleteTopicNode: (id: string) => Promise<void>;
   updateTopicMastery: (id: string, mastery: number) => Promise<void>;
   addPrerequisiteEdge: (topicId: string, prerequisiteId: string) => Promise<void>;
   removePrerequisiteEdge: (topicId: string, prerequisiteId: string) => Promise<void>;

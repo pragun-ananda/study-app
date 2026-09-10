@@ -154,6 +154,7 @@ export const INITIAL_STATE: TelemetryState = {
   isSearchOpen: false,
   isSidebarOpen: false,
   selectedCategory: null,
+  isCreateNodeOpen: false,
 
   topicNodes: INITIAL_TOPICS,
   selectedTopicId: null,
@@ -197,6 +198,7 @@ export const useStore = create<TelemetryStore>((set, get) => ({
   toggleSidebar: () => set((state) => ({ isSidebarOpen: !state.isSidebarOpen })),
   setSelectedCategory: (selectedCategory: string | null) => set({ selectedCategory }),
   setHoveredTopicId: (hoveredTopicId: string | null) => set({ hoveredTopicId }),
+  setIsCreateNodeOpen: (isCreateNodeOpen: boolean) => set({ isCreateNodeOpen }),
 
   // Server Hydration Actions
 
@@ -330,11 +332,97 @@ export const useStore = create<TelemetryStore>((set, get) => ({
       const createdTopic = await api.createTopic(nodeData);
       set((state) => ({
         topicNodes: [...state.topicNodes, createdTopic],
+        selectedTopicId: createdTopic.id,
+        isInspectorOpen: true,
         error: null
       }));
       return createdTopic;
     } catch (err: any) {
       set({ error: err.message || 'Failed to create topic' });
+    }
+  },
+
+  updateTopicNode: async (id: string, updates: Partial<TopicNode>) => {
+    const previous = get().topicNodes.find((n) => n.id === id);
+    if (!previous) return;
+
+    // 1. Optimistic update
+    set((state) => ({
+      topicNodes: state.topicNodes.map((n) =>
+        n.id === id ? { ...n, ...updates } : n
+      ),
+      error: null
+    }));
+
+    // 2. Persist to backend with rollback on failure
+    try {
+      const updated = await api.updateTopic(id, updates);
+      set((state) => ({
+        topicNodes: state.topicNodes.map((n) =>
+          n.id === id ? { ...n, ...updated } : n
+        ),
+        error: null
+      }));
+      return updated;
+    } catch (err: any) {
+      set((state) => ({
+        topicNodes: state.topicNodes.map((n) =>
+          n.id === id ? previous : n
+        ),
+        error: err.message || 'Failed to update topic'
+      }));
+    }
+  },
+
+  deleteTopicNode: async (id: string) => {
+    const prevTopics = get().topicNodes;
+    const prevTodos = get().todos;
+    const target = prevTopics.find((n) => n.id === id);
+    if (!target) return;
+
+    // 1. Optimistic removal and reciprocal edge / todo / selection cleanup
+    set((state) => {
+      const filteredTopics = state.topicNodes
+        .filter((n) => n.id !== id)
+        .map((n) => ({
+          ...n,
+          prerequisites: n.prerequisites.filter((pId) => pId !== id),
+          unlocks: n.unlocks.filter((uId) => uId !== id)
+        }));
+
+      const unlinkedTodos = state.todos.map((t) =>
+        t.topicId === id ? { ...t, topicId: undefined } : t
+      );
+
+      const nextSelectedId = state.selectedTopicId === id ? null : state.selectedTopicId;
+      const nextHoveredId = state.hoveredTopicId === id ? null : state.hoveredTopicId;
+      const nextInspectorOpen = state.selectedTopicId === id ? false : state.isInspectorOpen;
+      const nextActiveNote =
+        state.activeNote && target.notes?.some((note) => note.id === state.activeNote?.id)
+          ? null
+          : state.activeNote;
+
+      return {
+        topicNodes: filteredTopics,
+        todos: unlinkedTodos,
+        selectedTopicId: nextSelectedId,
+        hoveredTopicId: nextHoveredId,
+        isInspectorOpen: nextInspectorOpen,
+        activeNote: nextActiveNote,
+        isNoteEditing: nextActiveNote ? state.isNoteEditing : false,
+        error: null
+      };
+    });
+
+    // 2. Persist with atomic rollback on failure
+    try {
+      await api.deleteTopic(id);
+    } catch (err: any) {
+      set({
+        topicNodes: prevTopics,
+        todos: prevTodos,
+        error: err.message || 'Failed to delete topic'
+      });
     }
   },
 

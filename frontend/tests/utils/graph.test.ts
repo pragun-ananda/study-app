@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest';
 import {
   getTopologicalPrerequisites,
   calculateConnectedGraph,
-  calculateOverviewFramingDistance
+  calculateOverviewFramingDistance,
+  calculateNewNodeCoordinates
 } from '../../src/utils/graph';
 import { TopicNode } from '../../src/types/telemetry';
 
@@ -234,6 +235,47 @@ describe('Camera Framing: calculateOverviewFramingDistance', () => {
       { ...createMockNode('A', 'Huge'), coordinates: [150, 150, 150] }
     ];
     expect(calculateOverviewFramingDistance(hugeNodes, 1440, 900)).toBe(75.0);
+  });
+});
+
+describe('Graph Spatial Layout: calculateNewNodeCoordinates', () => {
+  it('places new node near existing category centroid with radial jitter', () => {
+    const nodes: TopicNode[] = [
+      { ...createMockNode('A', 'Node A'), category: 'AI & ML', coordinates: [10, 10, 0] },
+      { ...createMockNode('B', 'Node B'), category: 'AI & ML', coordinates: [12, 8, 2] },
+      { ...createMockNode('C', 'Node C'), category: 'CS', coordinates: [-15, -15, 0] }
+    ];
+
+    const coords = calculateNewNodeCoordinates('AI & ML', nodes);
+    expect(coords).toHaveLength(3);
+    expect(coords.every((c) => typeof c === 'number' && !isNaN(c) && isFinite(c))).toBe(true);
+
+    // Centroid of AI & ML is (11, 9, 1). With jitter distance [3.5, 5.5], x should be roughly [5, 17], y in [3, 15]
+    const [x, y, z] = coords;
+    const distFromCentroid = Math.sqrt((x - 11) ** 2 + (y - 9) ** 2);
+    expect(distFromCentroid).toBeGreaterThanOrEqual(3.0);
+    expect(distFromCentroid).toBeLessThanOrEqual(6.0);
+  });
+
+  it('provides orbital coordinates when category has no existing nodes without returning NaN', () => {
+    const nodes: TopicNode[] = [
+      { ...createMockNode('A', 'Node A'), category: 'CS', coordinates: [10, 10, 0] }
+    ];
+
+    const coords = calculateNewNodeCoordinates('ARCH', nodes);
+    expect(coords).toHaveLength(3);
+    expect(coords.every((c) => typeof c === 'number' && !isNaN(c) && isFinite(c))).toBe(true);
+
+    const [x, y] = coords;
+    const radius = Math.sqrt(x * x + y * y);
+    // Orbital fallback radius is 18.0
+    expect(radius).toBeCloseTo(18.0, 1);
+  });
+
+  it('handles completely empty graph gracefully', () => {
+    const coords = calculateNewNodeCoordinates('MATH', []);
+    expect(coords).toHaveLength(3);
+    expect(coords.every((c) => typeof c === 'number' && !isNaN(c) && isFinite(c))).toBe(true);
   });
 });
 
