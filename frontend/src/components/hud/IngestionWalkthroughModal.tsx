@@ -366,17 +366,18 @@ export default function IngestionWalkthroughModal() {
                     <div className="p-2 space-y-2">
                       {group.updates.map((update) => {
                         const isExpanded = expandedPreviewUpdateId === update.id;
+                        const patchObj = (update.payload?.patch || update.payload?.notePatch || {}) as Record<string, any>;
                         const hasPreviewContent =
                           Boolean(update.newContent) ||
-                          Boolean(update.payload?.patch?.content) ||
-                          Boolean(update.payload?.patch?.summary) ||
-                          Boolean(update.payload?.patch?.description);
+                          Boolean(patchObj.content) ||
+                          Boolean(patchObj.summary) ||
+                          Boolean(patchObj.description);
 
                         const previewText =
                           update.newContent ||
-                          update.payload?.patch?.content ||
-                          update.payload?.patch?.summary ||
-                          update.payload?.patch?.description ||
+                          patchObj.content ||
+                          patchObj.summary ||
+                          patchObj.description ||
                           '';
 
                         return (
@@ -463,7 +464,6 @@ export default function IngestionWalkthroughModal() {
                                     <QuizViewer
                                       questions={previewText}
                                       accentColor="#a855f7"
-                                      initialMode="audit"
                                     />
                                   ) : (
                                     <MarkdownContent
