@@ -107,6 +107,24 @@ test.describe('Telemetry HUD & User Controls (FRO-9)', () => {
     await expect(searchInput).not.toBeVisible();
     await expect(page.getByText(/GRAPH NODES/i).first()).not.toBeVisible();
   });
+
+  test('Toggles light mode and dark mode via button and keyboard shortcut', async ({ page }) => {
+    const themeBtn = page.getByTestId('theme-toggle-btn');
+    await expect(themeBtn).toBeVisible();
+
+    const initialTheme = ((await page.locator('html').getAttribute('data-theme')) || 'dark') as 'dark' | 'light';
+    const toggledTheme = initialTheme === 'dark' ? 'light' : 'dark';
+
+    // Click theme toggle button to switch to opposite mode
+    await themeBtn.click();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', toggledTheme);
+    await expect(page.locator('html')).toHaveClass(new RegExp(toggledTheme));
+
+    // Toggle back via keyboard shortcut 't'
+    await page.keyboard.press('t');
+    await expect(page.locator('html')).toHaveAttribute('data-theme', initialTheme);
+    await expect(page.locator('html')).toHaveClass(new RegExp(initialTheme));
+  });
 });
 
 
