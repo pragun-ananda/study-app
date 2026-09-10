@@ -201,3 +201,36 @@ export function calculateConnectedGraph(
     connectedNodeIds
   };
 }
+
+/**
+ * Calculates optimal responsive camera distance so the entire 3D knowledge graph
+ * fits snugly in view without clipping HUD overlays (top subgraphs bar, bottom mastery score).
+ */
+export function calculateOverviewFramingDistance(
+  topicNodes: TopicNode[],
+  viewportWidth: number = 1440,
+  viewportHeight: number = 900,
+  fov: number = 60
+): number {
+  if (!topicNodes || topicNodes.length === 0) return 56.0;
+
+  let maxDist = 0;
+  for (const n of topicNodes) {
+    const [x, y, z] = n.coordinates;
+    const d = Math.sqrt(x * x + y * y + z * z);
+    if (d > maxDist) maxDist = d;
+  }
+
+  const paddedRadius = maxDist + 1.8;
+  const aspect = viewportWidth && viewportHeight ? viewportWidth / viewportHeight : 16 / 9;
+  const halfFovRad = (fov / 2) * (Math.PI / 180);
+  const tanHalfFov = Math.tan(halfFovRad);
+
+  // Provide snug headroom and footroom for top subgraphs bar and bottom mastery gauge
+  const vertZ = paddedRadius / (tanHalfFov * 0.96);
+  const horizZ = paddedRadius / (tanHalfFov * aspect * 0.94);
+
+  const calculatedZ = Math.max(vertZ, horizZ);
+  return Math.max(54.0, Math.min(75.0, Number(calculatedZ.toFixed(1))));
+}
+
