@@ -13,10 +13,15 @@ import {
   Layers,
   Database,
   Check,
-  FolderGit2
+  FolderGit2,
+  Eye,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import { GraphUpdate } from '../../types/telemetry';
+import { MarkdownContent } from './MarkdownContent';
+import { QuizViewer } from './QuizViewer';
 
 export default function IngestionWalkthroughModal() {
   const activeWalkthroughQueueId = useStore((state) => state.activeWalkthroughQueueId);
@@ -44,6 +49,11 @@ export default function IngestionWalkthroughModal() {
   );
 
   const pendingCount = itemUpdates.filter((u) => u.status === 'PENDING').length;
+  const [expandedPreviewUpdateId, setExpandedPreviewUpdateId] = React.useState<string | null>(null);
+
+  const togglePreview = (updateId: string) => {
+    setExpandedPreviewUpdateId((prev) => (prev === updateId ? null : updateId));
+  };
 
   // Group updates by topic node
   const groupedTopicUpdates = useMemo(() => {
@@ -354,59 +364,119 @@ export default function IngestionWalkthroughModal() {
 
                     {/* Grouped Topic Updates (Topic Update, Note Update, Quiz Update, etc.) */}
                     <div className="p-2 space-y-2">
-                      {group.updates.map((update) => (
-                        <div
-                          key={update.id}
-                          className="p-2.5 rounded-lg bg-slate-950/60 border border-white/5 hover:border-[#00f0ff]/30 transition-all flex items-center justify-between gap-3"
-                        >
-                          <div className="space-y-0.5 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span
-                                className={`px-1.5 py-0.5 rounded text-[9px] font-bold border ${
-                                  update.type === 'TOPIC_UPDATE'
-                                    ? 'bg-blue-500/15 text-blue-400 border-blue-500/30'
-                                    : update.type === 'NOTE_UPDATE'
-                                    ? 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30'
-                                    : update.type === 'QUIZ_UPDATE'
-                                    ? 'bg-purple-500/15 text-purple-400 border-purple-500/30'
-                                    : 'bg-amber-500/15 text-amber-400 border-amber-500/30'
-                                }`}
-                              >
-                                {update.type.replace('_', ' ')}
-                              </span>
-                              <span className="text-xs font-semibold text-slate-200 truncate">
-                                {update.title}
-                              </span>
-                            </div>
-                            <p className="text-[11px] text-slate-400 truncate">
-                              {update.description}
-                            </p>
-                          </div>
+                      {group.updates.map((update) => {
+                        const isExpanded = expandedPreviewUpdateId === update.id;
+                        const hasPreviewContent =
+                          Boolean(update.newContent) ||
+                          Boolean(update.payload?.patch?.content) ||
+                          Boolean(update.payload?.patch?.summary) ||
+                          Boolean(update.payload?.patch?.description);
 
-                          <div className="flex items-center gap-2 flex-shrink-0">
-                            {update.status === 'APPROVED' ? (
-                              <span className="text-[10px] text-[#00ff9d] font-bold flex items-center gap-1">
-                                <CheckCircle2 size={12} /> APPROVED
-                              </span>
-                            ) : update.status === 'REJECTED' ? (
-                              <span className="text-[10px] text-[#ff3366] font-bold flex items-center gap-1">
-                                <XCircle size={12} /> REJECTED
-                              </span>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setActiveDiffUpdateId(update.id);
-                                  setActiveWalkthroughQueueId(null);
-                                }}
-                                className="px-2.5 py-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-200 border border-white/15 text-[11px] font-bold transition-all cursor-pointer"
+                        const previewText =
+                          update.newContent ||
+                          update.payload?.patch?.content ||
+                          update.payload?.patch?.summary ||
+                          update.payload?.patch?.description ||
+                          '';
+
+                        return (
+                          <div
+                            key={update.id}
+                            className={`rounded-lg bg-slate-950/60 border transition-all ${
+                              isExpanded ? 'border-[#00f0ff]/50 bg-slate-950/80 shadow-md' : 'border-white/5 hover:border-[#00f0ff]/30'
+                            }`}
+                          >
+                            <div className="p-2.5 flex items-center justify-between gap-3">
+                              <div className="space-y-0.5 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span
+                                    className={`px-1.5 py-0.5 rounded text-[9px] font-bold border ${
+                                      update.type === 'TOPIC_UPDATE'
+                                        ? 'bg-blue-500/15 text-blue-400 border-blue-500/30'
+                                        : update.type === 'NOTE_UPDATE'
+                                        ? 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30'
+                                        : update.type === 'QUIZ_UPDATE'
+                                        ? 'bg-purple-500/15 text-purple-400 border-purple-500/30'
+                                        : 'bg-amber-500/15 text-amber-400 border-amber-500/30'
+                                    }`}
+                                  >
+                                    {update.type.replace('_', ' ')}
+                                  </span>
+                                  <span className="text-xs font-semibold text-slate-200 truncate">
+                                    {update.title}
+                                  </span>
+                                </div>
+                                <p className="text-[11px] text-slate-400 truncate">
+                                  {update.description}
+                                </p>
+                              </div>
+
+                              <div className="flex items-center gap-2 flex-shrink-0">
+                                {hasPreviewContent && (
+                                  <button
+                                    type="button"
+                                    onClick={() => togglePreview(update.id)}
+                                    data-testid={`walkthrough-preview-btn-${update.id}`}
+                                    className={`px-2.5 py-1 rounded text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer border ${
+                                      isExpanded
+                                        ? 'bg-[#00f0ff]/20 text-[#00f0ff] border-[#00f0ff]/50'
+                                        : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-white/10 hover:border-[#00f0ff]/30'
+                                    }`}
+                                  >
+                                    <Eye size={12} />
+                                    <span>{isExpanded ? 'Hide' : 'Preview'}</span>
+                                    {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                                  </button>
+                                )}
+
+                                {update.status === 'APPROVED' ? (
+                                  <span className="text-[10px] text-[#00ff9d] font-bold flex items-center gap-1">
+                                    <CheckCircle2 size={12} /> APPROVED
+                                  </span>
+                                ) : update.status === 'REJECTED' ? (
+                                  <span className="text-[10px] text-[#ff3366] font-bold flex items-center gap-1">
+                                    <XCircle size={12} /> REJECTED
+                                  </span>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setActiveDiffUpdateId(update.id);
+                                      setActiveWalkthroughQueueId(null);
+                                    }}
+                                    className="px-2.5 py-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-200 border border-white/15 text-[11px] font-bold transition-all cursor-pointer"
+                                  >
+                                    Review Diff
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Inline Expandable Drawer */}
+                            {isExpanded && (
+                              <div
+                                className="border-t border-white/10 overflow-hidden"
+                                data-testid={`walkthrough-inline-preview-${update.id}`}
                               >
-                                Review Diff
-                              </button>
+                                <div className="p-4 bg-slate-950/90 max-h-[500px] overflow-y-auto">
+                                  {update.type === 'QUIZ_UPDATE' ? (
+                                    <QuizViewer
+                                      questions={previewText}
+                                      accentColor="#a855f7"
+                                      initialMode="audit"
+                                    />
+                                  ) : (
+                                    <MarkdownContent
+                                      content={previewText}
+                                      accentColor="#00f0ff"
+                                    />
+                                  )}
+                                </div>
+                              </div>
                             )}
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 ))}
