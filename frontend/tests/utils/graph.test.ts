@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { getTopologicalPrerequisites, calculateConnectedGraph } from '../../src/utils/graph';
+import {
+  getTopologicalPrerequisites,
+  calculateConnectedGraph,
+  calculateOverviewFramingDistance
+} from '../../src/utils/graph';
 import { TopicNode } from '../../src/types/telemetry';
 
 const createMockNode = (
@@ -185,3 +189,51 @@ describe('Graph Algorithms: calculateConnectedGraph', () => {
     expect(graph.connectedNodeIds.has('NON_EXISTENT_CHILD')).toBe(true);
   });
 });
+
+describe('Camera Framing: calculateOverviewFramingDistance', () => {
+  it('returns default distance of 56.0 when topicNodes is empty', () => {
+    const result = calculateOverviewFramingDistance([]);
+    expect(result).toBe(56.0);
+  });
+
+  it('calculates snug overview distance for standard node cluster (~30 unit radius)', () => {
+    const nodes: TopicNode[] = [
+      { ...createMockNode('A', 'Node A'), coordinates: [20, 15, 5] },
+      { ...createMockNode('B', 'Node B'), coordinates: [-25, -20, 10] },
+      { ...createMockNode('C', 'Node C'), coordinates: [0, 25.7, -5] }
+    ];
+
+    const distance = calculateOverviewFramingDistance(nodes, 1440, 900);
+    // Should provide snug overview (~54 - 65)
+    expect(distance).toBeGreaterThanOrEqual(54.0);
+    expect(distance).toBeLessThanOrEqual(65.0);
+  });
+
+  it('adapts camera distance for narrow viewports to avoid horizontal cutoff', () => {
+    const nodes: TopicNode[] = [
+      { ...createMockNode('A', 'Left'), coordinates: [-25, 0, 0] },
+      { ...createMockNode('B', 'Right'), coordinates: [25, 0, 0] }
+    ];
+
+    const wideDistance = calculateOverviewFramingDistance(nodes, 1920, 1080);
+    const narrowDistance = calculateOverviewFramingDistance(nodes, 600, 1000);
+
+    // Narrow aspect ratio requires pulling camera back further horizontally
+    expect(narrowDistance).toBeGreaterThan(wideDistance);
+  });
+
+  it('enforces min and max distance bounds (54.0 <= Z <= 75.0)', () => {
+    // Very tiny cluster
+    const tinyNodes: TopicNode[] = [
+      { ...createMockNode('A', 'Tiny'), coordinates: [0.5, 0.5, 0.5] }
+    ];
+    expect(calculateOverviewFramingDistance(tinyNodes, 1440, 900)).toBe(54.0);
+
+    // Huge spread cluster
+    const hugeNodes: TopicNode[] = [
+      { ...createMockNode('A', 'Huge'), coordinates: [150, 150, 150] }
+    ];
+    expect(calculateOverviewFramingDistance(hugeNodes, 1440, 900)).toBe(75.0);
+  });
+});
+

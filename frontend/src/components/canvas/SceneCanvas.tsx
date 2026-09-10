@@ -6,7 +6,7 @@ import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import { useStore } from '../../store/useStore';
 import { TopicNode } from '../../types/telemetry';
 import { getCategoryShade } from '../../utils/theme';
-import { calculateConnectedGraph, ConnectedGraphResult } from '../../utils/graph';
+import { calculateConnectedGraph, ConnectedGraphResult, calculateOverviewFramingDistance } from '../../utils/graph';
 import PostProcessing from './PostProcessing';
 
 // Derive distinct incoming (lighter/warmer) and outgoing (richer/electric) edge highlight shades correlated to the active node's color
@@ -552,6 +552,7 @@ function CameraRig({ controlsRef, introRef }: { controlsRef: React.RefObject<Orb
   const topicNodes = useStore((state) => state.topicNodes);
   const selectedTopicId = useStore((state) => state.selectedTopicId);
   const hoveredTopicId = useStore((state) => state.hoveredTopicId);
+  const searchQuery = useStore((state) => state.searchQuery);
 
   const prevSelectedId = useRef<string | null>(null);
   const isAnimating = useRef<boolean>(false);
@@ -561,28 +562,15 @@ function CameraRig({ controlsRef, introRef }: { controlsRef: React.RefObject<Orb
 
   // Compute responsive overview framing distance so all nodes and HUD margins fit fully in view
   const overviewZ = useMemo(() => {
-    if (topicNodes.length === 0) return 56.0;
-
-    let maxDist = 0;
-    for (const n of topicNodes) {
-      const [x, y, z] = n.coordinates;
-      const d = Math.sqrt(x * x + y * y + z * z);
-      if (d > maxDist) maxDist = d;
-    }
-
-    // Include geometry radius and snug HUD clearance
-    const paddedRadius = maxDist + 1.8;
-    const aspect = size.width && size.height ? size.width / size.height : 16 / 9;
-    const halfFovRad = (60 / 2) * (Math.PI / 180);
-    const tanHalfFov = Math.tan(halfFovRad);
-
-    // Frame snugly so the graph is nice and large while avoiding top/bottom HUD clipping
-    const vertZ = paddedRadius / (tanHalfFov * 0.96);
-    const horizZ = paddedRadius / (tanHalfFov * aspect * 0.94);
-
-    const calculatedZ = Math.max(vertZ, horizZ);
-    return Math.max(54.0, Math.min(75.0, Number(calculatedZ.toFixed(1))));
+    return calculateOverviewFramingDistance(topicNodes, size.width, size.height);
   }, [topicNodes, size.width, size.height]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      (window as any).__SCENE_CONTROLS__ = controlsRef.current;
+      (window as any).__SCENE_CAMERA__ = camera;
+    }
+  }, [controlsRef, camera]);
 
   useEffect(() => {
     const controls = controlsRef.current;
@@ -606,6 +594,11 @@ function CameraRig({ controlsRef, introRef }: { controlsRef: React.RefObject<Orb
   useFrame((_, delta) => {
     const controls = controlsRef.current;
     if (!controls) return;
+
+    if (typeof window !== 'undefined') {
+      (window as any).__OVERVIEW_Z__ = overviewZ;
+      (window as any).__AUTO_ROTATE__ = controls.autoRotate;
+    }
 
     // 1. Deep Space Hyper-Drive Swoop Sequence on page load/refresh (Starts at z = 450.0, lands at overviewZ so full graph is framed in screen)
     if (introRef.current < 1.0) {
@@ -658,8 +651,8 @@ function CameraRig({ controlsRef, introRef }: { controlsRef: React.RefObject<Orb
       }
     } else {
       // 3. Gentle ambient auto-rotation when idling in overview mode
-      // Pauses during node inspection or node hover to keep interactions crisp
-      controls.autoRotate = !selectedTopicId && !hoveredTopicId;
+      // Pauses during node inspection, node hover, or concept search to keep interactions crisp
+      controls.autoRotate = !selectedTopicId && !hoveredTopicId && !searchQuery;
       controls.autoRotateSpeed = 0.6;
     }
   });
