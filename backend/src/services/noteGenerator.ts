@@ -192,7 +192,7 @@ CORE GUIDELINES FOR HIGH QUALITY & CONTENT ADAPTATION:
 6. STRUCTURE:
    - Header with Prerequisites and Key Operational Guarantee / Metric.
    - Descriptive, substantive sections covering the Problem, Mental Model, Mechanisms, Execution Flows, Trade-offs, and Pitfalls.
-   - End with a clean GFM Summary Checklist (- [x] ...).
+   - End with a clean Summary Checklist (e.g. "## Summary Checklist" with concise bullet points or check items capturing the essential takeaways).
 
 7. EXTREMELY HIGH READABILITY & MARKDOWN TYPOGRAPHY:
    - Use clear heading hierarchy: use H2 (##) for primary sections, and H3 (###) for specific architectural mechanisms or sub-topics. Avoid deep, nested H4 (####) headers.
