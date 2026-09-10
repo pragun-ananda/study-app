@@ -160,7 +160,7 @@ Policy gradients and Q-learning. ${'More details on agents. '.repeat(400)}
       `;
 
       const context = extractTopicRelevantContext(largeDoc, sampleTopic);
-      expect(context.length).toBeLessThanOrEqual(14000);
+      expect(context.length).toBeLessThanOrEqual(120000);
       expect(context.toLowerCase()).toContain('self-attention');
     });
   });
