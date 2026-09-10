@@ -159,4 +159,47 @@ flowchart TD
     // Verify Mermaid diagram container renders (either rendered SVG badge or syntax fallback)
     expect(await screen.findByText(/MERMAID/i)).toBeInTheDocument();
   });
+
+  it('renders interactive QuizViewer cards when previewing a QUIZ_UPDATE', () => {
+    useStore.setState({
+      activeDiffUpdateId: 'UPDATE-QUIZ-01',
+      graphUpdates: [
+        {
+          id: 'UPDATE-QUIZ-01',
+          title: 'Initial Quiz Bank: Log-Structured Merge Trees',
+          description: 'Comprehensive quiz bank with MCQs and distractor rationales',
+          category: 'SYSTEMS',
+          type: 'QUIZ_UPDATE',
+          status: 'PENDING',
+          createdAt: '1m ago',
+          targetId: 'TOPIC-074',
+          targetName: 'LSM Trees',
+          oldContent: '[]',
+          newContent: JSON.stringify([
+            {
+              type: 'MCQ',
+              stem: 'Why do LSM trees achieve higher write throughput than B-trees?',
+              options: {
+                A: 'They convert random writes into sequential writes',
+                B: 'They do not store data on disk'
+              },
+              correctAnswer: 'A',
+              difficulty: 'MEDIUM'
+            }
+          ])
+        }
+      ]
+    });
+
+    render(<DiffViewerModal />);
+
+    // Switch to preview mode
+    const previewBtn = screen.getByText('RENDERED PREVIEW');
+    fireEvent.click(previewBtn);
+
+    // Verify QuizViewer rendered card elements appear instead of raw JSON
+    expect(screen.getByTestId('quiz-viewer')).toBeInTheDocument();
+    expect(screen.getByText('Why do LSM trees achieve higher write throughput than B-trees?')).toBeInTheDocument();
+    expect(screen.getByText(/They convert random writes into sequential writes/i)).toBeInTheDocument();
+  });
 });

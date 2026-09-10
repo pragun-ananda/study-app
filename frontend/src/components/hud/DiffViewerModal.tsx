@@ -15,19 +15,12 @@ import {
   CornerDownRight,
   Sparkles
 } from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import remarkMath from 'remark-math';
-import rehypeKatex from 'rehype-katex';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { dracula } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import 'katex/dist/katex.min.css';
-
 import { useStore } from '../../store/useStore';
 import { computeLineDiff } from '../../utils/diff';
 import { LineReviewComment, DomainCategory } from '../../types/telemetry';
 import { DOMAIN_BASE_COLORS } from '../../utils/theme';
-import { MermaidDiagram } from './MermaidDiagram';
+import { MarkdownContent } from './MarkdownContent';
+import { QuizViewer } from './QuizViewer';
 
 export default function DiffViewerModal() {
   const activeDiffUpdateId = useStore((state) => state.activeDiffUpdateId);
@@ -416,98 +409,20 @@ export default function DiffViewerModal() {
                   </div>
                 </div>
               ) : (
-                /* 2. Rendered Markdown & Math Preview */
-                <div className="flex-1 p-4 rounded-xl bg-slate-950/80 border border-white/10 prose prose-invert max-w-none text-sm leading-relaxed font-sans">
-                  <ReactMarkdown
-                    remarkPlugins={[remarkGfm, remarkMath]}
-                    rehypePlugins={[[rehypeKatex, { strict: false, throwOnError: false }]]}
-                    components={{
-                      h1: ({ node, ...props }) => (
-                        <h1
-                          className="text-lg font-bold font-sans tracking-wide border-b pb-2 mb-4 mt-2"
-                          style={{ color: catColor, borderColor: `${catColor}30` }}
-                          {...props}
-                        />
-                      ),
-                      h2: ({ node, ...props }) => (
-                        <h2 className="text-base font-bold text-slate-100 font-sans tracking-wide mt-6 mb-3" {...props} />
-                      ),
-                      p: ({ node, ...props }) => <p className="text-slate-300 text-sm leading-relaxed mb-3 font-sans" {...props} />,
-                      ul: ({ node, ...props }) => <ul className="list-disc list-inside space-y-1.5 mb-4 text-slate-300 text-sm font-sans" {...props} />,
-                      ol: ({ node, ...props }) => <ol className="list-decimal list-inside space-y-1.5 mb-4 text-slate-300 text-sm font-sans" {...props} />,
-                      li: ({ node, ...props }) => <li className="text-slate-300 text-sm font-sans leading-relaxed" {...props} />,
-                      code: ({ node, className, children, ...props }) => {
-                        const match = /language-(\w+)/.exec(className || '');
-                        const codeString = String(children).replace(/\n$/, '');
-                        const isInline = !match && !String(children).includes('\n');
-                        if (isInline) {
-                          return (
-                            <code
-                              className="px-1.5 py-0.5 rounded font-mono text-[11px]"
-                              style={{
-                                backgroundColor: `${catColor}15`,
-                                color: catColor,
-                                borderColor: `${catColor}30`,
-                                borderWidth: '1px'
-                              }}
-                              {...props}
-                            >
-                              {children}
-                            </code>
-                          );
-                        }
-                        if (match && match[1]?.toLowerCase() === 'mermaid') {
-                          return <MermaidDiagram codeString={codeString} nodeColor={catColor} />;
-                        }
-                        return (
-                          <div className="my-3 rounded-lg overflow-hidden border border-white/10 bg-[#060a14]">
-                            <SyntaxHighlighter
-                              language={match ? match[1] : 'text'}
-                              style={dracula}
-                              customStyle={{
-                                margin: 0,
-                                padding: '0.8rem',
-                                background: 'transparent',
-                                fontSize: '11px',
-                                lineHeight: '1.5'
-                              }}
-                            >
-                              {codeString}
-                            </SyntaxHighlighter>
-                          </div>
-                        );
-                      },
-                      img: ({ node, src, alt, ...props }) => (
-                        <span className="block my-4 rounded-xl overflow-hidden border border-white/10 bg-[#060a14] shadow-xl">
-                          <img
-                            src={src}
-                            alt={alt}
-                            className="w-full max-h-[360px] object-contain bg-slate-950/60 p-2"
-                            loading="lazy"
-                            {...props}
-                          />
-                          {alt && (
-                            <span className="block text-center text-[10px] text-slate-400 py-1.5 px-3 border-t border-white/5 bg-slate-950/80 font-mono">
-                              {alt}
-                            </span>
-                          )}
-                        </span>
-                      ),
-                      a: ({ node, href, children, ...props }) => (
-                        <a
-                          href={href}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="underline text-[#00f0ff] hover:text-[#00ff9d] transition-colors"
-                          {...props}
-                        >
-                          {children}
-                        </a>
-                      )
-                    }}
-                  >
-                    {activeUpdate.newContent}
-                  </ReactMarkdown>
+                /* 2. Rendered Preview: Quiz Question Cards for QUIZ_UPDATE or Markdown Note */
+                <div className="flex-1 p-4 rounded-xl bg-slate-950/80 border border-white/10 overflow-y-auto min-h-[350px]">
+                  {activeUpdate.type === 'QUIZ_UPDATE' || activeUpdate.title?.toLowerCase().includes('quiz') ? (
+                    <QuizViewer
+                      questions={activeUpdate.newContent}
+                      accentColor={catColor}
+                      topicTitle={activeUpdate.targetName}
+                    />
+                  ) : (
+                    <MarkdownContent
+                      content={activeUpdate.newContent}
+                      accentColor={catColor}
+                    />
+                  )}
                 </div>
               )}
             </div>

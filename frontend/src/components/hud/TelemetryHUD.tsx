@@ -20,7 +20,8 @@ import {
   FileText,
   Loader2,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  HelpCircle
 } from 'lucide-react';
 import NoteViewerModal from './NoteViewerModal';
 import NotificationsDropdown from './NotificationsDropdown';
@@ -50,6 +51,7 @@ export default function TelemetryHUD() {
   const isInspectorOpen = useStore((state) => state.isInspectorOpen);
   const setIsInspectorOpen = useStore((state) => state.setIsInspectorOpen);
   const setActiveNote = useStore((state) => state.setActiveNote);
+  const setActiveQuiz = useStore((state) => state.setActiveQuiz);
   const updateTopicMastery = useStore((state) => state.updateTopicMastery);
   const todos = useStore((state) => state.todos);
   const addTodo = useStore((state) => state.addTodo);
@@ -795,6 +797,55 @@ export default function TelemetryHUD() {
                     </button>
                   </div>
                 </div>
+
+                {/* 2.5 PRACTICE QUIZZES SECTION */}
+                {selectedNode.quizzes && selectedNode.quizzes.length > 0 && (
+                  <div className="pt-2.5 border-t border-white/10 space-y-2">
+                    <div className="flex items-center justify-between text-[11px] font-bold">
+                      <div className="flex items-center gap-1.5" style={{ color: selectedNodeColor }}>
+                        <HelpCircle size={13} />
+                        <span>PRACTICE QUIZZES</span>
+                      </div>
+                      <span className="text-[10px] font-mono opacity-80" style={{ color: selectedNodeColor }}>
+                        {selectedNode.quizzes.length} BANK{selectedNode.quizzes.length > 1 ? 'S' : ''}
+                      </span>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      {selectedNode.quizzes.map((quiz) => (
+                        <div
+                          key={quiz.id}
+                          data-testid="inspector-quiz-item"
+                          onClick={() => setActiveQuiz(quiz)}
+                          style={{
+                            borderColor: `${selectedNodeColor}40`
+                          }}
+                          className="p-2 rounded bg-slate-950/80 hover:bg-slate-900 border text-slate-200 text-[11px] cursor-pointer transition-all flex items-center justify-between group shadow-sm"
+                        >
+                          <div className="flex items-center gap-2 truncate">
+                            <HelpCircle
+                              size={13}
+                              className="flex-shrink-0 group-hover:scale-110 transition-transform"
+                              style={{ color: selectedNodeColor }}
+                            />
+                            <span className="truncate font-semibold text-slate-200 group-hover:text-white">
+                              {quiz.title}
+                            </span>
+                          </div>
+                          <span
+                            className="text-[10px] font-mono px-1.5 py-0.5 rounded font-bold ml-2 flex-shrink-0"
+                            style={{
+                              backgroundColor: `${selectedNodeColor}20`,
+                              color: selectedNodeColor
+                            }}
+                          >
+                            {quiz.questions?.length || 0} Qs
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* 3. LEARN NEXT SECTION */}
                 <div className="pt-2.5 border-t border-white/10 space-y-2">

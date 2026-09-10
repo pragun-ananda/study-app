@@ -17,6 +17,37 @@ export interface NoteItem {
   content?: string;
 }
 
+export type QuizQuestionType = 'MCQ' | 'TRUE_FALSE' | 'MATCHING' | 'ORDERING' | 'FLASHCARD';
+export type QuizQuestionDifficulty = 'EASY' | 'MEDIUM' | 'HARD';
+
+export interface QuizQuestionItem {
+  id?: string;
+  type: QuizQuestionType | string;
+  stem?: string;
+  prompt?: string;
+  statement?: string;
+  options?: Record<string, string>;
+  correctAnswer?: string | boolean;
+  distractorExplanations?: Record<string, string>;
+  explanation?: string;
+  pairs?: Array<{ term: string; definition: string }>;
+  sequence?: string[];
+  term?: string;
+  definition?: string;
+  memorizationReason?: string;
+  sourceAssertion?: string;
+  difficulty?: QuizQuestionDifficulty;
+}
+
+export interface QuizItem {
+  id: string;
+  title: string;
+  description?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  questions: QuizQuestionItem[];
+}
+
 export interface TopicNode {
   id: string;
   name: string;
@@ -29,6 +60,7 @@ export interface TopicNode {
   unlocks: string[]; // Node IDs unlocked AFTER learning this topic (X -> B)
   summary: string;
   notes?: NoteItem[];
+  quizzes?: QuizItem[];
 }
 
 export interface StudyTodo {
@@ -178,6 +210,8 @@ export interface TelemetryState {
   hoveredTopicId: string | null;
   isInspectorOpen: boolean;
   activeNote: NoteItem | null;
+  activeQuiz: QuizItem | null;
+  activeModalTab: 'NOTE' | 'QUIZ';
   isNoteEditing: boolean;
   todos: StudyTodo[];
 
@@ -223,6 +257,8 @@ export interface TelemetryActions {
   setSelectedTopicId: (id: string | null) => void;
   setIsInspectorOpen: (open: boolean) => void;
   setActiveNote: (note: NoteItem | null, isEditing?: boolean) => void;
+  setActiveQuiz: (quiz: QuizItem | null) => void;
+  setActiveModalTab: (tab: 'NOTE' | 'QUIZ') => void;
   setIsNoteEditing: (isEditing: boolean) => void;
   addNoteToTopic: (topicId: string, note: Omit<NoteItem, 'id'>) => Promise<NoteItem | void>;
   updateNoteInTopic: (topicId: string, note: NoteItem) => Promise<NoteItem | void>;
