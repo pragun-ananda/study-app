@@ -42,9 +42,16 @@ Open `http://localhost:3000` in your browser.
 Tailscale provides end-to-end encrypted private mesh access to your Mac Mini with zero open ports on your home router.
 
 - **Mac Mini Tailscale IP**: `100.127.187.98`
-- **Access from any device on your Tailscale network**:
+- **Secure HTTPS URL (Zero Browser Warnings / Real Let's Encrypt SSL)**:
+  - 👉 **`https://praguns-mac-mini.tailc5997c.ts.net`** (No port number needed!)
+- **Alternative Access URLs**:
   - Direct IP: `http://100.127.187.98:3000`
   - MagicDNS: `http://praguns-mac-mini:3000`
+
+To start or verify the HTTPS proxy:
+```bash
+tailscale serve --bg 3000
+```
 
 ---
 
