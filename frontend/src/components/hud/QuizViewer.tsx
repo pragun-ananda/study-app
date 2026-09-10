@@ -343,8 +343,12 @@ export function QuizViewer({
 
                   <div className="flex gap-3 pt-1">
                     {[true, false].map((val) => {
-                      const isCorrect = q.correctAnswer === val;
-                      const isSelected = userAnswer === val;
+                      const isCorrect =
+                        q.correctAnswer === val ||
+                        String(q.correctAnswer).toLowerCase() === String(val);
+                      const isSelected =
+                        userAnswer === val ||
+                        String(userAnswer).toLowerCase() === String(val);
                       const revealAnswer = showAllAnswers || isSelected;
 
                       let btnBorder = 'border-white/10';

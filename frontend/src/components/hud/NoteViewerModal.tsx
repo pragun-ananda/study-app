@@ -226,7 +226,12 @@ export default function NoteViewerModal() {
                   <div className="flex items-center bg-slate-900/90 p-0.5 rounded-lg border border-white/10 text-[10px] font-mono">
                     <button
                       type="button"
-                      onClick={() => setActiveModalTab('NOTE')}
+                      onClick={() => {
+                        setActiveModalTab('NOTE');
+                        if (!activeNote && selectedNode?.notes && selectedNode.notes.length > 0) {
+                          setActiveNote(selectedNode.notes[0]);
+                        }
+                      }}
                       style={{
                         backgroundColor: activeModalTab === 'NOTE' ? `${nodeColor}25` : 'transparent',
                         color: activeModalTab === 'NOTE' ? nodeColor : '#94a3b8'
