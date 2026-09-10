@@ -124,6 +124,7 @@ function SolarWindEnergyStreams() {
   const materialRef = useRef<THREE.ShaderMaterial>(null!);
 
   const topicNodes = useStore((state) => state.topicNodes);
+  const theme = useStore((state) => state.theme);
   const { activeId, activeNodeColorHex, nodeMap, directIncomingKeys, directOutgoingKeys, transitiveIncomingKeys, transitiveOutgoingKeys } = React.useContext(ConnectedGraphContext);
 
   const { starts, ends, speeds, offsets, sizes, colors, count } = useMemo(() => {
@@ -138,7 +139,7 @@ function SolarWindEnergyStreams() {
     const outgoingCorrelatedCol = activeNodeColorHex ? new THREE.Color(getOutgoingEdgeColor(activeNodeColorHex)) : null;
 
     topicNodes.forEach((source) => {
-      const sourceColorHex = getCategoryShade(source.id, source.category);
+      const sourceColorHex = getCategoryShade(source.id, source.category, theme);
       const sourceColor = new THREE.Color(sourceColorHex);
 
       source.unlocks.forEach((targetId) => {
@@ -344,10 +345,69 @@ function AnamorphicStarGlint({ color, scale = 1.0, opacity = 0.95 }: { color: st
   );
 }
 
+// Light mode smooth circular corona halo - guarantees zero spiky/misshapen artifacts on bright backgrounds
+function CircularSoftHalo({ color, scale = 1.0, opacity = 0.3 }: { color: string; scale?: number; opacity?: number }) {
+  const meshRef = useRef<THREE.Mesh>(null!);
+  const materialRef = useRef<THREE.ShaderMaterial>(null!);
 
+  const material = useMemo(() => {
+    return new THREE.ShaderMaterial({
+      uniforms: {
+        uColor: { value: new THREE.Color(color) },
+        uOpacity: { value: opacity }
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform vec3 uColor;
+        uniform float uOpacity;
+        varying vec2 vUv;
+        void main() {
+          float dist = length(vUv - vec2(0.5));
+          if (dist > 0.5) discard;
+          float radial = 1.0 - smoothstep(0.0, 0.5, dist);
+          float alpha = radial * radial * uOpacity;
+          gl_FragColor = vec4(uColor, alpha);
+        }
+      `,
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.NormalBlending
+    });
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      material.dispose();
+    };
+  }, [material]);
+
+  useFrame((state) => {
+    if (materialRef.current) {
+      materialRef.current.uniforms.uOpacity.value = opacity;
+      materialRef.current.uniforms.uColor.value.set(color);
+    }
+    if (meshRef.current) {
+      meshRef.current.quaternion.copy(state.camera.quaternion);
+    }
+  });
+
+  return (
+    <mesh ref={meshRef} geometry={sharedPlaneGeometry} scale={[scale * 2.8, scale * 2.8, 1]} frustumCulled={false}>
+      <primitive object={material} ref={materialRef} attach="material" />
+    </mesh>
+  );
+}
 
 const sharedSphereGeometry = new THREE.SphereGeometry(0.38, 16, 16);
+const sharedLightSphereGeometry = new THREE.SphereGeometry(0.54, 32, 32);
 const sharedRingGeometry = new THREE.RingGeometry(0.5, 0.62, 24);
+const sharedLightRingGeometry = new THREE.RingGeometry(0.70, 0.84, 32);
 
 // Interactive Knowledge Node Component (Always fully formed and crisp during Deep Space Fly-In)
 const KnowledgeNode = React.memo(({ node, isConnectedComponent }: { node: TopicNode; isConnectedComponent: boolean }) => {
@@ -360,16 +420,18 @@ const KnowledgeNode = React.memo(({ node, isConnectedComponent }: { node: TopicN
   const setHoveredTopicId = useStore((state) => state.setHoveredTopicId);
   const selectedCategory = useStore((state) => state.selectedCategory);
   const searchQuery = useStore((state) => state.searchQuery);
+  const theme = useStore((state) => state.theme);
 
+  const isLight = theme === 'light';
   const isCategoryMatched = !selectedCategory || selectedCategory === 'ALL' || node.category === selectedCategory;
   const isSearchMatched = !searchQuery || node.name.toLowerCase().includes(searchQuery.toLowerCase());
 
   const showLabel = isSelected || isHovered || (searchQuery.length > 0 && isSearchMatched);
 
   const nodeColor = useMemo(() => {
-    if (!isCategoryMatched || !isSearchMatched) return '#334155';
-    return getCategoryShade(node.id, node.category);
-  }, [node.id, node.category, isCategoryMatched, isSearchMatched]);
+    if (!isCategoryMatched || !isSearchMatched) return isLight ? '#94a3b8' : '#334155';
+    return getCategoryShade(node.id, node.category, theme);
+  }, [node.id, node.category, isCategoryMatched, isSearchMatched, theme, isLight]);
 
   useFrame((_, delta) => {
     if (ringRef.current) {
@@ -388,20 +450,30 @@ const KnowledgeNode = React.memo(({ node, isConnectedComponent }: { node: TopicN
 
   const glintScale = isSelected ? 1.6 : isHovered ? 1.1 : isConnectedComponent ? 0.72 : 0.38;
   const glintOpacity = isSelected ? 0.95 : isHovered ? 0.75 : isConnectedComponent ? 0.52 : 0.22;
-  const emissiveVal = isSelected ? 2.4 : isHovered ? 1.4 : isConnectedComponent ? 0.95 : 0.55;
+  const emissiveVal = isLight
+    ? (isSelected ? 1.05 : isHovered ? 0.85 : isConnectedComponent ? 0.75 : 0.62)
+    : (isSelected ? 2.4 : isHovered ? 1.4 : isConnectedComponent ? 0.95 : 0.55);
 
   return (
     <group position={node.coordinates}>
-      {/* 4-Point Starlight Flare matched to node's category shade */}
-      <AnamorphicStarGlint
-        color={nodeColor}
-        scale={glintScale}
-        opacity={glintOpacity}
-      />
+      {/* In dark mode, 4-Point Starlight Flare. In light mode, smooth circular halo (never spiky/misshapen) */}
+      {isLight ? (
+        <CircularSoftHalo
+          color={nodeColor}
+          scale={isSelected ? 1.5 : isHovered ? 1.2 : isConnectedComponent ? 0.9 : 0.65}
+          opacity={isSelected ? 0.55 : isHovered ? 0.45 : isConnectedComponent ? 0.35 : 0.25}
+        />
+      ) : (
+        <AnamorphicStarGlint
+          color={nodeColor}
+          scale={glintScale}
+          opacity={glintOpacity}
+        />
+      )}
 
       <mesh
         ref={meshRef}
-        geometry={sharedSphereGeometry}
+        geometry={isLight ? sharedLightSphereGeometry : sharedSphereGeometry}
         frustumCulled={false}
         onClick={handleNodeClick}
         onPointerOver={(e) => {
@@ -418,8 +490,8 @@ const KnowledgeNode = React.memo(({ node, isConnectedComponent }: { node: TopicN
           color={nodeColor}
           emissive={nodeColor}
           emissiveIntensity={emissiveVal}
-          roughness={0.2}
-          metalness={0.8}
+          roughness={isLight ? 0.95 : 0.2}
+          metalness={isLight ? 0.0 : 0.8}
           transparent={!isCategoryMatched || !isSearchMatched}
           opacity={!isCategoryMatched || !isSearchMatched ? 0.2 : 1.0}
         />
@@ -427,7 +499,7 @@ const KnowledgeNode = React.memo(({ node, isConnectedComponent }: { node: TopicN
 
       {/* Orbital ring for hovered or selected node */}
       {(isSelected || isHovered) && (
-        <mesh ref={ringRef} geometry={sharedRingGeometry} frustumCulled={false}>
+        <mesh ref={ringRef} geometry={isLight ? sharedLightRingGeometry : sharedRingGeometry} frustumCulled={false}>
           <meshBasicMaterial color={nodeColor} side={THREE.DoubleSide} transparent opacity={0.85} />
         </mesh>
       )}
@@ -452,8 +524,10 @@ const KnowledgeNode = React.memo(({ node, isConnectedComponent }: { node: TopicN
               node.name.length
             )} ${
               isSelected || isHovered
-                ? 'text-slate-950 border border-transparent scale-105'
-                : 'text-slate-200 bg-slate-950/90 border border-white/20'
+                ? 'text-white border border-transparent scale-105'
+                : isLight
+                  ? 'text-slate-800 bg-white/95 border border-slate-300 shadow-sm'
+                  : 'text-slate-200 bg-slate-950/90 border border-white/20'
             }`}
           >
             {node.name}
@@ -467,6 +541,8 @@ const KnowledgeNode = React.memo(({ node, isConnectedComponent }: { node: TopicN
 // Render 3D Directed Prerequisite & Unlocked Edges
 function KnowledgeGraphEdges() {
   const topicNodes = useStore((state) => state.topicNodes);
+  const theme = useStore((state) => state.theme);
+  const isLight = theme === 'light';
   const { activeId, activeNodeColorHex, nodeMap, directIncomingKeys, directOutgoingKeys, transitiveIncomingKeys, transitiveOutgoingKeys } = React.useContext(ConnectedGraphContext);
 
   const edges = useMemo(() => {
@@ -480,8 +556,8 @@ function KnowledgeGraphEdges() {
 
     const visited = new Set<string>();
 
-    const incomingCorrelatedCol = activeNodeColorHex ? getIncomingEdgeColor(activeNodeColorHex) : '#ffaa00';
-    const outgoingCorrelatedCol = activeNodeColorHex ? getOutgoingEdgeColor(activeNodeColorHex) : '#00ff9d';
+    const incomingCorrelatedCol = activeNodeColorHex ? getIncomingEdgeColor(activeNodeColorHex) : (isLight ? '#0284c7' : '#ffaa00');
+    const outgoingCorrelatedCol = activeNodeColorHex ? getOutgoingEdgeColor(activeNodeColorHex) : (isLight ? '#059669' : '#00ff9d');
 
     topicNodes.forEach((source) => {
       source.unlocks.forEach((targetId) => {
@@ -491,9 +567,9 @@ function KnowledgeGraphEdges() {
           if (!visited.has(key)) {
             visited.add(key);
 
-            let color = 'rgba(255, 255, 255, 0.08)';
-            let lineWidth = 0.7;
-            let baseOpacity = 0.12;
+            let color = isLight ? '#475569' : 'rgba(255, 255, 255, 0.08)';
+            let lineWidth = isLight ? 1.1 : 0.7;
+            let baseOpacity = isLight ? 0.52 : 0.12;
 
             if (activeId && activeNodeColorHex) {
               if (directOutgoingKeys.has(key)) {
@@ -528,7 +604,7 @@ function KnowledgeGraphEdges() {
     });
 
     return edgeList;
-  }, [topicNodes, nodeMap, activeId, activeNodeColorHex, directIncomingKeys, directOutgoingKeys, transitiveIncomingKeys, transitiveOutgoingKeys]);
+  }, [topicNodes, nodeMap, activeId, activeNodeColorHex, directIncomingKeys, directOutgoingKeys, transitiveIncomingKeys, transitiveOutgoingKeys, isLight]);
 
   return (
     <group>
@@ -686,6 +762,8 @@ function SceneContent() {
 
 export default function SceneCanvas() {
   const setSelectedTopicId = useStore((state) => state.setSelectedTopicId);
+  const theme = useStore((state) => state.theme);
+  const isLight = theme === 'light';
   const controlsRef = useRef<OrbitControlsImpl>(null!);
   const introRef = useRef(0);
 
@@ -720,9 +798,10 @@ export default function SceneCanvas() {
         />
         <IntroAnimationController introRef={introRef} />
         <CameraRig controlsRef={controlsRef} introRef={introRef} />
-        <ambientLight intensity={0.6} />
-        <pointLight position={[15, 15, 15]} intensity={2.0} color="#00f0ff" />
-        <pointLight position={[-15, -15, -15]} intensity={1.5} color="#00ff9d" />
+        <ambientLight intensity={isLight ? 1.4 : 0.6} />
+        {isLight && <directionalLight position={[20, 30, 20]} intensity={0.4} color="#ffffff" />}
+        <pointLight position={[15, 15, 15]} intensity={isLight ? 0.4 : 2.0} color={isLight ? '#ffffff' : '#00f0ff'} />
+        <pointLight position={[-15, -15, -15]} intensity={isLight ? 0.3 : 1.5} color={isLight ? '#ffffff' : '#00ff9d'} />
         
         <SceneContent />
       </Canvas>

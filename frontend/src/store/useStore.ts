@@ -144,7 +144,47 @@ export function generateCosmosNodes(): TopicNode[] {
 export const INITIAL_TOPICS = generateCosmosNodes();
 export { INITIAL_TODOS };
 
+export function getInitialTheme(): 'dark' | 'light' {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage && typeof window.localStorage.getItem === 'function') {
+      const saved = window.localStorage.getItem('study-app-theme');
+      if (saved === 'light' || saved === 'dark') {
+        return saved;
+      }
+      if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
+        return 'light';
+      }
+    }
+  } catch {
+    // Fall back to default
+  }
+  return 'dark';
+}
+
+export function applyThemeToDocument(theme: 'dark' | 'light') {
+  if (typeof document !== 'undefined') {
+    const root = document.documentElement;
+    if (theme === 'light') {
+      root.classList.remove('dark');
+      root.classList.add('light');
+      root.setAttribute('data-theme', 'light');
+    } else {
+      root.classList.remove('light');
+      root.classList.add('dark');
+      root.setAttribute('data-theme', 'dark');
+    }
+  }
+  try {
+    if (typeof window !== 'undefined' && window.localStorage && typeof window.localStorage.setItem === 'function') {
+      window.localStorage.setItem('study-app-theme', theme);
+    }
+  } catch {
+    // Ignore storage quota or security errors
+  }
+}
+
 export const INITIAL_STATE: TelemetryState = {
+  theme: getInitialTheme(),
   systemStatus: 'OPTIMAL',
   isOverloaded: false,
   bloomIntensity: 1.5,
@@ -182,6 +222,17 @@ export const INITIAL_STATE: TelemetryState = {
 
 export const useStore = create<TelemetryStore>((set, get) => ({
   ...INITIAL_STATE,
+
+  // Theme Actions
+  setTheme: (theme: 'dark' | 'light') => {
+    applyThemeToDocument(theme);
+    set({ theme });
+  },
+  toggleTheme: () => {
+    const next = get().theme === 'dark' ? 'light' : 'dark';
+    applyThemeToDocument(next);
+    set({ theme: next });
+  },
 
   // System Setters
   setSystemStatus: (systemStatus: SystemStatus) => set({ systemStatus }),

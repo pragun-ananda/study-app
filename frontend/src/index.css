@@ -4,7 +4,10 @@
 
 @layer base {
   body {
-    @apply bg-[#050811] text-slate-100 font-sans overflow-hidden select-none;
+    @apply bg-[#050811] text-slate-100 font-sans overflow-hidden select-none transition-colors duration-200;
+  }
+  body.light, html.light body, [data-theme="light"] body {
+    @apply bg-slate-100 text-slate-900;
   }
 }
 
@@ -35,9 +38,21 @@
   box-shadow: 0 0 20px rgba(0, 0, 0, 0.5), inset 0 0 15px rgba(0, 240, 255, 0.03);
 }
 
+.light .glass-panel, [data-theme="light"] .glass-panel {
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06), inset 0 0 15px rgba(255, 255, 255, 0.5);
+  color: #0f172a;
+}
+
 .glass-panel-active {
   border-color: rgba(0, 240, 255, 0.4);
   box-shadow: 0 0 25px rgba(0, 240, 255, 0.15), inset 0 0 20px rgba(0, 240, 255, 0.08);
+}
+
+.light .glass-panel-active, [data-theme="light"] .glass-panel-active {
+  border-color: rgba(2, 132, 199, 0.5);
+  box-shadow: 0 0 20px rgba(2, 132, 199, 0.15), inset 0 0 15px rgba(2, 132, 199, 0.05);
 }
 
 /* Custom Sleek High-Tech Scrollbar */
@@ -51,19 +66,35 @@
   border-radius: 4px;
 }
 
+.light ::-webkit-scrollbar-track, [data-theme="light"] ::-webkit-scrollbar-track {
+  background: rgba(226, 232, 240, 0.7);
+}
+
 ::-webkit-scrollbar-thumb {
   background: rgba(0, 240, 255, 0.3);
   border-radius: 4px;
+}
+
+.light ::-webkit-scrollbar-thumb, [data-theme="light"] ::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.5);
 }
 
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(0, 240, 255, 0.6);
 }
 
-/* KaTeX Math Styling for Dark Mode */
+.light ::-webkit-scrollbar-thumb:hover, [data-theme="light"] ::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.8);
+}
+
+/* KaTeX Math Styling */
 .katex {
   font-size: 1.08em;
   color: #f8fafc;
+}
+
+.light .katex, [data-theme="light"] .katex {
+  color: #0f172a;
 }
 
 .katex-display {
@@ -74,6 +105,11 @@
   background: rgba(8, 12, 22, 0.6);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 0.5rem;
+}
+
+.light .katex-display, [data-theme="light"] .katex-display {
+  background: rgba(241, 245, 249, 0.9);
+  border: 1px solid rgba(0, 0, 0, 0.08);
 }
 
 .katex-display > .katex {

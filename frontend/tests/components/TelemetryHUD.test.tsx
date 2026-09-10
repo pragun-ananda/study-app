@@ -283,6 +283,24 @@ describe('TelemetryHUD Component', () => {
       });
     });
   });
+
+  describe('Theme Toggle Button', () => {
+    it('renders theme toggle button with correct title and switches theme on click', () => {
+      render(<TelemetryHUD />);
+
+      const toggleBtn = screen.getByTestId('theme-toggle-btn');
+      expect(toggleBtn).toBeInTheDocument();
+      expect(toggleBtn).toHaveAttribute('title', 'Switch to Light Mode [T]');
+
+      fireEvent.click(toggleBtn);
+      expect(useStore.getState().theme).toBe('light');
+      expect(toggleBtn).toHaveAttribute('title', 'Switch to Dark Mode [T]');
+
+      fireEvent.click(toggleBtn);
+      expect(useStore.getState().theme).toBe('dark');
+      expect(toggleBtn).toHaveAttribute('title', 'Switch to Light Mode [T]');
+    });
+  });
 });
 
 
