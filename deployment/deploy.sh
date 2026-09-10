@@ -71,6 +71,29 @@ case "$ACTION" in
     backup)
         "$DIR/backup-db.sh"
         ;;
+    seed)
+        echo "🌱 Seeding PostgreSQL database with knowledge graph topics, edges, and notes..."
+        DB_USER="postgres"
+        DB_NAME="study_db"
+        if [ -f "$ENV_FILE" ]; then
+            PARSED_USER=$(grep -E '^POSTGRES_USER=' "$ENV_FILE" 2>/dev/null | cut -d= -f2 | tr -d ' "\r' || true)
+            PARSED_DB=$(grep -E '^POSTGRES_DB=' "$ENV_FILE" 2>/dev/null | cut -d= -f2 | tr -d ' "\r' || true)
+            [ -n "$PARSED_USER" ] && DB_USER="$PARSED_USER"
+            [ -n "$PARSED_DB" ] && DB_NAME="$PARSED_DB"
+        fi
+        TOPIC_COUNT=$(docker exec -i study_app_postgres psql -U "$DB_USER" -d "$DB_NAME" -t -c "SELECT count(*) FROM topics;" 2>/dev/null | xargs || echo "0")
+        if [[ "${2:-}" == "--clean" || "${2:-}" == "--force" ]]; then
+            echo "⚠️  Clearing existing data and applying seed..."
+            docker exec -i study_app_postgres psql -U "$DB_USER" -d "$DB_NAME" -c "TRUNCATE topics, notes, study_todos CASCADE;"
+            docker exec -i study_app_postgres psql -U "$DB_USER" -d "$DB_NAME" < "$DIR/../storage/seeds/seed_test_db.sql"
+            echo "✅ Database cleanly re-seeded!"
+        elif [ "${TOPIC_COUNT:-0}" -gt 0 ]; then
+            echo "ℹ️  Database already populated ($TOPIC_COUNT topics). Use './deploy.sh seed --clean' to wipe and re-seed."
+        else
+            docker exec -i study_app_postgres psql -U "$DB_USER" -d "$DB_NAME" < "$DIR/../storage/seeds/seed_test_db.sql"
+            echo "✅ Database seeded successfully!"
+        fi
+        ;;
     update)
         echo "📥 Pulling latest git changes..."
         git -C "$DIR/.." pull
@@ -81,7 +104,7 @@ case "$ACTION" in
         echo "✅ Update complete!"
         ;;
     *)
-        echo "Usage: $0 {up|down|restart|build|logs [service]|status|backup|update}"
+        echo "Usage: $0 {up|down|restart|build|logs [service]|status|backup|seed|update}"
         exit 1
         ;;
 esac
