@@ -12,17 +12,21 @@ export default function App() {
   // Global Keyboard Shortcuts Listener
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      const isInput = ['INPUT', 'TEXTAREA'].includes((event.target as HTMLElement)?.tagName);
+      const target = event.target as HTMLElement;
+      const isInput =
+        ['INPUT', 'TEXTAREA', 'SELECT'].includes(target?.tagName) ||
+        Boolean(target?.isContentEditable);
 
       // Handle Escape globally to dismiss topmost active modal, overlay, or selection
       if (event.key === 'Escape' || event.code === 'Escape') {
         if (isInput) {
-          (event.target as HTMLElement)?.blur();
+          target?.blur();
         }
 
         const state = useStore.getState();
+        // If CreateNodeModal is open, let CreateNodeModal manage its own dismissal
+        // to respect its submission lock and prevent unmounting in-flight requests.
         if (state.isCreateNodeOpen) {
-          state.setIsCreateNodeOpen(false);
           return;
         }
         if (state.activeNote) {

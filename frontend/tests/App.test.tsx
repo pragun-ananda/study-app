@@ -147,6 +147,20 @@ describe('App Component', () => {
     fireEvent.keyDown(window, { key: 'n', code: 'KeyN', metaKey: true });
     expect(useStore.getState().isCreateNodeOpen).toBe(false);
   });
+
+  it('ignores KeyN shortcut when focused inside a select dropdown', () => {
+    render(<App />);
+    expect(useStore.getState().isCreateNodeOpen).toBe(false);
+
+    const select = document.createElement('select');
+    document.body.appendChild(select);
+    select.focus();
+
+    fireEvent.keyDown(select, { key: 'n', code: 'KeyN' });
+    expect(useStore.getState().isCreateNodeOpen).toBe(false);
+
+    document.body.removeChild(select);
+  });
 });
 
 

@@ -164,10 +164,12 @@ export default function TelemetryHUD() {
   const [editSummary, setEditSummary] = useState('');
   const [selectedPrereqToAdd, setSelectedPrereqToAdd] = useState('');
   const [isSavingTopic, setIsSavingTopic] = useState(false);
+  const [topicEditError, setTopicEditError] = useState<string | null>(null);
 
   // Synchronize edit fields when selected topic changes
   useEffect(() => {
     setIsInspectorEditing(false);
+    setTopicEditError(null);
     if (selectedNode) {
       setEditName(selectedNode.name);
       setEditCategory(selectedNode.category);
@@ -178,19 +180,26 @@ export default function TelemetryHUD() {
     }
   }, [selectedTopicId]);
 
-  const handleSaveTopicEdit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSaveTopicEdit = async (e?: React.FormEvent | React.MouseEvent) => {
+    if (e) e.preventDefault();
     if (!selectedNode || !editName.trim()) return;
     setIsSavingTopic(true);
+    setTopicEditError(null);
     try {
-      await updateTopicNode(selectedNode.id, {
+      const updated = await updateTopicNode(selectedNode.id, {
         name: editName.trim(),
         category: editCategory,
         status: editStatus,
         mastery: Math.max(0, Math.min(100, Number(editMastery) || 0)),
         summary: editSummary.trim()
       });
-      setIsInspectorEditing(false);
+      if (updated) {
+        setIsInspectorEditing(false);
+      } else {
+        setTopicEditError(useStore.getState().error || 'Failed to update topic');
+      }
+    } catch (err: any) {
+      setTopicEditError(err.message || 'Failed to update topic');
     } finally {
       setIsSavingTopic(false);
     }
@@ -778,6 +787,14 @@ export default function TelemetryHUD() {
                     className="flex-1 overflow-y-auto space-y-3 pr-1.5 pb-2 overscroll-contain"
                     onWheel={(e) => e.stopPropagation()}
                   >
+                    {/* Error Banner */}
+                    {topicEditError && (
+                      <div className="p-2 rounded bg-red-950/50 border border-red-500/40 text-red-300 text-[11px] flex items-start gap-1.5">
+                        <AlertCircle size={13} className="flex-shrink-0 mt-0.5 text-red-400" />
+                        <span>{topicEditError}</span>
+                      </div>
+                    )}
+
                     {/* Topic Name */}
                     <div className="space-y-1">
                       <label className="text-[10px] font-bold text-slate-400 tracking-wider">TOPIC NAME</label>
@@ -913,7 +930,6 @@ export default function TelemetryHUD() {
                           <option value="">+ Add prerequisite topic...</option>
                           {topicNodes
                             .filter((n) => n.id !== selectedNode.id && !selectedNode.prerequisites.includes(n.id))
-                            .slice(0, 50)
                             .map((n) => (
                               <option key={n.id} value={n.id} className="bg-slate-950 text-slate-100">
                                 {n.name} ({n.category})

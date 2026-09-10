@@ -351,6 +351,31 @@ describe('TelemetryHUD Component', () => {
       updateSpy.mockRestore();
     });
 
+    it('keeps edit form open and displays error banner when updateTopicNode fails', async () => {
+      const topic = useStore.getState().topicNodes[0];
+      useStore.getState().setSelectedTopicId(topic.id);
+      useStore.getState().setIsInspectorOpen(true);
+
+      const updateSpy = vi.spyOn(useStore.getState(), 'updateTopicNode').mockResolvedValueOnce(undefined as any);
+      useStore.setState({ error: 'Network error updating topic' });
+
+      render(<TelemetryHUD />);
+
+      // Toggle edit mode
+      fireEvent.click(screen.getByTestId('inspector-edit-toggle-btn'));
+      expect(screen.getByTestId('inspector-edit-form')).toBeInTheDocument();
+
+      // Submit form
+      fireEvent.submit(screen.getByTestId('inspector-edit-form'));
+
+      await waitFor(() => {
+        expect(screen.getByText('Network error updating topic')).toBeInTheDocument();
+        expect(screen.getByTestId('inspector-edit-form')).toBeInTheDocument();
+      });
+
+      updateSpy.mockRestore();
+    });
+
     it('allows adding and removing prerequisites directly in Inspector Edit Mode', async () => {
       const topics = useStore.getState().topicNodes;
       const mainTopic = topics[0];

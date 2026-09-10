@@ -94,7 +94,8 @@ export default function CreateNodeModal() {
       });
 
       if (!created) {
-        setErrorMessage('Failed to create topic node. Please check your inputs and try again.');
+        const storeError = useStore.getState().error;
+        setErrorMessage(storeError || 'Failed to create topic node. Please check your inputs and try again.');
         setIsSubmitting(false);
         return;
       }
@@ -133,6 +134,9 @@ export default function CreateNodeModal() {
 
           {/* Modal Container */}
           <motion.div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="create-node-modal-title"
             initial={{ opacity: 0, scale: 0.9, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 10 }}
@@ -164,7 +168,7 @@ export default function CreateNodeModal() {
                   <PlusCircle size={17} />
                 </div>
                 <div>
-                  <h2 className="text-slate-100 font-bold text-sm tracking-wider uppercase">
+                  <h2 id="create-node-modal-title" className="text-slate-100 font-bold text-sm tracking-wider uppercase">
                     Create Knowledge Node
                   </h2>
                   <p className="text-[10px] text-slate-400">
@@ -197,11 +201,12 @@ export default function CreateNodeModal() {
 
                 {/* Node Name */}
                 <div className="space-y-1">
-                  <label className="text-[11px] font-bold text-slate-300 tracking-wider flex items-center justify-between">
+                  <label htmlFor="create-node-name-input" className="text-[11px] font-bold text-slate-300 tracking-wider flex items-center justify-between">
                     <span>TOPIC NAME *</span>
                     <span className="text-[10px] text-slate-500 font-normal">Required</span>
                   </label>
                   <input
+                    id="create-node-name-input"
                     type="text"
                     required
                     autoFocus
@@ -218,10 +223,11 @@ export default function CreateNodeModal() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {/* Category */}
                   <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-slate-300 tracking-wider">
+                    <label htmlFor="create-node-category-select" className="text-[11px] font-bold text-slate-300 tracking-wider">
                       DOMAIN CATEGORY
                     </label>
                     <select
+                      id="create-node-category-select"
                       value={category}
                       onChange={(e) => setCategory(e.target.value as DomainCategory)}
                       disabled={isSubmitting}
@@ -238,10 +244,11 @@ export default function CreateNodeModal() {
 
                   {/* Status */}
                   <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-slate-300 tracking-wider">
+                    <label htmlFor="create-node-status-select" className="text-[11px] font-bold text-slate-300 tracking-wider">
                       INITIAL STATUS
                     </label>
                     <select
+                      id="create-node-status-select"
                       value={status}
                       onChange={(e) => setStatus(e.target.value as TopicStatus)}
                       disabled={isSubmitting}
@@ -259,11 +266,13 @@ export default function CreateNodeModal() {
                 {/* Mastery Level */}
                 <div className="space-y-1.5">
                   <div className="flex justify-between items-center text-[11px] font-bold text-slate-300">
-                    <span>INITIAL MASTERY</span>
+                    <label htmlFor="create-node-mastery-slider">INITIAL MASTERY</label>
                     <span className="text-[#00ff9d] font-mono">{mastery}%</span>
                   </div>
                   <div className="flex items-center gap-3">
                     <input
+                      id="create-node-mastery-slider"
+                      aria-label="Initial mastery percentage"
                       type="range"
                       min={0}
                       max={100}
@@ -274,6 +283,7 @@ export default function CreateNodeModal() {
                       className="flex-1 accent-[#00f0ff] cursor-pointer"
                     />
                     <input
+                      aria-label="Initial mastery percentage numerical value"
                       type="number"
                       min={0}
                       max={100}
@@ -288,10 +298,11 @@ export default function CreateNodeModal() {
                 {/* Summary */}
                 <div className="space-y-1">
                   <div className="flex justify-between items-center text-[11px] font-bold text-slate-300 tracking-wider">
-                    <span>SUMMARY & CONCEPTS</span>
+                    <label htmlFor="create-node-summary-input">SUMMARY & CONCEPTS</label>
                     <span className="text-[10px] text-slate-500 font-mono">{summary.length} chars</span>
                   </div>
                   <textarea
+                    id="create-node-summary-input"
                     rows={3}
                     value={summary}
                     onChange={(e) => setSummary(e.target.value)}
@@ -326,9 +337,8 @@ export default function CreateNodeModal() {
                       availablePrereqs.slice(0, 25).map((node) => {
                         const isChecked = selectedPrereqs.includes(node.id);
                         return (
-                          <div
+                          <label
                             key={node.id}
-                            onClick={() => !isSubmitting && togglePrereq(node.id)}
                             className={`px-2 py-1.5 rounded text-xs flex items-center justify-between cursor-pointer transition-colors ${
                               isChecked
                                 ? 'bg-[#ffaa00]/20 border border-[#ffaa00]/40 text-[#ffaa00]'
@@ -339,7 +349,9 @@ export default function CreateNodeModal() {
                               <input
                                 type="checkbox"
                                 checked={isChecked}
-                                onChange={() => {}}
+                                disabled={isSubmitting}
+                                onChange={() => togglePrereq(node.id)}
+                                aria-label={node.name}
                                 className="accent-[#ffaa00] cursor-pointer"
                               />
                               <span className="truncate font-medium">{node.name}</span>
@@ -347,7 +359,7 @@ export default function CreateNodeModal() {
                             <span className="text-[10px] text-slate-500 font-mono ml-2 flex-shrink-0">
                               {node.category}
                             </span>
-                          </div>
+                          </label>
                         );
                       })
                     ) : (
