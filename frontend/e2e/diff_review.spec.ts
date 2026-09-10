@@ -213,6 +213,24 @@ test.describe('Diff-Based Content Review System (FRO-11)', () => {
     await expect(page.getByText(/Hardware cluster node topologies/i)).toBeVisible();
     await expect(page.getByText(/Loss of precision in unscaled softmax gradients/i)).toBeVisible();
 
+    // Verify inline preview of note content within walkthrough modal
+    const previewBtn = page.getByTestId('walkthrough-preview-btn-UPDATE-001');
+    await expect(previewBtn).toBeVisible();
+    await expect(previewBtn).toContainText('Preview');
+
+    // Drawer initially closed
+    await expect(page.getByTestId('walkthrough-inline-preview-UPDATE-001')).not.toBeVisible();
+
+    // Click Preview button
+    await previewBtn.click();
+    await expect(page.getByTestId('walkthrough-inline-preview-UPDATE-001')).toBeVisible();
+    await expect(previewBtn).toContainText('Hide');
+    await expect(page.getByRole('heading', { name: /Backpropagation & Automatic Differentiation/i })).toBeVisible();
+
+    // Click Hide to collapse preview
+    await previewBtn.click();
+    await expect(page.getByTestId('walkthrough-inline-preview-UPDATE-001')).not.toBeVisible();
+
     // Close walkthrough modal
     const closeBtn = page.getByTestId('close-walkthrough-modal-btn');
     await closeBtn.click();
