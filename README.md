@@ -22,3 +22,14 @@ study-app/
 - **`/backend`**: The core API service for graph queries, prerequisite pathfinding, hybrid search, and note management.
 - **`/storage`**: PostgreSQL schema definitions (`schema.sql`), `pgvector` configuration, and initial domain seed data (`seed.sql`).
 - **`/deployment`**: Containerization, `docker-compose.yml`, and cloud deployment configurations.
+
+---
+
+## Deployment & Self-Hosting
+
+The app can be run 24/7 on a home server (such as a Mac Mini) using Docker Compose and Nginx, with remote mesh access via Tailscale. See [deployment/README.md](deployment/README.md) for full instructions.
+
+Quick start:
+```bash
+./deployment/deploy.sh up
+```
