@@ -88,6 +88,24 @@ export interface LineReviewComment {
   createdAt: string;
 }
 
+export interface IngestionWalkthrough {
+  executiveSummary: string;
+  extractedConcepts: Array<{ name: string; rationale: string }>;
+  omittedContent: Array<{ contentSnippetOrTheme: string; reason: string }>;
+  quizCoverageJustification: {
+    completenessRationale: string;
+    testedFailureModes: string[];
+    coverageScore: number;
+  };
+}
+
+export interface SourceMetadata {
+  title?: string;
+  domain?: string;
+  contentLength?: number;
+  cleanedLength?: number;
+}
+
 export interface GraphUpdate {
   id: string;
   title: string;
@@ -100,14 +118,19 @@ export interface GraphUpdate {
   targetName: string;
   oldContent: string;
   newContent: string;
+  sourceUrl?: string;
+  sourceTitle?: string;
+  queueId?: string;
   comments?: LineReviewComment[];
   generalFeedback?: string;
   payload?: {
     topicId?: string;
     noteId?: string;
+    quizId?: string;
     patch?: Partial<TopicNode>;
     notePatch?: Partial<NoteItem>;
     edge?: { fromId: string; toId: string };
+    [key: string]: any;
   };
 }
 
@@ -117,6 +140,8 @@ export interface ReviewQueueItemDTO {
   status: GraphUpdateStatus;
   payload: any;
   auditReport: any;
+  walkthrough?: IngestionWalkthrough;
+  sourceMetadata?: SourceMetadata;
   createdAt: string;
   reviewedAt: string | null;
   updates: GraphUpdate[];
@@ -158,7 +183,9 @@ export interface TelemetryState {
 
   // Review & Diff Updates (FRO-11)
   graphUpdates: GraphUpdate[];
+  queueItems: ReviewQueueItemDTO[];
   activeDiffUpdateId: string | null;
+  activeWalkthroughQueueId: string | null;
   isNotificationsOpen: boolean;
 
   // Ingestion State (BAC-2 / Ingest UI)
@@ -213,10 +240,13 @@ export interface TelemetryActions {
   // Diff Review Actions (FRO-11)
   setIsNotificationsOpen: (open: boolean) => void;
   setActiveDiffUpdateId: (id: string | null) => void;
+  setActiveWalkthroughQueueId: (id: string | null) => void;
   fetchReviewQueue: (filters?: { status?: string }) => Promise<void>;
   ingestUrl: (url: string) => Promise<IngestPipelineResult | void>;
   approveGraphUpdate: (id: string) => Promise<void> | void;
   rejectGraphUpdate: (id: string) => Promise<void> | void;
+  approveEntireQueueItem: (queueId: string) => Promise<void>;
+  rejectEntireQueueItem: (queueId: string) => Promise<void>;
   requestChangesGraphUpdate: (id: string, comments: LineReviewComment[], generalFeedback?: string) => Promise<void> | void;
   addCommentToUpdate: (updateId: string, comment: Omit<LineReviewComment, 'id' | 'createdAt'>) => void;
   deleteCommentFromUpdate: (updateId: string, commentId: string) => void;

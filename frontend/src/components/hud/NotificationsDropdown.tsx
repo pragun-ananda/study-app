@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Bell,
@@ -9,32 +9,153 @@ import {
   XCircle,
   AlertCircle,
   RotateCcw,
-  MessageSquare
+  MessageSquare,
+  Sparkles,
+  ChevronDown,
+  ChevronRight,
+  ExternalLink,
+  Layers,
+  Award
 } from 'lucide-react';
 import { useStore } from '../../store/useStore';
-import { GraphUpdateStatus, DomainCategory } from '../../types/telemetry';
+import { GraphUpdateStatus, DomainCategory, ReviewQueueItemDTO, GraphUpdate } from '../../types/telemetry';
 import { DOMAIN_BASE_COLORS } from '../../utils/theme';
+
+// Format relative timestamp simply
+function formatRelativeTimestamp(dateStr?: string): string {
+  if (!dateStr) return '';
+  if (dateStr.includes('ago')) return dateStr;
+  const date = new Date(dateStr);
+  if (isNaN(date.getTime())) return dateStr;
+  const now = new Date();
+  const diffSec = Math.floor((now.getTime() - date.getTime()) / 1000);
+  if (diffSec < 60) return 'Just now';
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHours = Math.floor(diffMin / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+  const diffDays = Math.floor(diffHours / 24);
+  return `${diffDays}d ago`;
+}
 
 export default function NotificationsDropdown() {
   const isNotificationsOpen = useStore((state) => state.isNotificationsOpen);
   const setIsNotificationsOpen = useStore((state) => state.setIsNotificationsOpen);
   const graphUpdates = useStore((state) => state.graphUpdates);
+  const queueItems = useStore((state) => state.queueItems);
   const setActiveDiffUpdateId = useStore((state) => state.setActiveDiffUpdateId);
+  const setActiveWalkthroughQueueId = useStore((state) => state.setActiveWalkthroughQueueId);
   const approveGraphUpdate = useStore((state) => state.approveGraphUpdate);
   const rejectGraphUpdate = useStore((state) => state.rejectGraphUpdate);
+  const approveEntireQueueItem = useStore((state) => state.approveEntireQueueItem);
+  const rejectEntireQueueItem = useStore((state) => state.rejectEntireQueueItem);
   const resetGraphUpdates = useStore((state) => state.resetGraphUpdates);
 
   const [activeFilter, setActiveFilter] = useState<'PENDING' | 'ALL' | 'CHANGES_REQUESTED'>('PENDING');
+  const [viewGrouping, setViewGrouping] = useState<'SOURCE' | 'ALL'>('SOURCE');
+  const [collapsedSources, setCollapsedSources] = useState<Record<string, boolean>>({});
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const pendingUpdates = graphUpdates.filter((u) => u.status === 'PENDING');
   const pendingCount = pendingUpdates.length;
 
-  const filteredUpdates = graphUpdates.filter((u) => {
-    if (activeFilter === 'PENDING') return u.status === 'PENDING';
-    if (activeFilter === 'CHANGES_REQUESTED') return u.status === 'CHANGES_REQUESTED';
-    return true;
-  });
+  const toggleSourceCollapse = (id: string) => {
+    setCollapsedSources((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  // Group updates by queueItem / source batch
+  const sourceGroups = useMemo(() => {
+    // Collect all queue items, plus any synthetic source groups for updates without a queueItem
+    const groups: Array<{
+      queueItem: ReviewQueueItemDTO | null;
+      id: string;
+      title: string;
+      sourceUrl?: string;
+      domain?: string;
+      score?: number;
+      timestamp?: string;
+      walkthroughAvailable: boolean;
+      updates: GraphUpdate[];
+    }> = [];
+
+    const mappedUpdateIds = new Set<string>();
+
+    // 1. First map from explicit queueItems
+    queueItems.forEach((item) => {
+      // Find matching updates in graphUpdates
+      const itemUpdates = graphUpdates.filter(
+        (u) => u.queueId === item.id || item.updates?.some((iu) => iu.id === u.id)
+      );
+
+      const visibleUpdates = itemUpdates.filter((u) => {
+        if (activeFilter === 'PENDING') return u.status === 'PENDING';
+        if (activeFilter === 'CHANGES_REQUESTED') return u.status === 'CHANGES_REQUESTED';
+        return true;
+      });
+
+      if (visibleUpdates.length > 0) {
+        groups.push({
+          queueItem: item,
+          id: item.id,
+          title: item.sourceMetadata?.title || item.sourceUrl || `Source Batch ${item.id}`,
+          sourceUrl: item.sourceUrl,
+          domain: item.sourceMetadata?.domain,
+          score: item.walkthrough?.quizCoverageJustification?.coverageScore ?? item.auditReport?.score,
+          timestamp: formatRelativeTimestamp(item.createdAt || visibleUpdates[0]?.createdAt),
+          walkthroughAvailable: Boolean(item.walkthrough),
+          updates: visibleUpdates
+        });
+      }
+
+      itemUpdates.forEach((u) => mappedUpdateIds.add(u.id));
+    });
+
+    // 2. Map any leftover updates not attached to an explicit queueItem
+    const leftoverUpdates = graphUpdates.filter((u) => !mappedUpdateIds.has(u.id));
+    if (leftoverUpdates.length > 0) {
+      // Group by queueId or sourceUrl if available
+      const unattachedBySource = new Map<string, GraphUpdate[]>();
+      leftoverUpdates.forEach((u) => {
+        const key = u.queueId || u.sourceUrl || 'general-updates';
+        const list = unattachedBySource.get(key) || [];
+        list.push(u);
+        unattachedBySource.set(key, list);
+      });
+
+      unattachedBySource.forEach((updates, key) => {
+        const visibleUpdates = updates.filter((u) => {
+          if (activeFilter === 'PENDING') return u.status === 'PENDING';
+          if (activeFilter === 'CHANGES_REQUESTED') return u.status === 'CHANGES_REQUESTED';
+          return true;
+        });
+
+        if (visibleUpdates.length > 0) {
+          const first = visibleUpdates[0];
+          groups.push({
+            queueItem: null,
+            id: key,
+            title: first.sourceTitle || first.sourceUrl || 'Direct Graph Proposals',
+            sourceUrl: first.sourceUrl,
+            domain: undefined,
+            score: undefined,
+            timestamp: formatRelativeTimestamp(first.createdAt),
+            walkthroughAvailable: false,
+            updates: visibleUpdates
+          });
+        }
+      });
+    }
+
+    return groups;
+  }, [queueItems, graphUpdates, activeFilter]);
+
+  const filteredUpdates = useMemo(() => {
+    return graphUpdates.filter((u) => {
+      if (activeFilter === 'PENDING') return u.status === 'PENDING';
+      if (activeFilter === 'CHANGES_REQUESTED') return u.status === 'CHANGES_REQUESTED';
+      return true;
+    });
+  }, [graphUpdates, activeFilter]);
 
   // Handle click outside to close dropdown
   useEffect(() => {
@@ -82,7 +203,7 @@ export default function NotificationsDropdown() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 8, scale: 0.95 }}
             transition={{ duration: 0.15, ease: 'easeOut' }}
-            className="absolute right-0 mt-2 w-80 md:w-96 max-h-[460px] flex flex-col bg-[#080c16]/95 border border-[#00f0ff]/30 rounded-xl shadow-2xl backdrop-blur-xl z-50 overflow-hidden"
+            className="absolute right-0 mt-2 w-84 sm:w-96 max-h-[520px] flex flex-col bg-[#080c16]/95 border border-[#00f0ff]/30 rounded-xl shadow-2xl backdrop-blur-xl z-50 overflow-hidden"
           >
             {/* Top Accent Line */}
             <div className="h-0.5 w-full bg-gradient-to-r from-transparent via-[#00f0ff] to-transparent opacity-80" />
@@ -96,14 +217,44 @@ export default function NotificationsDropdown() {
                   {pendingCount} PENDING
                 </span>
               </div>
-              <button
-                type="button"
-                onClick={resetGraphUpdates}
-                className="p-1 text-slate-400 hover:text-[#00f0ff] rounded hover:bg-slate-900 transition-colors"
-                title="Reset Mock Updates Feed"
-              >
-                <RotateCcw size={12} />
-              </button>
+              <div className="flex items-center gap-2">
+                {/* View Mode Toggle */}
+                <div className="flex items-center rounded bg-slate-900 border border-white/10 p-0.5 text-[9px]">
+                  <button
+                    type="button"
+                    onClick={() => setViewGrouping('SOURCE')}
+                    className={`px-1.5 py-0.5 rounded font-bold transition-all cursor-pointer ${
+                      viewGrouping === 'SOURCE'
+                        ? 'bg-[#00f0ff]/20 text-[#00f0ff]'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                    title="Group updates by source batch"
+                  >
+                    BY SOURCE
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewGrouping('ALL')}
+                    className={`px-1.5 py-0.5 rounded font-bold transition-all cursor-pointer ${
+                      viewGrouping === 'ALL'
+                        ? 'bg-[#00f0ff]/20 text-[#00f0ff]'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                    title="Show flat list of updates"
+                  >
+                    FLAT
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={resetGraphUpdates}
+                  className="p-1 text-slate-400 hover:text-[#00f0ff] rounded hover:bg-slate-900 transition-colors cursor-pointer"
+                  title="Reset Mock Updates Feed"
+                >
+                  <RotateCcw size={12} />
+                </button>
+              </div>
             </div>
 
             {/* Filter Tabs */}
@@ -125,141 +276,287 @@ export default function NotificationsDropdown() {
             </div>
 
             {/* Updates List */}
-            <div className="flex-1 overflow-y-auto p-2.5 space-y-2 overscroll-contain">
-              {filteredUpdates.length > 0 ? (
-                filteredUpdates.map((update) => {
-                  const catColor = DOMAIN_BASE_COLORS[update.category as DomainCategory] || '#00f0ff';
-                  const commentCount = update.comments?.length || 0;
+            <div className="flex-1 overflow-y-auto p-2.5 space-y-3 overscroll-contain">
+              {viewGrouping === 'SOURCE' ? (
+                /* Source-Grouped View */
+                sourceGroups.length > 0 ? (
+                  sourceGroups.map((group) => {
+                    const isCollapsed = collapsedSources[group.id] ?? false;
+                    const pendingInGroup = group.updates.filter((u) => u.status === 'PENDING').length;
 
-                  return (
-                    <div
-                      key={update.id}
-                      className={`p-2.5 rounded-lg border text-xs transition-all flex flex-col gap-2 ${
-                        update.status === 'PENDING'
-                          ? 'bg-slate-950/80 border-white/10 hover:border-[#00f0ff]/50 shadow-sm'
-                          : update.status === 'CHANGES_REQUESTED'
-                          ? 'bg-slate-950/80 border-[#ffaa00]/30 hover:border-[#ffaa00]'
-                          : update.status === 'APPROVED'
-                          ? 'bg-slate-950/40 border-[#00ff9d]/20 opacity-75'
-                          : 'bg-slate-950/30 border-[#ff3366]/20 opacity-60'
-                      }`}
-                    >
-                      {/* Top Row: Type Badge + Status + Time */}
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-1.5">
-                          <span
-                            style={{
-                              backgroundColor: `${catColor}20`,
-                              borderColor: `${catColor}50`,
-                              color: catColor
-                            }}
-                            className="px-1.5 py-0.5 rounded text-[9px] font-bold border"
-                          >
-                            {update.type.replace('_', ' ')}
-                          </span>
-                          <span className="text-[10px] text-slate-400 truncate max-w-[130px]">
-                            {update.targetName}
-                          </span>
-                        </div>
-
-                        <div className="flex items-center gap-1.5">
-                          {update.status === 'APPROVED' && (
-                            <span className="flex items-center gap-1 text-[9px] text-[#00ff9d] font-bold">
-                              <CheckCircle2 size={11} /> APPROVED
-                            </span>
-                          )}
-                          {update.status === 'REJECTED' && (
-                            <span className="flex items-center gap-1 text-[9px] text-[#ff3366] font-bold">
-                              <XCircle size={11} /> REJECTED
-                            </span>
-                          )}
-                          {update.status === 'CHANGES_REQUESTED' && (
-                            <span className="flex items-center gap-1 text-[9px] text-[#ffaa00] font-bold">
-                              <AlertCircle size={11} /> FEEDBACK
-                            </span>
-                          )}
-                          {update.status === 'PENDING' && (
-                            <span className="text-[9px] text-slate-500">{update.createdAt}</span>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Middle: Title & Description */}
+                    return (
                       <div
-                        onClick={() => {
-                          setActiveDiffUpdateId(update.id);
-                          setIsNotificationsOpen(false);
-                        }}
-                        className="cursor-pointer group"
+                        key={group.id}
+                        className="rounded-xl border border-white/10 bg-slate-950/70 overflow-hidden shadow-sm hover:border-[#00f0ff]/30 transition-all"
+                        data-testid={`source-group-${group.id}`}
                       >
-                        <p className="font-bold text-slate-200 group-hover:text-[#00f0ff] transition-colors leading-tight">
-                          {update.title}
-                        </p>
-                        <p className="text-[11px] text-slate-400 mt-1 line-clamp-2 leading-relaxed">
-                          {update.description}
-                        </p>
-                      </div>
+                        {/* Source Batch Header */}
+                        <div className="p-2.5 bg-slate-900/80 border-b border-white/5 flex flex-col gap-2">
+                          <div className="flex items-start justify-between gap-2">
+                            <button
+                              type="button"
+                              onClick={() => toggleSourceCollapse(group.id)}
+                              className="flex items-start gap-1.5 text-left flex-1 min-w-0 group cursor-pointer"
+                            >
+                              <span className="text-slate-400 group-hover:text-[#00f0ff] mt-0.5 transition-colors">
+                                {isCollapsed ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
+                              </span>
+                              <div className="min-w-0">
+                                <p className="text-xs font-bold text-slate-100 group-hover:text-[#00f0ff] transition-colors truncate">
+                                  {group.title}
+                                </p>
+                                <div className="flex items-center gap-1.5 mt-0.5">
+                                  {group.domain && (
+                                    <span className="text-[10px] text-slate-400 font-mono">
+                                      {group.domain}
+                                    </span>
+                                  )}
+                                  <span className="text-[10px] text-slate-500">•</span>
+                                  <span className="text-[10px] text-slate-400">
+                                    {group.updates.length} change{group.updates.length > 1 ? 's' : ''}
+                                  </span>
+                                  {group.timestamp && (
+                                    <>
+                                      <span className="text-[10px] text-slate-500">•</span>
+                                      <span className="text-[10px] text-slate-400 font-mono">
+                                        {group.timestamp}
+                                      </span>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            </button>
 
-                      {/* Bottom Row: Comments pill & Quick Action buttons */}
-                      <div className="flex items-center justify-between pt-1 border-t border-white/5">
-                        <div className="flex items-center gap-2">
-                          {commentCount > 0 && (
-                            <span className="flex items-center gap-1 text-[10px] text-[#ffaa00] bg-[#ffaa00]/10 px-1.5 py-0.5 rounded border border-[#ffaa00]/25">
-                              <MessageSquare size={10} /> {commentCount} note{commentCount > 1 ? 's' : ''}
-                            </span>
-                          )}
-                        </div>
+                            {group.score !== undefined && (
+                              <span className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-[#00ff9d]/15 text-[#00ff9d] border border-[#00ff9d]/30 flex-shrink-0">
+                                <Award size={10} />
+                                {group.score}%
+                              </span>
+                            )}
+                          </div>
 
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setActiveDiffUpdateId(update.id);
-                              setIsNotificationsOpen(false);
-                            }}
-                            className="px-2 py-0.5 rounded bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-white/10 text-[10px] font-bold transition-all cursor-pointer"
-                          >
-                            Review Diff
-                          </button>
-
-                          {update.status === 'PENDING' && (
-                            <>
+                          {/* Source Actions Row */}
+                          <div className="flex items-center justify-between pt-1 border-t border-white/5 text-[10px]">
+                            {/* Walkthrough Button */}
+                            {group.queueItem && (
                               <button
                                 type="button"
-                                onClick={() => approveGraphUpdate(update.id)}
-                                className="p-1 rounded bg-[#00ff9d]/15 hover:bg-[#00ff9d]/30 text-[#00ff9d] border border-[#00ff9d]/30 transition-all cursor-pointer"
-                                title="Quick Approve & Merge"
-                                aria-label="Quick Approve & Merge"
+                                onClick={() => {
+                                  setActiveWalkthroughQueueId(group.id);
+                                  setIsNotificationsOpen(false);
+                                }}
+                                className="flex items-center gap-1 px-2 py-0.5 rounded bg-[#00f0ff]/15 hover:bg-[#00f0ff]/25 text-[#00f0ff] border border-[#00f0ff]/30 font-bold transition-all cursor-pointer"
+                                data-testid={`view-walkthrough-btn-${group.id}`}
                               >
-                                <Check size={12} />
+                                <Sparkles size={11} />
+                                View Walkthrough
                               </button>
-                              <button
-                                type="button"
-                                onClick={() => rejectGraphUpdate(update.id)}
-                                className="p-1 rounded bg-[#ff3366]/15 hover:bg-[#ff3366]/30 text-[#ff3366] border border-[#ff3366]/30 transition-all cursor-pointer"
-                                title="Quick Reject"
-                                aria-label="Quick Reject"
-                              >
-                                <X size={12} />
-                              </button>
-                            </>
-                          )}
+                            )}
+
+                            {/* Batch Approve / Reject */}
+                            {pendingInGroup > 0 && group.queueItem && (
+                              <div className="flex items-center gap-1 ml-auto">
+                                <button
+                                  type="button"
+                                  onClick={() => approveEntireQueueItem(group.id)}
+                                  className="flex items-center gap-1 px-2 py-0.5 rounded bg-[#00ff9d]/15 hover:bg-[#00ff9d]/30 text-[#00ff9d] border border-[#00ff9d]/30 font-bold transition-all cursor-pointer"
+                                  title="Approve all updates in this source"
+                                  data-testid={`batch-approve-btn-${group.id}`}
+                                >
+                                  <Check size={11} />
+                                  Approve All
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => rejectEntireQueueItem(group.id)}
+                                  className="flex items-center gap-1 px-2 py-0.5 rounded bg-[#ff3366]/15 hover:bg-[#ff3366]/30 text-[#ff3366] border border-[#ff3366]/30 font-bold transition-all cursor-pointer"
+                                  title="Reject all updates in this source"
+                                  data-testid={`batch-reject-btn-${group.id}`}
+                                >
+                                  <X size={11} />
+                                  Reject All
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </div>
+
+                        {/* Collapsible Children Updates */}
+                        {!isCollapsed && (
+                          <div className="p-2 space-y-1.5 bg-slate-950/40">
+                            {group.updates.map((update) => (
+                              <SingleUpdateCard
+                                key={update.id}
+                                update={update}
+                                onReviewDiff={() => {
+                                  setActiveDiffUpdateId(update.id);
+                                  setIsNotificationsOpen(false);
+                                }}
+                                onApprove={() => approveGraphUpdate(update.id)}
+                                onReject={() => rejectGraphUpdate(update.id)}
+                              />
+                            ))}
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  );
-                })
+                    );
+                  })
+                ) : (
+                  <EmptyState />
+                )
               ) : (
-                <div className="py-8 text-center text-slate-500 text-xs">
-                  <CheckCircle2 size={24} className="mx-auto mb-2 text-[#00ff9d]/80" />
-                  <p className="text-slate-300 font-bold">All neural feeds synchronized</p>
-                  <p className="text-[11px] text-slate-500 mt-0.5">0 updates in current view</p>
-                </div>
+                /* Flat Updates View */
+                filteredUpdates.length > 0 ? (
+                  filteredUpdates.map((update) => (
+                    <SingleUpdateCard
+                      key={update.id}
+                      update={update}
+                      onReviewDiff={() => {
+                        setActiveDiffUpdateId(update.id);
+                        setIsNotificationsOpen(false);
+                      }}
+                      onApprove={() => approveGraphUpdate(update.id)}
+                      onReject={() => rejectGraphUpdate(update.id)}
+                    />
+                  ))
+                ) : (
+                  <EmptyState />
+                )
               )}
             </div>
           </motion.div>
         )}
       </AnimatePresence>
+    </div>
+  );
+}
+
+function SingleUpdateCard({
+  update,
+  onReviewDiff,
+  onApprove,
+  onReject
+}: {
+  update: GraphUpdate;
+  onReviewDiff: () => void;
+  onApprove: () => void;
+  onReject: () => void;
+}) {
+  const catColor = DOMAIN_BASE_COLORS[update.category as DomainCategory] || '#00f0ff';
+  const commentCount = update.comments?.length || 0;
+
+  return (
+    <div
+      className={`p-2.5 rounded-lg border text-xs transition-all flex flex-col gap-2 ${
+        update.status === 'PENDING'
+          ? 'bg-slate-950/80 border-white/10 hover:border-[#00f0ff]/50 shadow-sm'
+          : update.status === 'CHANGES_REQUESTED'
+          ? 'bg-slate-950/80 border-[#ffaa00]/30 hover:border-[#ffaa00]'
+          : update.status === 'APPROVED'
+          ? 'bg-slate-950/40 border-[#00ff9d]/20 opacity-75'
+          : 'bg-slate-950/30 border-[#ff3366]/20 opacity-60'
+      }`}
+    >
+      {/* Top Row: Type Badge + Status + Time */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1.5">
+          <span
+            style={{
+              backgroundColor: `${catColor}20`,
+              borderColor: `${catColor}50`,
+              color: catColor
+            }}
+            className="px-1.5 py-0.5 rounded text-[9px] font-bold border"
+          >
+            {update.type.replace('_', ' ')}
+          </span>
+          <span className="text-[10px] text-slate-400 truncate max-w-[130px]">
+            {update.targetName}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-1.5">
+          {update.status === 'APPROVED' && (
+            <span className="flex items-center gap-1 text-[9px] text-[#00ff9d] font-bold">
+              <CheckCircle2 size={11} /> APPROVED
+            </span>
+          )}
+          {update.status === 'REJECTED' && (
+            <span className="flex items-center gap-1 text-[9px] text-[#ff3366] font-bold">
+              <XCircle size={11} /> REJECTED
+            </span>
+          )}
+          {update.status === 'CHANGES_REQUESTED' && (
+            <span className="flex items-center gap-1 text-[9px] text-[#ffaa00] font-bold">
+              <AlertCircle size={11} /> FEEDBACK
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Middle: Title & Description */}
+      <div onClick={onReviewDiff} className="cursor-pointer group">
+        <p className="font-bold text-slate-200 group-hover:text-[#00f0ff] transition-colors leading-tight">
+          {update.title}
+        </p>
+        <p className="text-[11px] text-slate-400 mt-1 line-clamp-2 leading-relaxed">
+          {update.description}
+        </p>
+      </div>
+
+      {/* Bottom Row: Comments pill & Quick Action buttons */}
+      <div className="flex items-center justify-between pt-1 border-t border-white/5">
+        <div className="flex items-center gap-2">
+          {commentCount > 0 && (
+            <span className="flex items-center gap-1 text-[10px] text-[#ffaa00] bg-[#ffaa00]/10 px-1.5 py-0.5 rounded border border-[#ffaa00]/25">
+              <MessageSquare size={10} /> {commentCount} note{commentCount > 1 ? 's' : ''}
+            </span>
+          )}
+        </div>
+
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={onReviewDiff}
+            className="px-2 py-0.5 rounded bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-white/10 text-[10px] font-bold transition-all cursor-pointer"
+          >
+            Review Diff
+          </button>
+
+          {update.status === 'PENDING' && (
+            <>
+              <button
+                type="button"
+                onClick={onApprove}
+                className="p-1 rounded bg-[#00ff9d]/15 hover:bg-[#00ff9d]/30 text-[#00ff9d] border border-[#00ff9d]/30 transition-all cursor-pointer"
+                title="Quick Approve & Merge"
+                aria-label="Quick Approve & Merge"
+              >
+                <Check size={12} />
+              </button>
+              <button
+                type="button"
+                onClick={onReject}
+                className="p-1 rounded bg-[#ff3366]/15 hover:bg-[#ff3366]/30 text-[#ff3366] border border-[#ff3366]/30 transition-all cursor-pointer"
+                title="Quick Reject"
+                aria-label="Quick Reject"
+              >
+                <X size={12} />
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EmptyState() {
+  return (
+    <div className="py-8 text-center text-slate-500 text-xs">
+      <CheckCircle2 size={24} className="mx-auto mb-2 text-[#00ff9d]/80" />
+      <p className="text-slate-300 font-bold">All neural feeds synchronized</p>
+      <p className="text-[11px] text-slate-500 mt-0.5">0 updates in current view</p>
     </div>
   );
 }

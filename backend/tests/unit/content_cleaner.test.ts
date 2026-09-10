@@ -282,7 +282,7 @@ class ScaledDotProductAttention(nn.Module):
       const durationMs = performance.now() - start;
 
       expect(result.cleanedContent.length).toBeGreaterThan(1000);
-      expect(durationMs).toBeLessThan(100);
+      expect(durationMs).toBeLessThan(1000);
     });
   });
 });

@@ -610,7 +610,9 @@ CRITICAL REQUIREMENTS:
    - Directly resolve every line comment and incorporate requested modifications.
 3. ZERO INFORMATION LOSS:
    - Do NOT drop any existing mathematical formulas, KaTeX blocks ($$), Mermaid diagrams, pseudocode branches, or failure modes from the original/current draft, unless explicitly instructed by the reviewer.
-4. Clean Markdown syntax without wrapping in json or meta-chatter.`;
+4. PLAIN & ACCESSIBLE LANGUAGE:
+   - Keep prose clear, simple, and straightforward. Avoid unnecessary jargon, academic filler, or dense sentence structures.
+5. Clean Markdown syntax without wrapping in json or meta-chatter.`;
 
   let reviewerFeedbackText = '';
   if (comments && comments.length > 0) {

@@ -160,8 +160,11 @@ QUESTION FORMAT TAXONOMY (PRIORITIZE CHALLENGING FORMATS):
    - MUST provide 'memorizationReason'. Do NOT use for general concepts.
 
 CRITICAL RULES:
+- Write question stems, choices, and explanations in plain, simple, and straightforward language. Avoid convoluted phrasing, double negatives, or needlessly dense wording.
+- Question Volume & Depth: Generate as many questions as needed to achieve deep, exhaustive coverage of the note. Do not stop at a superficial sample—each formula, algorithm step, trade-off, and failure mode must be tested with its own dedicated question.
 - Exactly ONE unambiguously correct answer per question.
 - No giveaway distractors ("All of the above", "None of the above", or absurd options).
+- Distractor explanations must be clear, direct, and easy to interpret.
 - Reference the specific 'sourceAssertion' from the note for each question.
 
 Output format must be a JSON object with a 'questions' array.`;
@@ -194,7 +197,13 @@ The previous quiz draft was audited and flagged the following issues:
 Please re-generate the complete quiz questions, resolving all ambiguities and ensuring 100% coverage of all note sections.
 </critic_revision_feedback>`;
     } else {
-      generatorPrompt += `\n\nSynthesize a rigorous, 4 to 6 question assessment providing 100% coverage of the study note above.`;
+      generatorPrompt += `\n\nSynthesize an exhaustive, rigorous assessment covering every substantive section of the study note above.
+Generate as many questions as are needed (typically 8 to 15+ questions depending on note depth) so that:
+- Every mathematical formulation, formula parameter, and complexity bound has a targeted question.
+- Every major trade-off from the Decision Matrix is tested via a scenario-based question.
+- Every listed Failure Mode and edge case gotcha is rigorously tested.
+- The step-by-step Worked Trace execution order is evaluated.
+Do not artificially limit question count—generate sufficient question volume to guarantee deep, mastery-level coverage across the entire note.`;
     }
 
     // Step 1: Generator LLM Call

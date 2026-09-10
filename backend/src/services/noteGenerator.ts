@@ -70,6 +70,49 @@ export function validateNoteFormatting(markdown: string): { valid: boolean; erro
     errors.push('Unbalanced inline math delimiters ($). An inline LaTeX formula was opened but not closed.');
   }
 
+  // Validate Mermaid diagrams syntax integrity
+  const mermaidBlocks = markdown.match(/```mermaid[\s\S]*?```/g) || [];
+  for (const block of mermaidBlocks) {
+    const lines = block
+      .replace(/^```mermaid\s*/i, '')
+      .replace(/\s*```$/, '')
+      .trim()
+      .split('\n')
+      .map((l) => l.trim())
+      .filter((l) => l && !l.startsWith('%%'));
+
+    if (lines.length === 0) {
+      errors.push('Empty Mermaid diagram block (```mermaid ``` with no diagram definition).');
+      continue;
+    }
+
+    const firstLine = lines[0].toLowerCase();
+    const validMermaidKeywords = [
+      'flowchart',
+      'graph',
+      'sequencediagram',
+      'classdiagram',
+      'statediagram',
+      'statediagram-v2',
+      'erdiagram',
+      'journey',
+      'gantt',
+      'pie',
+      'quadrantchart',
+      'gitgraph',
+      'mindmap',
+      'timeline',
+      'sankey-beta'
+    ];
+
+    const hasValidHeader = validMermaidKeywords.some((keyword) => firstLine.startsWith(keyword));
+    if (!hasValidHeader) {
+      errors.push(
+        `Invalid Mermaid diagram type '${lines[0]}'. Must begin with a recognized diagram keyword (e.g., 'flowchart TD', 'flowchart LR', 'sequenceDiagram').`
+      );
+    }
+  }
+
   return {
     valid: errors.length === 0,
     errors
@@ -140,6 +183,12 @@ export async function generateSingleTopicNote(
   const generatorSystemPrompt = `You are a World-Class Technical Educator, Curriculum Engineer, and Authoritative Study Note Architect.
 Your mission is to generate an EXTREMELY HIGH-QUALITY, comprehensive, and definitive master study note for the topic "${topic.name}".
 The note must achieve 100% coverage of the important concepts, formulas, code mechanics, edge cases, and architectural trade-offs present in the source text.
+
+PLAIN LANGUAGE & INTUITIVE CLARITY (MANDATORY):
+- Write in simple, clear, and straightforward language. Do NOT overcomplicate explanations or use unnecessary academic jargon.
+- Convey all technical depth, formulas, and edge cases accurately, but explain them in an approachable, easy-to-understand way.
+- When an advanced technical term is essential, immediately explain what it means in plain English with an intuitive real-world analogy.
+- Keep sentences direct, active, and conversational. Avoid flowery, dense, or convoluted phrasing.
 
 MANDATORY MASTER NOTE STRUCTURE:
 Your output MUST be in GitHub-Flavored Markdown and strictly adhere to this section hierarchy:

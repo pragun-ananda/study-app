@@ -25,6 +25,7 @@ import {
 import NoteViewerModal from './NoteViewerModal';
 import NotificationsDropdown from './NotificationsDropdown';
 import DiffViewerModal from './DiffViewerModal';
+import IngestionWalkthroughModal from './IngestionWalkthroughModal';
 import { useStore } from '../../store/useStore';
 import { TopicNode, DomainCategory, TodoPriority } from '../../types/telemetry';
 import { DOMAIN_BASE_COLORS, getCategoryShade } from '../../utils/theme';
@@ -872,6 +873,9 @@ export default function TelemetryHUD() {
 
       {/* Review Diff Modal (FRO-11) */}
       <DiffViewerModal />
+
+      {/* Ingestion Pedagogical Walkthrough Modal */}
+      <IngestionWalkthroughModal />
     </div>
   );
 }
