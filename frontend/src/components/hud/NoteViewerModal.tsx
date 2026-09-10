@@ -7,96 +7,25 @@ import {
   Calendar,
   Copy,
   Check,
-  Terminal,
   Edit3,
   Eye,
   PenLine,
   Save,
-  Trash2
+  Trash2,
+  HelpCircle
 } from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import remarkMath from 'remark-math';
-import rehypeKatex from 'rehype-katex';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { dracula } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import 'katex/dist/katex.min.css';
 import { useStore } from '../../store/useStore';
 import { getCategoryShade } from '../../utils/theme';
-import { MermaidDiagram } from './MermaidDiagram';
-
-interface CodeBlockProps {
-  language: string;
-  codeString: string;
-  nodeColor: string;
-}
-
-function CodeBlock({ language, codeString, nodeColor }: CodeBlockProps) {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(codeString);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  return (
-    <div className="relative my-4 rounded-xl overflow-hidden border border-white/10 bg-[#060a14] shadow-2xl">
-      {/* Code Header Bar */}
-      <div className="flex items-center justify-between px-3.5 py-1.5 bg-slate-950/90 border-b border-white/10 text-[11px] font-mono">
-        <div className="flex items-center gap-2">
-          <Terminal size={12} style={{ color: nodeColor }} />
-          <span className="font-bold tracking-wider" style={{ color: nodeColor }}>
-            {language ? language.toUpperCase() : 'CODE'}
-          </span>
-        </div>
-        <button
-          onClick={handleCopy}
-          className="flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] text-slate-400 hover:text-white bg-slate-900/80 hover:bg-slate-800 transition-colors border border-white/5 cursor-pointer"
-          title="Copy code snippet"
-        >
-          {copied ? (
-            <>
-              <Check size={11} className="text-[#00ff9d]" />
-              <span className="text-[#00ff9d] font-bold">COPIED</span>
-            </>
-          ) : (
-            <>
-              <Copy size={11} />
-              <span>COPY</span>
-            </>
-          )}
-        </button>
-      </div>
-
-      {/* Syntax Highlighted Body */}
-      <div className="overflow-x-auto text-[11.5px] font-mono leading-relaxed">
-        <SyntaxHighlighter
-          language={language || 'text'}
-          style={dracula}
-          customStyle={{
-            margin: 0,
-            padding: '1rem',
-            background: 'transparent',
-            fontSize: '11.5px',
-            lineHeight: '1.6'
-          }}
-          codeTagProps={{
-            style: {
-              fontFamily: "'JetBrains Mono', 'Fira Code', monospace"
-            }
-          }}
-        >
-          {codeString}
-        </SyntaxHighlighter>
-      </div>
-    </div>
-  );
-}
+import { MarkdownContent } from './MarkdownContent';
+import { QuizViewer } from './QuizViewer';
 
 export default function NoteViewerModal() {
   const activeNote = useStore((state) => state.activeNote);
   const setActiveNote = useStore((state) => state.setActiveNote);
+  const activeQuiz = useStore((state) => state.activeQuiz);
+  const setActiveQuiz = useStore((state) => state.setActiveQuiz);
+  const activeModalTab = useStore((state) => state.activeModalTab);
+  const setActiveModalTab = useStore((state) => state.setActiveModalTab);
   const isNoteEditing = useStore((state) => state.isNoteEditing);
   const setIsNoteEditing = useStore((state) => state.setIsNoteEditing);
   const addNoteToTopic = useStore((state) => state.addNoteToTopic);
@@ -120,6 +49,17 @@ export default function NoteViewerModal() {
     return getCategoryShade(selectedNode.id, selectedNode.category);
   }, [selectedNode]);
 
+  // Topic quizzes if attached
+  const currentQuiz = useMemo(() => {
+    if (activeQuiz) return activeQuiz;
+    if (selectedNode?.quizzes && selectedNode.quizzes.length > 0) {
+      return selectedNode.quizzes[0];
+    }
+    return null;
+  }, [activeQuiz, selectedNode?.quizzes]);
+
+  const hasQuiz = Boolean(currentQuiz && currentQuiz.questions && currentQuiz.questions.length > 0);
+
   // Sync edit fields when activeNote changes
   useEffect(() => {
     if (activeNote) {
@@ -129,15 +69,7 @@ export default function NoteViewerModal() {
     }
   }, [activeNote]);
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && activeNote) {
-        handleCloseOrCancel();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeNote, isNoteEditing]);
+  const isOpen = Boolean(activeNote || activeQuiz);
 
   const handleCloseOrCancel = () => {
     if (isNoteEditing) {
@@ -150,8 +82,19 @@ export default function NoteViewerModal() {
       }
     } else {
       setActiveNote(null);
+      setActiveQuiz(null);
     }
   };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        handleCloseOrCancel();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, isNoteEditing, activeNote]);
 
   const handleSaveNote = () => {
     if (!selectedTopicId) return;
@@ -193,8 +136,8 @@ export default function NoteViewerModal() {
 
   return (
     <AnimatePresence>
-      {activeNote && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center p-4 md:p-8 pointer-events-auto">
+      {isOpen && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center p-4 md:p-8 pointer-events-auto font-sans">
           {/* Backdrop Blur Overlay with rapid fade */}
           <motion.div
             initial={{ opacity: 0 }}
@@ -205,7 +148,7 @@ export default function NoteViewerModal() {
             className="absolute inset-0 bg-black/80 backdrop-blur-md cursor-pointer"
           />
 
-          {/* Glowing Modal Window with snappy, responsive Zoom-In Animation */}
+          {/* Glowing Modal Window with snappy Zoom-In Animation */}
           <motion.div
             initial={{ opacity: 0, scale: 0.85 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -215,7 +158,7 @@ export default function NoteViewerModal() {
               borderColor: `${nodeColor}70`,
               boxShadow: `0 0 50px ${nodeColor}35, 0 0 20px ${nodeColor}20, inset 0 0 20px ${nodeColor}08`
             }}
-            className="relative w-full max-w-3xl max-h-[85vh] flex flex-col bg-[#080c16]/95 border rounded-2xl overflow-hidden font-sans z-50 shadow-2xl"
+            className="relative w-full max-w-4xl max-h-[85vh] flex flex-col bg-[#080c16]/95 border rounded-2xl overflow-hidden font-sans z-50 shadow-2xl"
           >
             {/* Top Accent Scanline Bar matched to node color */}
             <div
@@ -264,59 +207,105 @@ export default function NoteViewerModal() {
                       boxShadow: `0 0 12px ${nodeColor}35`
                     }}
                   >
-                    <FileText size={16} />
+                    {activeModalTab === 'QUIZ' ? <HelpCircle size={16} /> : <FileText size={16} />}
                   </div>
                   <div className="truncate">
                     <span className="text-slate-100 font-sans font-bold text-xs uppercase tracking-wider truncate">
-                      {activeNote.title}
+                      {activeModalTab === 'QUIZ'
+                        ? currentQuiz?.title || `${selectedNode?.name || 'Topic'} Quiz Bank`
+                        : activeNote?.title || 'Study Note'}
                     </span>
                   </div>
                 </div>
               )}
 
-              {/* Action & Mode Buttons */}
+              {/* Mode & Tab Switchers */}
               <div className="flex items-center gap-2 flex-shrink-0">
-                {isNoteEditing ? (
-                  <div className="flex items-center bg-slate-900/90 p-0.5 rounded-lg border border-white/10 text-[10px]">
+                {/* Switch between NOTE and QUIZ if topic has quizzes */}
+                {!isNoteEditing && hasQuiz && (
+                  <div className="flex items-center bg-slate-900/90 p-0.5 rounded-lg border border-white/10 text-[10px] font-mono">
                     <button
-                      onClick={() => setEditTab('WRITE')}
-                      style={{
-                        backgroundColor: editTab === 'WRITE' ? `${nodeColor}25` : 'transparent',
-                        color: editTab === 'WRITE' ? nodeColor : '#94a3b8'
+                      type="button"
+                      onClick={() => {
+                        setActiveModalTab('NOTE');
+                        if (!activeNote && selectedNode?.notes && selectedNode.notes.length > 0) {
+                          setActiveNote(selectedNode.notes[0]);
+                        }
                       }}
-                      className="px-2 py-1 rounded font-bold transition-all flex items-center gap-1 cursor-pointer"
+                      style={{
+                        backgroundColor: activeModalTab === 'NOTE' ? `${nodeColor}25` : 'transparent',
+                        color: activeModalTab === 'NOTE' ? nodeColor : '#94a3b8'
+                      }}
+                      className="px-2.5 py-1 rounded font-bold transition-all flex items-center gap-1.5 cursor-pointer"
                     >
-                      <PenLine size={11} />
-                      <span>WRITE</span>
+                      <FileText size={11} />
+                      <span>NOTE</span>
                     </button>
                     <button
-                      onClick={() => setEditTab('PREVIEW')}
+                      type="button"
+                      onClick={() => setActiveModalTab('QUIZ')}
                       style={{
-                        backgroundColor: editTab === 'PREVIEW' ? `${nodeColor}25` : 'transparent',
-                        color: editTab === 'PREVIEW' ? nodeColor : '#94a3b8'
+                        backgroundColor: activeModalTab === 'QUIZ' ? `${nodeColor}25` : 'transparent',
+                        color: activeModalTab === 'QUIZ' ? nodeColor : '#94a3b8'
                       }}
-                      className="px-2 py-1 rounded font-bold transition-all flex items-center gap-1 cursor-pointer"
+                      className="px-2.5 py-1 rounded font-bold transition-all flex items-center gap-1.5 cursor-pointer"
                     >
-                      <Eye size={11} />
-                      <span>PREVIEW</span>
+                      <HelpCircle size={11} />
+                      <span>QUIZ ({currentQuiz?.questions?.length || 0})</span>
                     </button>
                   </div>
-                ) : (
-                  <button
-                    onClick={() => setIsNoteEditing(true)}
-                    style={{
-                      borderColor: `${nodeColor}40`,
-                      color: nodeColor
-                    }}
-                    className="px-2.5 py-1 rounded-lg border bg-slate-900/60 hover:bg-slate-800 text-[11px] font-sans font-bold transition-all flex items-center gap-1.5 cursor-pointer"
-                    title="Edit Note"
-                  >
-                    <Edit3 size={13} />
-                    <span>EDIT</span>
-                  </button>
+                )}
+
+                {/* Edit Mode Buttons */}
+                {activeModalTab === 'NOTE' && (
+                  <>
+                    {isNoteEditing ? (
+                      <div className="flex items-center bg-slate-900/90 p-0.5 rounded-lg border border-white/10 text-[10px]">
+                        <button
+                          type="button"
+                          onClick={() => setEditTab('WRITE')}
+                          style={{
+                            backgroundColor: editTab === 'WRITE' ? `${nodeColor}25` : 'transparent',
+                            color: editTab === 'WRITE' ? nodeColor : '#94a3b8'
+                          }}
+                          className="px-2 py-1 rounded font-bold transition-all flex items-center gap-1 cursor-pointer"
+                        >
+                          <PenLine size={11} />
+                          <span>WRITE</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditTab('PREVIEW')}
+                          style={{
+                            backgroundColor: editTab === 'PREVIEW' ? `${nodeColor}25` : 'transparent',
+                            color: editTab === 'PREVIEW' ? nodeColor : '#94a3b8'
+                          }}
+                          className="px-2 py-1 rounded font-bold transition-all flex items-center gap-1 cursor-pointer"
+                        >
+                          <Eye size={11} />
+                          <span>PREVIEW</span>
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setIsNoteEditing(true)}
+                        style={{
+                          borderColor: `${nodeColor}40`,
+                          color: nodeColor
+                        }}
+                        className="px-2.5 py-1 rounded-lg border bg-slate-900/60 hover:bg-slate-800 text-[11px] font-sans font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                        title="Edit Note"
+                      >
+                        <Edit3 size={13} />
+                        <span>EDIT</span>
+                      </button>
+                    )}
+                  </>
                 )}
 
                 <button
+                  type="button"
                   onClick={handleCloseOrCancel}
                   className="p-1.5 rounded-lg border border-white/10 hover:border-[#ff3366]/50 text-slate-400 hover:text-[#ff3366] bg-slate-900/60 hover:bg-[#ff3366]/10 transition-all cursor-pointer"
                   title="Close (ESC)"
@@ -328,8 +317,17 @@ export default function NoteViewerModal() {
 
             {/* Modal Body */}
             <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4 overscroll-contain text-slate-200 selection:bg-white/20 selection:text-white flex flex-col min-h-[350px]">
-              {isNoteEditing && editTab === 'WRITE' ? (
-                /* Edit Mode: Markdown Textarea */
+              {/* Tab 1: QUIZ VIEW */}
+              {activeModalTab === 'QUIZ' && currentQuiz ? (
+                <div className="flex-1">
+                  <QuizViewer
+                    questions={currentQuiz.questions}
+                    accentColor={nodeColor}
+                    topicTitle={selectedNode?.name}
+                  />
+                </div>
+              ) : isNoteEditing && editTab === 'WRITE' ? (
+                /* Tab 2: NOTE EDIT TEXTAREA */
                 <div className="flex-1 flex flex-col space-y-2 h-full">
                   <div className="flex items-center justify-end text-[10px] text-slate-400 font-mono">
                     <span>{editContent.length} characters</span>
@@ -344,149 +342,20 @@ export default function NoteViewerModal() {
                   />
                 </div>
               ) : (
-                /* View Mode or Live Preview Mode */
+                /* Tab 3: NOTE VIEW / PREVIEW WITH UNIFIED MarkdownContent */
                 <div className="flex-1">
-                  {(isNoteEditing ? editContent : activeNote.content) ? (
-                    <div className="prose prose-invert max-w-none text-sm leading-relaxed font-sans">
-                      <ReactMarkdown
-                        remarkPlugins={[remarkGfm, remarkMath]}
-                        rehypePlugins={[[rehypeKatex, { strict: false, throwOnError: false }]]}
-                        components={{
-                          h1: ({ node, ...props }) => (
-                            <h1
-                              className="text-lg font-bold font-sans tracking-wide border-b pb-2 mb-4 mt-2 flex items-center gap-2"
-                              style={{
-                                color: nodeColor,
-                                borderColor: `${nodeColor}30`
-                              }}
-                              {...props}
-                            />
-                          ),
-                          h2: ({ node, ...props }) => (
-                            <h2
-                              className="text-base font-bold text-slate-100 font-sans tracking-wide mt-6 mb-3 flex items-center gap-2"
-                              {...props}
-                            />
-                          ),
-                          h3: ({ node, ...props }) => (
-                            <h3
-                              className="text-sm font-semibold font-sans tracking-wide mt-4 mb-2"
-                              style={{ color: nodeColor }}
-                              {...props}
-                            />
-                          ),
-                          p: ({ node, ...props }) => (
-                            <p className="text-slate-300 text-sm leading-relaxed mb-3 font-sans" {...props} />
-                          ),
-                          ul: ({ node, ...props }) => (
-                            <ul className="list-disc list-inside space-y-1.5 mb-4 text-slate-300 text-sm font-sans" {...props} />
-                          ),
-                          ol: ({ node, ...props }) => (
-                            <ol className="list-decimal list-inside space-y-1.5 mb-4 text-slate-300 text-sm font-sans" {...props} />
-                          ),
-                          li: ({ node, ...props }) => <li className="text-slate-300 text-sm font-sans leading-relaxed" {...props} />,
-                          code: ({ node, className, children, ...props }) => {
-                            const match = /language-(\w+)/.exec(className || '');
-                            const codeString = String(children).replace(/\n$/, '');
-                            const isInline = !match && !String(children).includes('\n');
-                            if (isInline) {
-                              return (
-                                <code
-                                  className="px-1.5 py-0.5 rounded font-mono text-[11px]"
-                                  style={{
-                                    backgroundColor: `${nodeColor}15`,
-                                    color: nodeColor,
-                                    borderColor: `${nodeColor}30`,
-                                    borderWidth: '1px'
-                                  }}
-                                  {...props}
-                                >
-                                  {children}
-                                </code>
-                              );
-                            }
-                            if (match && match[1]?.toLowerCase() === 'mermaid') {
-                              return <MermaidDiagram codeString={codeString} nodeColor={nodeColor} />;
-                            }
-                            return (
-                              <CodeBlock
-                                language={match ? match[1] : ''}
-                                codeString={codeString}
-                                nodeColor={nodeColor}
-                              />
-                            );
-                          },
-                          blockquote: ({ node, ...props }) => (
-                            <blockquote
-                              className="border-l-2 pl-3 py-1.5 text-slate-400 italic my-3 rounded-r font-mono text-xs"
-                              style={{
-                                borderLeftColor: nodeColor,
-                                backgroundColor: `${nodeColor}0d`
-                              }}
-                              {...props}
-                            />
-                          ),
-                          table: ({ node, ...props }) => (
-                            <div className="overflow-x-auto my-4 border border-white/10 rounded-lg">
-                              <table className="w-full text-xs text-slate-300 border-collapse font-mono" {...props} />
-                            </div>
-                          ),
-                          th: ({ node, ...props }) => (
-                            <th
-                              className="bg-slate-900 border-b border-white/10 p-2.5 text-left font-mono font-bold text-[11px]"
-                              style={{ color: nodeColor }}
-                              {...props}
-                            />
-                          ),
-                          td: ({ node, ...props }) => (
-                            <td
-                              className="border-b border-white/5 p-2.5 font-mono text-[11px] bg-slate-950/40"
-                              {...props}
-                            />
-                          ),
-                          hr: ({ node, ...props }) => <hr className="border-white/10 my-4" {...props} />,
-                          strong: ({ node, ...props }) => <strong className="text-slate-100 font-bold font-mono" {...props} />,
-                          em: ({ node, ...props }) => (
-                            <em className="not-italic font-medium font-mono" style={{ color: nodeColor }} {...props} />
-                          ),
-                          img: ({ node, src, alt, ...props }) => (
-                            <span className="block my-4 rounded-xl overflow-hidden border border-white/10 bg-[#060a14] shadow-xl">
-                              <img
-                                src={src}
-                                alt={alt}
-                                className="w-full max-h-[360px] object-contain bg-slate-950/60 p-2"
-                                loading="lazy"
-                                {...props}
-                              />
-                              {alt && (
-                                <span className="block text-center text-[10px] text-slate-400 py-1.5 px-3 border-t border-white/5 bg-slate-950/80 font-mono">
-                                  {alt}
-                                </span>
-                              )}
-                            </span>
-                          ),
-                          a: ({ node, href, children, ...props }) => (
-                            <a
-                              href={href}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="underline text-[#00f0ff] hover:text-[#00ff9d] transition-colors"
-                              {...props}
-                            >
-                              {children}
-                            </a>
-                          )
-                        }}
-                      >
-                        {isNoteEditing ? editContent : activeNote.content}
-                      </ReactMarkdown>
-                    </div>
+                  {(isNoteEditing ? editContent : activeNote?.content) ? (
+                    <MarkdownContent
+                      content={isNoteEditing ? editContent : activeNote?.content || ''}
+                      accentColor={nodeColor}
+                    />
                   ) : (
                     <div className="py-12 text-center text-slate-500 font-mono text-xs">
                       <FileText size={24} className="mx-auto mb-2 text-slate-600" />
                       <p>This note file is currently empty.</p>
                       {isNoteEditing && (
                         <button
+                          type="button"
                           onClick={() => setEditTab('WRITE')}
                           className="mt-3 px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold"
                         >
@@ -501,12 +370,13 @@ export default function NoteViewerModal() {
 
             {/* Modal Footer */}
             <div className="px-5 py-3 border-t border-white/10 bg-slate-950/70 flex items-center justify-between text-[11px] text-slate-400 flex-shrink-0">
-              {isNoteEditing ? (
+              {activeModalTab === 'NOTE' && isNoteEditing ? (
                 /* Edit Mode Footer */
                 <>
                   <div className="flex items-center gap-2">
                     {activeNote?.id && (
                       <button
+                        type="button"
                         onClick={handleDeleteCurrentNote}
                         className="px-2.5 py-1.5 rounded-lg border border-red-500/30 text-red-400 hover:text-red-300 hover:bg-red-500/10 text-xs font-mono font-semibold transition-all flex items-center gap-1.5 cursor-pointer"
                         title="Delete this note"
@@ -518,20 +388,20 @@ export default function NoteViewerModal() {
                   </div>
                   <div className="flex items-center gap-2">
                     <button
+                      type="button"
                       onClick={handleCloseOrCancel}
-                      className="px-3.5 py-1.5 rounded-lg border border-white/10 hover:border-white/20 text-slate-300 hover:text-white bg-slate-900/60 hover:bg-slate-800 text-xs font-mono font-semibold transition-all cursor-pointer"
+                      className="px-3 py-1.5 rounded-lg border border-white/10 hover:border-white/20 text-slate-300 hover:text-white bg-slate-900/60 hover:bg-slate-800 text-xs font-mono transition-all cursor-pointer"
                     >
-                      CANCEL
+                      Cancel
                     </button>
                     <button
+                      type="button"
                       onClick={handleSaveNote}
                       style={{
-                        borderColor: `${nodeColor}60`,
-                        backgroundColor: `${nodeColor}20`,
-                        color: nodeColor,
-                        boxShadow: `0 0 16px ${nodeColor}25`
+                        backgroundColor: nodeColor,
+                        boxShadow: `0 0 15px ${nodeColor}40`
                       }}
-                      className="px-4 py-1.5 rounded-lg border text-xs font-mono font-bold transition-all flex items-center gap-1.5 hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+                      className="px-3.5 py-1.5 rounded-lg text-slate-950 font-bold text-xs font-sans hover:brightness-110 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
                     >
                       <Save size={13} />
                       <span>SAVE NOTE</span>
@@ -540,47 +410,59 @@ export default function NoteViewerModal() {
                 </>
               ) : (
                 /* View Mode Footer */
-                <div className="flex items-center justify-between w-full gap-4">
-                  {/* Bottom-left: Date Added and Last Updated Info */}
-                  <div className="flex items-center gap-4 text-[10px] text-slate-400 font-mono flex-wrap">
-                    {activeNote.createdAt && (
-                      <div className="flex items-center gap-1.5 text-slate-400">
-                        <Calendar size={12} className="text-slate-500" />
+                <>
+                  <div className="flex items-center gap-4 text-slate-500 font-mono text-[10px]">
+                    {activeNote?.createdAt && (
+                      <div className="flex items-center gap-1">
+                        <Calendar size={11} />
                         <span>Added {activeNote.createdAt}</span>
                       </div>
                     )}
-                    {activeNote.updatedAt && (
-                      <div className="flex items-center gap-1.5 text-slate-400">
-                        <Clock size={12} className="text-slate-500" />
+                    {activeNote?.updatedAt && (
+                      <div className="flex items-center gap-1">
+                        <Clock size={11} />
                         <span>Updated {activeNote.updatedAt}</span>
+                      </div>
+                    )}
+                    {activeModalTab === 'QUIZ' && currentQuiz && (
+                      <div className="flex items-center gap-1 text-[#00ff9d]">
+                        <Check size={11} />
+                        <span>{currentQuiz.questions?.length || 0} Questions Loaded</span>
                       </div>
                     )}
                   </div>
 
-                  {/* Bottom-right: Copy Action Button */}
-                  <button
-                    onClick={handleCopy}
-                    style={{
-                      borderColor: copied ? '#00ff9d' : `${nodeColor}50`,
-                      backgroundColor: copied ? 'rgba(0, 255, 157, 0.12)' : 'rgba(8, 12, 22, 0.85)',
-                      color: copied ? '#00ff9d' : '#f1f5f9'
-                    }}
-                    className="px-3.5 py-1.5 rounded-lg border text-xs font-mono font-bold transition-all flex items-center gap-2 hover:border-[#00f0ff] hover:bg-[#00f0ff]/10 cursor-pointer shadow-sm flex-shrink-0"
-                    title="Copy note content"
-                  >
-                    {copied ? (
-                      <>
-                        <Check size={13} className="text-[#00ff9d]" />
-                        <span className="text-[#00ff9d]">COPIED</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy size={13} style={{ color: nodeColor }} />
-                        <span>COPY</span>
-                      </>
+                  <div className="flex items-center gap-2">
+                    {activeModalTab === 'NOTE' && (
+                      <button
+                        type="button"
+                        onClick={handleCopy}
+                        className="px-2.5 py-1 rounded-lg border border-white/10 hover:border-white/20 text-slate-300 hover:text-white bg-slate-900/60 hover:bg-slate-800 text-[11px] font-mono transition-all flex items-center gap-1.5 cursor-pointer"
+                        title="Copy note content"
+                      >
+                        {copied ? (
+                          <>
+                            <Check size={12} className="text-[#00ff9d]" />
+                            <span className="text-[#00ff9d] font-bold">COPIED</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy size={12} />
+                            <span>COPY CONTENT</span>
+                          </>
+                        )}
+                      </button>
                     )}
-                  </button>
-                </div>
+
+                    <button
+                      type="button"
+                      onClick={handleCloseOrCancel}
+                      className="px-3 py-1 rounded-lg border border-white/10 hover:border-white/20 text-slate-300 hover:text-white bg-slate-900/60 hover:bg-slate-800 text-[11px] font-mono transition-all cursor-pointer"
+                    >
+                      Close
+                    </button>
+                  </div>
+                </>
               )}
             </div>
           </motion.div>

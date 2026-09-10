@@ -7,7 +7,8 @@ import {
   NoteItem,
   StudyTodo,
   LineReviewComment,
-  GraphUpdate
+  GraphUpdate,
+  QuizItem
 } from '../types/telemetry';
 import { DOMAIN_DATA, INITIAL_TODOS } from '../data/test';
 import { INITIAL_UPDATES, INITIAL_QUEUE_ITEMS } from '../data/test/updates';
@@ -159,6 +160,8 @@ export const INITIAL_STATE: TelemetryState = {
   hoveredTopicId: null,
   isInspectorOpen: false,
   activeNote: null,
+  activeQuiz: null,
+  activeModalTab: 'NOTE',
   isNoteEditing: false,
   todos: INITIAL_TODOS,
 
@@ -253,7 +256,11 @@ export const useStore = create<TelemetryStore>((set, get) => ({
   setSelectedTopicId: (selectedTopicId: string | null) => set({ selectedTopicId }),
   setIsInspectorOpen: (isInspectorOpen: boolean) => set({ isInspectorOpen }),
   setActiveNote: (activeNote: NoteItem | null, isNoteEditing = false) =>
-    set({ activeNote, isNoteEditing }),
+    set({ activeNote, isNoteEditing, activeModalTab: 'NOTE' }),
+  setActiveQuiz: (activeQuiz: QuizItem | null) =>
+    set({ activeQuiz, activeModalTab: 'QUIZ' }),
+  setActiveModalTab: (activeModalTab: 'NOTE' | 'QUIZ') =>
+    set({ activeModalTab }),
   setIsNoteEditing: (isNoteEditing: boolean) => set({ isNoteEditing }),
 
   addNoteToTopic: async (topicId: string, noteData: Omit<NoteItem, 'id'>) => {
@@ -531,6 +538,27 @@ export const useStore = create<TelemetryStore>((set, get) => ({
               return { ...t, notes };
             });
           }
+        } else if (update.type === 'QUIZ_UPDATE') {
+          const topicId = update.payload?.topicId || update.targetId;
+          if (topicId) {
+            let questions: any[] = [];
+            try {
+              const parsed = JSON.parse(update.newContent);
+              questions = Array.isArray(parsed) ? parsed : parsed.questions || [];
+            } catch {}
+            const quizItem = {
+              id: update.payload?.quizId || `QUIZ-${topicId}`,
+              title: update.title || `${update.targetName} Quiz Bank`,
+              description: update.description,
+              updatedAt: 'Just now',
+              questions
+            };
+            nextTopics = nextTopics.map((t) => {
+              if (t.id !== topicId) return t;
+              const existing = (t.quizzes || []).filter((q) => q.id !== quizItem.id);
+              return { ...t, quizzes: [quizItem, ...existing] };
+            });
+          }
         } else if (update.type === 'EDGE_UPDATE' && update.payload?.edge) {
           const { fromId, toId } = update.payload.edge;
           nextTopics = nextTopics.map((t) => {
@@ -630,6 +658,28 @@ export const useStore = create<TelemetryStore>((set, get) => ({
               n.id === noteId ? { ...n, content: update.newContent, updatedAt: 'Just now' } : n
             );
             return { ...t, notes };
+          });
+        }
+      } else if (update.type === 'QUIZ_UPDATE') {
+        const topicId = update.payload?.topicId || update.targetId;
+        if (topicId) {
+          targetSelectedId = topicId;
+          let questions: any[] = [];
+          try {
+            const parsed = JSON.parse(update.newContent);
+            questions = Array.isArray(parsed) ? parsed : parsed.questions || [];
+          } catch {}
+          const quizItem = {
+            id: update.payload?.quizId || `QUIZ-${topicId}`,
+            title: update.title || `${update.targetName} Quiz Bank`,
+            description: update.description,
+            updatedAt: 'Just now',
+            questions
+          };
+          nextTopics = nextTopics.map((t) => {
+            if (t.id !== topicId) return t;
+            const existing = (t.quizzes || []).filter((q) => q.id !== quizItem.id);
+            return { ...t, quizzes: [quizItem, ...existing] };
           });
         }
       } else if (update.type === 'EDGE_UPDATE' && update.payload?.edge) {

@@ -107,4 +107,35 @@ describe('IngestionWalkthroughModal Component', () => {
     expect(screen.getByText('TOPIC UPDATE')).toBeInTheDocument();
     expect(screen.getByText('EDGE UPDATE')).toBeInTheDocument();
   });
+
+  it('toggles inline preview of note content directly within walkthrough', () => {
+    useStore.setState({
+      activeWalkthroughQueueId: 'QUEUE-INIT-001',
+      queueItems: INITIAL_QUEUE_ITEMS,
+      graphUpdates: INITIAL_UPDATES
+    });
+
+    render(<IngestionWalkthroughModal />);
+
+    // Check preview button for UPDATE-001
+    const previewBtn = screen.getByTestId('walkthrough-preview-btn-UPDATE-001');
+    expect(previewBtn).toBeInTheDocument();
+    expect(previewBtn).toHaveTextContent('Preview');
+
+    // Initially preview drawer is not visible
+    expect(screen.queryByTestId('walkthrough-inline-preview-UPDATE-001')).not.toBeInTheDocument();
+
+    // Click Preview button
+    fireEvent.click(previewBtn);
+
+    // Now preview drawer is open with note content
+    expect(screen.getByTestId('walkthrough-inline-preview-UPDATE-001')).toBeInTheDocument();
+    expect(screen.getByText(/Backpropagation & Automatic Differentiation/i)).toBeInTheDocument();
+    expect(previewBtn).toHaveTextContent('Hide');
+
+    // Click again to close preview drawer
+    fireEvent.click(previewBtn);
+    expect(screen.queryByTestId('walkthrough-inline-preview-UPDATE-001')).not.toBeInTheDocument();
+  });
 });
+

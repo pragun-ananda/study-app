@@ -105,5 +105,114 @@ describe('Unit: Walkthrough Generator (src/services/walkthroughGenerator.ts)', (
       expect(result.walkthrough.quizCoverageJustification.coverageScore).toBe(100);
       expect(result.sourceMetadata.domain).toBe('empty-content.example.com');
     });
+
+    it('synthesizes omitted content from rejectedTopics when LLM returns empty omittedContent', async () => {
+      mockLLM.setCustomHandler(async () => {
+        return JSON.stringify({
+          executiveSummary: 'Custom summary',
+          extractedConcepts: [{ name: 'Core Concept', rationale: 'Essential' }],
+          omittedContent: [],
+          quizCoverageJustification: {
+            completenessRationale: 'Comprehensive coverage',
+            testedFailureModes: ['Edge case'],
+            coverageScore: 90
+          }
+        });
+      });
+
+      const result = await generateIngestionWalkthrough({
+        url: 'https://example.com/deep-dive',
+        rawContent: 'Sample content with peripheral sections.',
+        extractedTopics: [
+          {
+            name: 'Core Concept',
+            category: 'Systems',
+            summary: 'Summary',
+            importance: 90,
+            complexity: 70,
+            suggestedNotes: ['Note 1']
+          }
+        ],
+        rejectedTopics: [
+          { name: 'Hardware Setup', reason: 'Too hardware-specific and non-conceptual.' },
+          { name: 'Version History', reason: 'Incidental changelog details.' }
+        ],
+        notes: [],
+        options: { llmClient: mockLLM }
+      });
+
+      expect(result.walkthrough.omittedContent).toHaveLength(2);
+      expect(result.walkthrough.omittedContent[0].contentSnippetOrTheme).toBe('Hardware Setup');
+      expect(result.walkthrough.omittedContent[0].reason).toBe('Too hardware-specific and non-conceptual.');
+      expect(result.walkthrough.omittedContent[1].contentSnippetOrTheme).toBe('Version History');
+    });
+
+    it('synthesizes default omitted content when LLM returns empty omittedContent and no rejectedTopics are present', async () => {
+      mockLLM.setCustomHandler(async () => {
+        return JSON.stringify({
+          executiveSummary: 'Custom summary',
+          extractedConcepts: [{ name: 'Core Concept', rationale: 'Essential' }],
+          omittedContent: [],
+          quizCoverageJustification: {
+            completenessRationale: 'Comprehensive coverage',
+            testedFailureModes: ['Edge case'],
+            coverageScore: 90
+          }
+        });
+      });
+
+      const result = await generateIngestionWalkthrough({
+        url: 'https://example.com/deep-dive',
+        rawContent: 'Sample content without rejected topics.',
+        extractedTopics: [
+          {
+            name: 'Core Concept',
+            category: 'Systems',
+            summary: 'Summary',
+            importance: 90,
+            complexity: 70,
+            suggestedNotes: ['Note 1']
+          }
+        ],
+        notes: [],
+        options: { llmClient: mockLLM }
+      });
+
+      expect(result.walkthrough.omittedContent).toHaveLength(1);
+      expect(result.walkthrough.omittedContent[0].contentSnippetOrTheme).toContain('Peripheral setup details');
+      expect(result.walkthrough.omittedContent[0].reason).toContain('Omitted incidental narrative');
+    });
+
+    it('handles LLM failure gracefully and falls back to rejectedTopics if available', async () => {
+      mockLLM.setCustomHandler(async () => {
+        throw new Error('LLM service unavailable');
+      });
+
+      const result = await generateIngestionWalkthrough({
+        url: 'https://example.com/failure-case',
+        rawContent: 'Sample content during LLM outage.',
+        extractedTopics: [
+          {
+            name: 'Fault Tolerance',
+            category: 'Distributed Systems',
+            summary: 'Fault tolerance mechanisms',
+            importance: 85,
+            complexity: 75,
+            suggestedNotes: ['FT Note']
+          }
+        ],
+        rejectedTopics: [
+          { name: 'Installation Script', reason: 'Pruned setup script' }
+        ],
+        notes: [],
+        options: { llmClient: mockLLM }
+      });
+
+      expect(result.walkthrough.executiveSummary).toContain('Synthesized 1 topic nodes');
+      expect(result.walkthrough.extractedConcepts).toHaveLength(1);
+      expect(result.walkthrough.omittedContent).toHaveLength(1);
+      expect(result.walkthrough.omittedContent[0].contentSnippetOrTheme).toBe('Installation Script');
+      expect(result.walkthrough.omittedContent[0].reason).toBe('Pruned setup script');
+    });
   });
 });
