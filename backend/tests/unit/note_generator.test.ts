@@ -144,7 +144,7 @@ A --> B
       expect(context).toBe(shortDoc);
     });
 
-    it('extracts relevant sections matching topic keywords for large documents', () => {
+    it('preserves full context for documents within 120,000 character limit without keyword truncation', () => {
       const largeDoc = `
 # Overview of Deep Learning
 This document covers deep learning paradigms.
@@ -162,6 +162,14 @@ Policy gradients and Q-learning. ${'More details on agents. '.repeat(400)}
       const context = extractTopicRelevantContext(largeDoc, sampleTopic);
       expect(context.length).toBeLessThanOrEqual(120000);
       expect(context.toLowerCase()).toContain('self-attention');
+      expect(context.toLowerCase()).toContain('convolutional neural networks');
+      expect(context.toLowerCase()).toContain('reinforcement learning');
+    });
+
+    it('bounds documents exceeding 120,000 characters to MAX_TOPIC_CONTEXT_CHARS', () => {
+      const hugeDoc = 'x'.repeat(130000);
+      const context = extractTopicRelevantContext(hugeDoc, sampleTopic);
+      expect(context.length).toBe(120000);
     });
   });
 
