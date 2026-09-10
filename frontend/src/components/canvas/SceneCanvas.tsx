@@ -344,203 +344,7 @@ function AnamorphicStarGlint({ color, scale = 1.0, opacity = 0.95 }: { color: st
   );
 }
 
-// Shader for Deep Space Distant Starfield Background
-const DeepSpaceShaderMaterial = {
-  uniforms: {
-    uTime: { value: 0 }
-  },
-  vertexShader: `
-    uniform float uTime;
-    attribute float aSize;
-    attribute float aPhase;
-    attribute vec3 aColor;
 
-    varying vec3 vColor;
-    varying float vAlpha;
-
-    void main() {
-      vColor = aColor;
-      vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-      gl_Position = projectionMatrix * mvPosition;
-
-      // Soft distance size attenuation with boosted point visibility
-      gl_PointSize = aSize * (210.0 / -mvPosition.z);
-
-      // Gentle deep-space twinkling
-      float twinkle = sin(uTime * 1.8 + aPhase) * 0.22 + 0.78;
-      vAlpha = twinkle;
-    }
-  `,
-  fragmentShader: `
-    varying vec3 vColor;
-    varying float vAlpha;
-
-    void main() {
-      float dist = length(gl_PointCoord - vec2(0.5));
-      if (dist > 0.5) discard;
-
-      // Soft circular star point with crisp, brighter starlight
-      float intensity = smoothstep(0.5, 0.0, dist);
-      gl_FragColor = vec4(vColor * 1.35, intensity * vAlpha * 1.15);
-    }
-  `
-};
-
-// 3-Tier Parallax Starfield Depth Component (Far, Mid, Foreground differential motion)
-function DeepSpaceStarfield() {
-  const farRef = useRef<THREE.Points>(null!);
-  const midRef = useRef<THREE.Points>(null!);
-  const foreRef = useRef<THREE.Points>(null!);
-  const materialRef = useRef<THREE.ShaderMaterial>(null!);
-
-  // Tier 1: Far Background Stars (r = 90 - 140)
-  const farData = useMemo(() => {
-    const count = 3600;
-    const pos = new Float32Array(count * 3);
-    const col = new Float32Array(count * 3);
-    const sz = new Float32Array(count);
-    const ph = new Float32Array(count);
-
-    const palette = [new THREE.Color('#ffffff'), new THREE.Color('#fff4d6'), new THREE.Color('#ffe8a3')];
-
-    for (let i = 0; i < count; i++) {
-      const u = Math.random();
-      const v = Math.random();
-      const theta = u * 2.0 * Math.PI;
-      const phi = Math.acos(2.0 * v - 1.0);
-      const r = 90.0 + Math.random() * 50.0;
-
-      pos[i * 3] = r * Math.sin(phi) * Math.cos(theta);
-      pos[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
-      pos[i * 3 + 2] = r * Math.cos(phi);
-
-      const color = palette[Math.floor(Math.random() * palette.length)];
-      col[i * 3] = color.r;
-      col[i * 3 + 1] = color.g;
-      col[i * 3 + 2] = color.b;
-
-      sz[i] = Math.random() * 0.5 + 0.25;
-      ph[i] = Math.random() * Math.PI * 2;
-    }
-    return { positions: pos, colors: col, sizes: sz, phases: ph };
-  }, []);
-
-  // Tier 2: Mid-Ground Twinkling Stars (r = 45 - 85)
-  const midData = useMemo(() => {
-    const count = 1800;
-    const pos = new Float32Array(count * 3);
-    const col = new Float32Array(count * 3);
-    const sz = new Float32Array(count);
-    const ph = new Float32Array(count);
-
-    const palette = [new THREE.Color('#ffffff'), new THREE.Color('#fff4d6'), new THREE.Color('#00f0ff'), new THREE.Color('#ffe600')];
-
-    for (let i = 0; i < count; i++) {
-      const u = Math.random();
-      const v = Math.random();
-      const theta = u * 2.0 * Math.PI;
-      const phi = Math.acos(2.0 * v - 1.0);
-      const r = 45.0 + Math.random() * 40.0;
-
-      pos[i * 3] = r * Math.sin(phi) * Math.cos(theta);
-      pos[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
-      pos[i * 3 + 2] = r * Math.cos(phi);
-
-      const color = palette[Math.floor(Math.random() * palette.length)];
-      col[i * 3] = color.r;
-      col[i * 3 + 1] = color.g;
-      col[i * 3 + 2] = color.b;
-
-      sz[i] = Math.random() * 0.7 + 0.45;
-      ph[i] = Math.random() * Math.PI * 2;
-    }
-    return { positions: pos, colors: col, sizes: sz, phases: ph };
-  }, []);
-
-  // Tier 3: Foreground Ambient Micro-Dust Stars (r = 18 - 40)
-  const foreData = useMemo(() => {
-    const count = 600;
-    const pos = new Float32Array(count * 3);
-    const col = new Float32Array(count * 3);
-    const sz = new Float32Array(count);
-    const ph = new Float32Array(count);
-
-    const palette = [new THREE.Color('#ffffff'), new THREE.Color('#fff4d6'), new THREE.Color('#a855f7')];
-
-    for (let i = 0; i < count; i++) {
-      const u = Math.random();
-      const v = Math.random();
-      const theta = u * 2.0 * Math.PI;
-      const phi = Math.acos(2.0 * v - 1.0);
-      const r = 18.0 + Math.random() * 22.0;
-
-      pos[i * 3] = r * Math.sin(phi) * Math.cos(theta);
-      pos[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
-      pos[i * 3 + 2] = r * Math.cos(phi);
-
-      const color = palette[Math.floor(Math.random() * palette.length)];
-      col[i * 3] = color.r;
-      col[i * 3 + 1] = color.g;
-      col[i * 3 + 2] = color.b;
-
-      sz[i] = Math.random() * 0.9 + 0.6;
-      ph[i] = Math.random() * Math.PI * 2;
-    }
-    return { positions: pos, colors: col, sizes: sz, phases: ph };
-  }, []);
-
-  const farMatRef = useRef<THREE.ShaderMaterial>(null!);
-  const midMatRef = useRef<THREE.ShaderMaterial>(null!);
-  const foreMatRef = useRef<THREE.ShaderMaterial>(null!);
-
-  useFrame((_, delta) => {
-    if (farMatRef.current) farMatRef.current.uniforms.uTime.value += delta;
-    if (midMatRef.current) midMatRef.current.uniforms.uTime.value += delta;
-    if (foreMatRef.current) foreMatRef.current.uniforms.uTime.value += delta;
-
-    // 3-Tier Parallax Differential Motion
-    if (farRef.current) farRef.current.rotation.y += delta * 0.002;
-    if (midRef.current) midRef.current.rotation.y += delta * 0.005;
-    if (foreRef.current) foreRef.current.rotation.y += delta * 0.012;
-  });
-
-  return (
-    <group>
-      {/* Tier 1: Far Starfield */}
-      <points ref={farRef} frustumCulled={false}>
-        <bufferGeometry>
-          <bufferAttribute attach="attributes-position" count={farData.positions.length / 3} array={farData.positions} itemSize={3} />
-          <bufferAttribute attach="attributes-aColor" count={farData.colors.length / 3} array={farData.colors} itemSize={3} />
-          <bufferAttribute attach="attributes-aSize" count={farData.sizes.length} array={farData.sizes} itemSize={1} />
-          <bufferAttribute attach="attributes-aPhase" count={farData.phases.length} array={farData.phases} itemSize={1} />
-        </bufferGeometry>
-        <shaderMaterial ref={farMatRef} args={[DeepSpaceShaderMaterial]} transparent depthWrite={false} blending={THREE.AdditiveBlending} />
-      </points>
-
-      {/* Tier 2: Mid-Ground Starfield */}
-      <points ref={midRef} frustumCulled={false}>
-        <bufferGeometry>
-          <bufferAttribute attach="attributes-position" count={midData.positions.length / 3} array={midData.positions} itemSize={3} />
-          <bufferAttribute attach="attributes-aColor" count={midData.colors.length / 3} array={midData.colors} itemSize={3} />
-          <bufferAttribute attach="attributes-aSize" count={midData.sizes.length} array={midData.sizes} itemSize={1} />
-          <bufferAttribute attach="attributes-aPhase" count={midData.phases.length} array={midData.phases} itemSize={1} />
-        </bufferGeometry>
-        <shaderMaterial ref={midMatRef} args={[DeepSpaceShaderMaterial]} transparent depthWrite={false} blending={THREE.AdditiveBlending} />
-      </points>
-
-      {/* Tier 3: Foreground Starfield */}
-      <points ref={foreRef} frustumCulled={false}>
-        <bufferGeometry>
-          <bufferAttribute attach="attributes-position" count={foreData.positions.length / 3} array={foreData.positions} itemSize={3} />
-          <bufferAttribute attach="attributes-aColor" count={foreData.colors.length / 3} array={foreData.colors} itemSize={3} />
-          <bufferAttribute attach="attributes-aSize" count={foreData.sizes.length} array={foreData.sizes} itemSize={1} />
-          <bufferAttribute attach="attributes-aPhase" count={foreData.phases.length} array={foreData.phases} itemSize={1} />
-        </bufferGeometry>
-        <shaderMaterial ref={foreMatRef} args={[DeepSpaceShaderMaterial]} transparent depthWrite={false} blending={THREE.AdditiveBlending} />
-      </points>
-    </group>
-  );
-}
 
 const sharedSphereGeometry = new THREE.SphereGeometry(0.38, 16, 16);
 const sharedRingGeometry = new THREE.RingGeometry(0.5, 0.62, 24);
@@ -744,15 +548,41 @@ function KnowledgeGraphEdges() {
 
 // Camera Rig: Deep Space Hyper-Drive Fly-In Swoop (z = 450.0 -> 22.0) and cinematic node zoom
 function CameraRig({ controlsRef, introRef }: { controlsRef: React.RefObject<OrbitControlsImpl>; introRef: React.MutableRefObject<number> }) {
-  const { camera } = useThree();
+  const { camera, size } = useThree();
   const topicNodes = useStore((state) => state.topicNodes);
   const selectedTopicId = useStore((state) => state.selectedTopicId);
+  const hoveredTopicId = useStore((state) => state.hoveredTopicId);
 
   const prevSelectedId = useRef<string | null>(null);
   const isAnimating = useRef<boolean>(false);
 
   const targetPos = useMemo(() => new THREE.Vector3(), []);
   const camTargetPos = useMemo(() => new THREE.Vector3(), []);
+
+  // Compute responsive overview framing distance so all nodes and HUD margins fit fully in view
+  const overviewZ = useMemo(() => {
+    if (topicNodes.length === 0) return 56.0;
+
+    let maxDist = 0;
+    for (const n of topicNodes) {
+      const [x, y, z] = n.coordinates;
+      const d = Math.sqrt(x * x + y * y + z * z);
+      if (d > maxDist) maxDist = d;
+    }
+
+    // Include geometry radius and snug HUD clearance
+    const paddedRadius = maxDist + 1.8;
+    const aspect = size.width && size.height ? size.width / size.height : 16 / 9;
+    const halfFovRad = (60 / 2) * (Math.PI / 180);
+    const tanHalfFov = Math.tan(halfFovRad);
+
+    // Frame snugly so the graph is nice and large while avoiding top/bottom HUD clipping
+    const vertZ = paddedRadius / (tanHalfFov * 0.96);
+    const horizZ = paddedRadius / (tanHalfFov * aspect * 0.94);
+
+    const calculatedZ = Math.max(vertZ, horizZ);
+    return Math.max(54.0, Math.min(75.0, Number(calculatedZ.toFixed(1))));
+  }, [topicNodes, size.width, size.height]);
 
   useEffect(() => {
     const controls = controlsRef.current;
@@ -777,12 +607,13 @@ function CameraRig({ controlsRef, introRef }: { controlsRef: React.RefObject<Orb
     const controls = controlsRef.current;
     if (!controls) return;
 
-    // 1. Deep Space Hyper-Drive Swoop Sequence on page load/refresh (Starts at z = 450.0, lands at z = 48.0 so full graph is framed in screen)
+    // 1. Deep Space Hyper-Drive Swoop Sequence on page load/refresh (Starts at z = 450.0, lands at overviewZ so full graph is framed in screen)
     if (introRef.current < 1.0) {
+      controls.autoRotate = false;
       const t = Math.min(1.0, introRef.current);
       const easedT = 1 - Math.pow(1 - t, 4); // Quartic Ease Out for hyper-drive deceleration
 
-      const targetZ = 48.0;
+      const targetZ = overviewZ;
       const startZ = 450.0;
       const currentZ = THREE.MathUtils.lerp(startZ, targetZ, easedT);
 
@@ -794,6 +625,7 @@ function CameraRig({ controlsRef, introRef }: { controlsRef: React.RefObject<Orb
 
     // 2. Interactive Selection lerp (Close-up detail framing zoom into selected node)
     if (isAnimating.current) {
+      controls.autoRotate = false;
       const selectedNode = topicNodes.find((n) => n.id === selectedTopicId);
 
       if (selectedNode) {
@@ -814,7 +646,7 @@ function CameraRig({ controlsRef, introRef }: { controlsRef: React.RefObject<Orb
       } else {
         // Zoom out to homepage full graph overview centered in screen
         targetPos.set(0, 0, 0);
-        camTargetPos.set(0, 0, 48.0);
+        camTargetPos.set(0, 0, overviewZ);
 
         controls.target.lerp(targetPos, delta * 4.5);
         camera.position.lerp(camTargetPos, delta * 4.5);
@@ -824,6 +656,11 @@ function CameraRig({ controlsRef, introRef }: { controlsRef: React.RefObject<Orb
           isAnimating.current = false;
         }
       }
+    } else {
+      // 3. Gentle ambient auto-rotation when idling in overview mode
+      // Pauses during node inspection or node hover to keep interactions crisp
+      controls.autoRotate = !selectedTopicId && !hoveredTopicId;
+      controls.autoRotateSpeed = 0.6;
     }
   });
 
@@ -836,9 +673,6 @@ function SceneContent() {
 
   return (
     <ConnectedGraphContext.Provider value={connectedGraph}>
-      {/* 3-Tier Deep Space Parallax Starfield Layer (Far, Mid, Foreground) */}
-      <DeepSpaceStarfield />
-
       <KnowledgeGraphEdges />
 
       {/* Directional Energy Flow Particles along Prerequisite Edges (Solar Wind) */}
@@ -886,8 +720,10 @@ export default function SceneCanvas() {
           panSpeed={1.0}
           zoomSpeed={0.5}
           minDistance={3.0}
-          maxDistance={120.0}
+          maxDistance={200.0}
           screenSpacePanning
+          autoRotate
+          autoRotateSpeed={0.6}
         />
         <IntroAnimationController introRef={introRef} />
         <CameraRig controlsRef={controlsRef} introRef={introRef} />
