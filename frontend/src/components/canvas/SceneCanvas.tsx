@@ -127,6 +127,9 @@ function SolarWindEnergyStreams() {
   const theme = useStore((state) => state.theme);
   const { activeId, activeNodeColorHex, nodeMap, directIncomingKeys, directOutgoingKeys, transitiveIncomingKeys, transitiveOutgoingKeys } = React.useContext(ConnectedGraphContext);
 
+  const activeApplication = useStore((state) => state.activeApplication);
+  const isLight = theme === 'light';
+
   const { starts, ends, speeds, offsets, sizes, colors, count } = useMemo(() => {
     const startList: number[] = [];
     const endList: number[] = [];
@@ -134,6 +137,10 @@ function SolarWindEnergyStreams() {
     const offsetList: number[] = [];
     const sizeList: number[] = [];
     const colorList: number[] = [];
+
+    const isAppActive = Boolean(activeApplication);
+    const appTopicSet = new Set(activeApplication?.topicIds || []);
+    const appCyan = new THREE.Color(isLight ? '#0284c7' : '#00f0ff');
 
     const incomingCorrelatedCol = activeNodeColorHex ? new THREE.Color(getIncomingEdgeColor(activeNodeColorHex)) : null;
     const outgoingCorrelatedCol = activeNodeColorHex ? new THREE.Color(getOutgoingEdgeColor(activeNodeColorHex)) : null;
@@ -146,7 +153,8 @@ function SolarWindEnergyStreams() {
         const target = nodeMap.get(targetId);
         if (target) {
           const edgeKey = `${source.id}->${target.id}`;
-          const photonsPerEdge = 3;
+          const isAppEdge = isAppActive && appTopicSet.has(source.id) && appTopicSet.has(target.id);
+          const photonsPerEdge = isAppEdge ? 5 : 3;
 
           for (let p = 0; p < photonsPerEdge; p++) {
             startList.push(...source.coordinates);
@@ -160,7 +168,15 @@ function SolarWindEnergyStreams() {
             let col = sourceColor;
             let sz = 0.5 + seed * 0.3;
 
-            if (activeId && activeNodeColorHex) {
+            if (isAppActive) {
+              if (isAppEdge) {
+                col = appCyan;
+                sz = 1.35;
+              } else {
+                col = isLight ? new THREE.Color('#cbd5e1') : new THREE.Color('#1e293b');
+                sz = 0.12;
+              }
+            } else if (activeId && activeNodeColorHex) {
               if (directOutgoingKeys.has(edgeKey)) {
                 col = outgoingCorrelatedCol ?? sourceColor;
                 sz = 1.1;
@@ -195,7 +211,7 @@ function SolarWindEnergyStreams() {
       colors: new Float32Array(colorList),
       count: startList.length / 3
     };
-  }, [topicNodes, nodeMap, activeId, activeNodeColorHex, directIncomingKeys, directOutgoingKeys, transitiveIncomingKeys, transitiveOutgoingKeys]);
+  }, [topicNodes, nodeMap, activeId, activeNodeColorHex, directIncomingKeys, directOutgoingKeys, transitiveIncomingKeys, transitiveOutgoingKeys, activeApplication, theme, isLight]);
 
   useFrame((_, delta) => {
     if (materialRef.current) {
@@ -420,25 +436,42 @@ const KnowledgeNode = React.memo(({ node, isConnectedComponent }: { node: TopicN
   const setHoveredTopicId = useStore((state) => state.setHoveredTopicId);
   const selectedCategory = useStore((state) => state.selectedCategory);
   const searchQuery = useStore((state) => state.searchQuery);
+  const activeApplication = useStore((state) => state.activeApplication);
   const theme = useStore((state) => state.theme);
 
   const isLight = theme === 'light';
+  const isAppActive = Boolean(activeApplication);
+  const isAppConcept = isAppActive && activeApplication ? activeApplication.topicIds.includes(node.id) : false;
+
   const isCategoryMatched = !selectedCategory || selectedCategory === 'ALL' || node.category === selectedCategory;
   const isSearchMatched = !searchQuery || node.name.toLowerCase().includes(searchQuery.toLowerCase());
 
-  const showLabel = isSelected || isHovered || (searchQuery.length > 0 && isSearchMatched);
+  const showLabel = isSelected || isHovered || (searchQuery.length > 0 && isSearchMatched) || isAppConcept;
 
   const nodeColor = useMemo(() => {
+    if (isAppActive && !isAppConcept) {
+      return isLight ? '#94a3b8' : '#1e293b';
+    }
     if (!isCategoryMatched || !isSearchMatched) return isLight ? '#94a3b8' : '#334155';
     return getCategoryShade(node.id, node.category, theme);
-  }, [node.id, node.category, isCategoryMatched, isSearchMatched, theme, isLight]);
+  }, [node.id, node.category, isCategoryMatched, isSearchMatched, isAppActive, isAppConcept, theme, isLight]);
 
   useFrame((_, delta) => {
     if (ringRef.current) {
-      ringRef.current.rotation.z += delta * 1.5;
+      ringRef.current.rotation.z += delta * (isAppConcept ? 2.5 : 1.5);
     }
     if (meshRef.current) {
-      const targetScale = isSelected ? 1.8 : isHovered ? 1.4 : isConnectedComponent ? 1.15 : 1.0;
+      const targetScale = isSelected
+        ? 1.85
+        : isHovered
+        ? 1.45
+        : isAppConcept
+        ? 1.35
+        : isConnectedComponent
+        ? 1.15
+        : isAppActive
+        ? 0.72
+        : 1.0;
       meshRef.current.scale.lerp(new THREE.Vector3(targetScale, targetScale, targetScale), delta * 6.0);
     }
   });
@@ -448,11 +481,31 @@ const KnowledgeNode = React.memo(({ node, isConnectedComponent }: { node: TopicN
     setSelectedTopicId(node.id);
   };
 
-  const glintScale = isSelected ? 1.6 : isHovered ? 1.1 : isConnectedComponent ? 0.72 : 0.38;
-  const glintOpacity = isSelected ? 0.95 : isHovered ? 0.75 : isConnectedComponent ? 0.52 : 0.22;
+  const glintScale = isSelected
+    ? 1.6
+    : isHovered
+    ? 1.1
+    : isAppConcept
+    ? 1.2
+    : isConnectedComponent
+    ? 0.72
+    : isAppActive
+    ? 0.18
+    : 0.38;
+  const glintOpacity = isSelected
+    ? 0.95
+    : isHovered
+    ? 0.75
+    : isAppConcept
+    ? 0.9
+    : isConnectedComponent
+    ? 0.52
+    : isAppActive
+    ? 0.1
+    : 0.22;
   const emissiveVal = isLight
-    ? (isSelected ? 1.05 : isHovered ? 0.85 : isConnectedComponent ? 0.75 : 0.62)
-    : (isSelected ? 2.4 : isHovered ? 1.4 : isConnectedComponent ? 0.95 : 0.55);
+    ? (isSelected ? 1.05 : isHovered ? 0.85 : isAppConcept ? 1.0 : isConnectedComponent ? 0.75 : isAppActive ? 0.25 : 0.62)
+    : (isSelected ? 2.4 : isHovered ? 1.4 : isAppConcept ? 2.2 : isConnectedComponent ? 0.95 : isAppActive ? 0.18 : 0.55);
 
   return (
     <group position={node.coordinates}>
@@ -520,7 +573,7 @@ const KnowledgeNode = React.memo(({ node, isConnectedComponent }: { node: TopicN
               borderColor: nodeColor,
               boxShadow: isSelected || isHovered ? `0 0 16px ${nodeColor}80` : undefined
             }}
-            className={`px-2 py-0.5 rounded font-sans font-bold transition-all whitespace-nowrap overflow-hidden text-ellipsis shadow-lg ${getSingleLineFontSize(
+            className={`px-2 py-0.5 rounded font-sans font-bold transition-all whitespace-nowrap overflow-hidden text-ellipsis shadow-lg flex items-center gap-1.5 ${getSingleLineFontSize(
               node.name.length
             )} ${
               isSelected || isHovered
@@ -530,7 +583,7 @@ const KnowledgeNode = React.memo(({ node, isConnectedComponent }: { node: TopicN
                   : 'text-slate-200 bg-slate-950/90 border border-white/20'
             }`}
           >
-            {node.name}
+            <span>{node.name}</span>
           </div>
         </Html>
       )}
@@ -541,6 +594,7 @@ const KnowledgeNode = React.memo(({ node, isConnectedComponent }: { node: TopicN
 // Render 3D Directed Prerequisite & Unlocked Edges
 function KnowledgeGraphEdges() {
   const topicNodes = useStore((state) => state.topicNodes);
+  const activeApplication = useStore((state) => state.activeApplication);
   const theme = useStore((state) => state.theme);
   const isLight = theme === 'light';
   const { activeId, activeNodeColorHex, nodeMap, directIncomingKeys, directOutgoingKeys, transitiveIncomingKeys, transitiveOutgoingKeys } = React.useContext(ConnectedGraphContext);
@@ -555,6 +609,8 @@ function KnowledgeGraphEdges() {
     }[] = [];
 
     const visited = new Set<string>();
+    const isAppActive = Boolean(activeApplication);
+    const appTopicSet = new Set(activeApplication?.topicIds || []);
 
     const incomingCorrelatedCol = activeNodeColorHex ? getIncomingEdgeColor(activeNodeColorHex) : (isLight ? '#0284c7' : '#ffaa00');
     const outgoingCorrelatedCol = activeNodeColorHex ? getOutgoingEdgeColor(activeNodeColorHex) : (isLight ? '#059669' : '#00ff9d');
@@ -571,7 +627,18 @@ function KnowledgeGraphEdges() {
             let lineWidth = isLight ? 1.1 : 0.7;
             let baseOpacity = isLight ? 0.52 : 0.12;
 
-            if (activeId && activeNodeColorHex) {
+            if (isAppActive) {
+              const isAppEdge = appTopicSet.has(source.id) && appTopicSet.has(target.id);
+              if (isAppEdge) {
+                color = isLight ? '#0284c7' : '#00f0ff';
+                lineWidth = 2.4;
+                baseOpacity = 0.95;
+              } else {
+                color = isLight ? '#e2e8f0' : 'rgba(255, 255, 255, 0.04)';
+                lineWidth = 0.5;
+                baseOpacity = 0.05;
+              }
+            } else if (activeId && activeNodeColorHex) {
               if (directOutgoingKeys.has(key)) {
                 color = outgoingCorrelatedCol;
                 lineWidth = 2.8;
@@ -604,7 +671,7 @@ function KnowledgeGraphEdges() {
     });
 
     return edgeList;
-  }, [topicNodes, nodeMap, activeId, activeNodeColorHex, directIncomingKeys, directOutgoingKeys, transitiveIncomingKeys, transitiveOutgoingKeys, isLight]);
+  }, [topicNodes, nodeMap, activeId, activeNodeColorHex, directIncomingKeys, directOutgoingKeys, transitiveIncomingKeys, transitiveOutgoingKeys, activeApplication, isLight]);
 
   return (
     <group>
@@ -622,15 +689,17 @@ function KnowledgeGraphEdges() {
   );
 }
 
-// Camera Rig: Deep Space Hyper-Drive Fly-In Swoop (z = 450.0 -> 22.0) and cinematic node zoom
 function CameraRig({ controlsRef, introRef }: { controlsRef: React.RefObject<OrbitControlsImpl>; introRef: React.MutableRefObject<number> }) {
   const { camera, size } = useThree();
   const topicNodes = useStore((state) => state.topicNodes);
   const selectedTopicId = useStore((state) => state.selectedTopicId);
   const hoveredTopicId = useStore((state) => state.hoveredTopicId);
   const searchQuery = useStore((state) => state.searchQuery);
+  const activeApplication = useStore((state) => state.activeApplication);
 
   const prevSelectedId = useRef<string | null>(null);
+  const prevActiveAppId = useRef<string | null>(null);
+  const lastTargetMode = useRef<'TOPIC' | 'APPLICATION' | 'OVERVIEW'>('OVERVIEW');
   const isAnimating = useRef<boolean>(false);
 
   const targetPos = useMemo(() => new THREE.Vector3(), []);
@@ -663,9 +732,31 @@ function CameraRig({ controlsRef, introRef }: { controlsRef: React.RefObject<Orb
   useEffect(() => {
     if (selectedTopicId !== prevSelectedId.current) {
       prevSelectedId.current = selectedTopicId;
+      if (selectedTopicId) {
+        lastTargetMode.current = 'TOPIC';
+      } else if (activeApplication) {
+        lastTargetMode.current = 'APPLICATION';
+      } else {
+        lastTargetMode.current = 'OVERVIEW';
+      }
       isAnimating.current = true;
     }
-  }, [selectedTopicId]);
+  }, [selectedTopicId, activeApplication]);
+
+  useEffect(() => {
+    const currentAppId = activeApplication?.id || null;
+    if (currentAppId !== prevActiveAppId.current) {
+      prevActiveAppId.current = currentAppId;
+      if (currentAppId) {
+        lastTargetMode.current = 'APPLICATION';
+      } else if (selectedTopicId) {
+        lastTargetMode.current = 'TOPIC';
+      } else {
+        lastTargetMode.current = 'OVERVIEW';
+      }
+      isAnimating.current = true;
+    }
+  }, [activeApplication, selectedTopicId]);
 
   useFrame((_, delta) => {
     const controls = controlsRef.current;
@@ -676,11 +767,11 @@ function CameraRig({ controlsRef, introRef }: { controlsRef: React.RefObject<Orb
       (window as any).__AUTO_ROTATE__ = controls.autoRotate;
     }
 
-    // 1. Deep Space Hyper-Drive Swoop Sequence on page load/refresh (Starts at z = 450.0, lands at overviewZ so full graph is framed in screen)
+    // 1. Deep Space Hyper-Drive Swoop Sequence on page load/refresh
     if (introRef.current < 1.0) {
       controls.autoRotate = false;
       const t = Math.min(1.0, introRef.current);
-      const easedT = 1 - Math.pow(1 - t, 4); // Quartic Ease Out for hyper-drive deceleration
+      const easedT = 1 - Math.pow(1 - t, 4);
 
       const targetZ = overviewZ;
       const startZ = 450.0;
@@ -692,12 +783,43 @@ function CameraRig({ controlsRef, introRef }: { controlsRef: React.RefObject<Orb
       return;
     }
 
-    // 2. Interactive Selection lerp (Close-up detail framing zoom into selected node)
+    // 2. Interactive Selection lerp
     if (isAnimating.current) {
       controls.autoRotate = false;
       const selectedNode = topicNodes.find((n) => n.id === selectedTopicId);
+      const shouldFrameApp =
+        activeApplication &&
+        activeApplication.topicIds.length > 0 &&
+        (lastTargetMode.current === 'APPLICATION' || !selectedNode);
 
-      if (selectedNode) {
+      if (shouldFrameApp) {
+        // Frame the cluster of nodes in the active application
+        const appNodes = topicNodes.filter((n) => activeApplication.topicIds.includes(n.id));
+        if (appNodes.length > 0) {
+          let sumX = 0, sumY = 0, sumZ = 0;
+          appNodes.forEach((n) => {
+            sumX += n.coordinates[0];
+            sumY += n.coordinates[1];
+            sumZ += n.coordinates[2];
+          });
+          const avgX = sumX / appNodes.length;
+          const avgY = sumY / appNodes.length;
+          const avgZ = sumZ / appNodes.length;
+
+          targetPos.set(avgX, avgY, avgZ);
+          camTargetPos.set(avgX, avgY + 0.5, avgZ + 18.0);
+
+          controls.target.lerp(targetPos, delta * 4.5);
+          camera.position.lerp(camTargetPos, delta * 4.5);
+          controls.update();
+
+          if (controls.target.distanceTo(targetPos) < 0.05 && camera.position.distanceTo(camTargetPos) < 0.1) {
+            isAnimating.current = false;
+          }
+        } else {
+          isAnimating.current = false;
+        }
+      } else if (selectedNode) {
         // Zoom into selected node with close-up detail framing distance
         const [nx, ny, nz] = selectedNode.coordinates;
         const titleLen = selectedNode.name.length;
@@ -727,8 +849,7 @@ function CameraRig({ controlsRef, introRef }: { controlsRef: React.RefObject<Orb
       }
     } else {
       // 3. Gentle ambient auto-rotation when idling in overview mode
-      // Pauses during node inspection, node hover, or concept search to keep interactions crisp
-      controls.autoRotate = !selectedTopicId && !hoveredTopicId && !searchQuery;
+      controls.autoRotate = !selectedTopicId && !hoveredTopicId && !searchQuery && !activeApplication;
       controls.autoRotateSpeed = 0.6;
     }
   });

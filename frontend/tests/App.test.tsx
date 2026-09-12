@@ -159,6 +159,28 @@ describe('App Component', () => {
     expect(useStore.getState().isCreateNodeOpen).toBe(false);
   });
 
+  it('applies dual-pane layout classes to canvas container when activeApplication is set and reverts on dismissal', () => {
+    const { rerender } = render(<App />);
+    const canvasContainer = screen.getByTestId('scene-canvas-container');
+    expect(canvasContainer.className).toContain('left-0');
+    expect(canvasContainer.className).not.toContain('md:left-1/2');
+
+    // Activate an application
+    const app = useStore.getState().applications[0];
+    act(() => {
+      useStore.getState().setActiveApplication(app);
+    });
+    rerender(<App />);
+
+    expect(canvasContainer.className).toContain('md:left-1/2');
+
+    // Escape closes active application and reverts container
+    fireEvent.keyDown(window, { key: 'Escape', code: 'Escape' });
+    expect(useStore.getState().activeApplication).toBeNull();
+    rerender(<App />);
+    expect(canvasContainer.className).not.toContain('md:left-1/2');
+  });
+
   it('ignores KeyN shortcut when focused inside a select dropdown', () => {
     render(<App />);
     expect(useStore.getState().isCreateNodeOpen).toBe(false);
