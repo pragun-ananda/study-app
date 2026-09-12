@@ -142,9 +142,8 @@ describe('TelemetryHUD Component', () => {
     });
   });
 
-  it('renders inspector card and increments mastery when recall button is clicked', () => {
+  it('renders inspector card with topic metadata and without recall button', () => {
     const topic = useStore.getState().topicNodes[0];
-    const initialMastery = topic.mastery;
     useStore.getState().setSelectedTopicId(topic.id);
     useStore.getState().setIsInspectorOpen(true);
 
@@ -153,12 +152,7 @@ describe('TelemetryHUD Component', () => {
     expect(screen.getAllByText(new RegExp(topic.name, 'i')).length).toBeGreaterThan(0);
     expect(screen.getByText('CATEGORY')).toBeInTheDocument();
     expect(screen.getByText(topic.category)).toBeInTheDocument();
-
-    const recallBtn = screen.getByRole('button', { name: /\+10% MASTERY RECALL/i });
-    fireEvent.click(recallBtn);
-
-    const updated = useStore.getState().topicNodes.find((n) => n.id === topic.id);
-    expect(updated?.mastery).toBe(Math.min(100, initialMastery + 10));
+    expect(screen.queryByRole('button', { name: /\+10% MASTERY RECALL/i })).not.toBeInTheDocument();
   });
 
   it('allows navigating to unlock nodes directly from inspector', () => {
@@ -517,7 +511,53 @@ describe('TelemetryHUD Component', () => {
       expect(toggleBtn).toHaveAttribute('title', 'Switch to Light Mode [T]');
     });
   });
+
+  describe('Applied Content Integration', () => {
+    it('switches to APPLIED tab in sidebar and opens an application card', async () => {
+      useStore.getState().setIsSidebarOpen(true);
+      render(<TelemetryHUD />);
+
+      const appliedTabBtn = screen.getByTestId('sidebar-tab-applications');
+      expect(appliedTabBtn).toBeInTheDocument();
+      fireEvent.click(appliedTabBtn);
+
+      await waitFor(() => {
+        expect(screen.getByText('REAL-WORLD SCENARIOS')).toBeInTheDocument();
+      });
+
+      const appCards = screen.getAllByTestId('sidebar-application-card');
+      expect(appCards.length).toBeGreaterThan(0);
+
+      fireEvent.click(appCards[0]);
+      expect(useStore.getState().activeApplication).not.toBeNull();
+    });
+
+    it('displays REAL-WORLD APPLICATIONS in inspector when a topic used in an application is selected', async () => {
+      const apps = useStore.getState().applications;
+      const appWithTopic = apps.find((a) => a.topicIds.length > 0);
+      expect(appWithTopic).toBeDefined();
+
+      const targetTopicId = appWithTopic!.topicIds[0];
+      useStore.getState().setSelectedTopicId(targetTopicId);
+      useStore.getState().setIsInspectorOpen(true);
+
+      render(<TelemetryHUD />);
+
+      await waitFor(() => {
+        expect(screen.getByText('REAL-WORLD APPLICATIONS')).toBeInTheDocument();
+      });
+
+      const appItems = screen.getAllByTestId('inspector-application-item');
+      expect(appItems.length).toBeGreaterThan(0);
+
+      fireEvent.click(appItems[0]);
+      expect(useStore.getState().activeApplication).toBe(appWithTopic);
+      expect(useStore.getState().isInspectorOpen).toBe(false);
+      expect(useStore.getState().isSidebarOpen).toBe(false);
+    });
+  });
 });
+
 
 
 
