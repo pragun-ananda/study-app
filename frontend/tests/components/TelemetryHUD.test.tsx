@@ -285,8 +285,12 @@ describe('TelemetryHUD Component', () => {
   });
 
   describe('Manual Node Creation and Content Editing', () => {
-    it('opens CreateNodeModal when header + NODE button is clicked', () => {
+    it('opens CreateNodeModal when unified + button is opened and Create Node Manually is clicked', () => {
       render(<TelemetryHUD />);
+
+      // Open the unified Add popover
+      const plusBtn = screen.getByTestId('ingest-url-btn');
+      fireEvent.click(plusBtn);
 
       const createBtn = screen.getByTestId('create-node-btn');
       expect(createBtn).toBeInTheDocument();
@@ -412,12 +416,11 @@ describe('TelemetryHUD Component', () => {
       addSpy.mockRestore();
     });
 
-    it('deletes topic from graph when DELETE button is clicked in Inspector', async () => {
+    it('opens dedicated confirmation modal when DELETE button is clicked and deletes on confirm', async () => {
       const topic = useStore.getState().topicNodes[0];
       useStore.getState().setSelectedTopicId(topic.id);
       useStore.getState().setIsInspectorOpen(true);
 
-      const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
       const deleteSpy = vi.spyOn(useStore.getState(), 'deleteTopicNode').mockResolvedValueOnce();
 
       render(<TelemetryHUD />);
@@ -429,11 +432,71 @@ describe('TelemetryHUD Component', () => {
       const deleteBtn = screen.getByTestId('inspector-delete-topic-btn');
       fireEvent.click(deleteBtn);
 
-      expect(confirmSpy).toHaveBeenCalled();
+      // Verify dedicated modal is shown and window.confirm was NOT used
+      const modal = screen.getByTestId('delete-node-modal');
+      expect(modal).toBeInTheDocument();
+      expect(screen.getByText('Delete Topic Node')).toBeInTheDocument();
+      expect(modal).toHaveTextContent(topic.name);
+
+      // Click confirm delete in modal
+      const confirmBtn = screen.getByTestId('confirm-delete-node-btn');
+      fireEvent.click(confirmBtn);
+
       expect(deleteSpy).toHaveBeenCalledWith(topic.id);
 
-      confirmSpy.mockRestore();
       deleteSpy.mockRestore();
+    });
+
+    it('cancels deletion when cancel button in modal is clicked', async () => {
+      const topic = useStore.getState().topicNodes[0];
+      useStore.getState().setSelectedTopicId(topic.id);
+      useStore.getState().setIsInspectorOpen(true);
+
+      const deleteSpy = vi.spyOn(useStore.getState(), 'deleteTopicNode').mockResolvedValueOnce();
+
+      render(<TelemetryHUD />);
+
+      // Open edit mode and click delete
+      fireEvent.click(screen.getByTestId('inspector-edit-toggle-btn'));
+      fireEvent.click(screen.getByTestId('inspector-delete-topic-btn'));
+
+      expect(screen.getByTestId('delete-node-modal')).toBeInTheDocument();
+
+      // Click cancel inside delete modal
+      const cancelBtn = screen.getByTestId('cancel-delete-node-btn');
+      fireEvent.click(cancelBtn);
+
+      await waitFor(() => {
+        expect(screen.queryByTestId('delete-node-modal')).not.toBeInTheDocument();
+      });
+      expect(deleteSpy).not.toHaveBeenCalled();
+
+      deleteSpy.mockRestore();
+    });
+
+    it('focuses node and dismisses modal when bold node name link is clicked in delete popup', async () => {
+      const topic = useStore.getState().topicNodes[0];
+      useStore.getState().setSelectedTopicId(topic.id);
+      useStore.getState().setIsInspectorOpen(true);
+
+      render(<TelemetryHUD />);
+
+      // Open edit mode and click delete
+      fireEvent.click(screen.getByTestId('inspector-edit-toggle-btn'));
+      fireEvent.click(screen.getByTestId('inspector-delete-topic-btn'));
+
+      const linkBtn = screen.getByTestId('delete-node-link');
+      expect(linkBtn).toBeInTheDocument();
+      expect(linkBtn).toHaveTextContent(topic.name);
+      expect(linkBtn.className).toContain('font-bold');
+
+      fireEvent.click(linkBtn);
+
+      await waitFor(() => {
+        expect(screen.queryByTestId('delete-node-modal')).not.toBeInTheDocument();
+      });
+      expect(useStore.getState().selectedTopicId).toBe(topic.id);
+      expect(useStore.getState().isInspectorOpen).toBe(true);
     });
   });
 

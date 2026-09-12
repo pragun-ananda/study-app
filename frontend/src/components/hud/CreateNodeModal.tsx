@@ -3,10 +3,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { PlusCircle, X, Loader2, AlertCircle, Network, ShieldAlert } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import { DEFAULT_DOMAINS, DomainCategory, TopicStatus } from '../../types/telemetry';
-import { DOMAIN_BASE_COLORS } from '../../utils/theme';
+import { getDomainBaseColor } from '../../utils/theme';
 import { calculateNewNodeCoordinates } from '../../utils/graph';
 
 export default function CreateNodeModal() {
+  const theme = useStore((state) => state.theme);
+  const isLight = theme === 'light';
+
   const isCreateNodeOpen = useStore((state) => state.isCreateNodeOpen);
   const setIsCreateNodeOpen = useStore((state) => state.setIsCreateNodeOpen);
   const topicNodes = useStore((state) => state.topicNodes);
@@ -17,13 +20,12 @@ export default function CreateNodeModal() {
   const [category, setCategory] = useState<DomainCategory>('CS');
   const [summary, setSummary] = useState('');
   const [status, setStatus] = useState<TopicStatus>('NEW');
-  const [mastery, setMastery] = useState<number>(0);
   const [selectedPrereqs, setSelectedPrereqs] = useState<string[]>([]);
   const [prereqSearch, setPrereqSearch] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const activeColor = DOMAIN_BASE_COLORS[category] || '#00f0ff';
+  const activeColor = getDomainBaseColor(category, theme);
 
   // Reset state when opening
   useEffect(() => {
@@ -32,7 +34,6 @@ export default function CreateNodeModal() {
       setCategory('CS');
       setSummary('');
       setStatus('NEW');
-      setMastery(0);
       setSelectedPrereqs([]);
       setPrereqSearch('');
       setErrorMessage(null);
@@ -52,14 +53,25 @@ export default function CreateNodeModal() {
   }, [isCreateNodeOpen, isSubmitting, setIsCreateNodeOpen]);
 
   const availablePrereqs = useMemo(() => {
-    return topicNodes.filter((node) => {
-      if (!prereqSearch) return true;
+    const query = prereqSearch.trim().toLowerCase();
+    const filtered = topicNodes.filter((node) => {
+      if (!query) return true;
       return (
-        node.name.toLowerCase().includes(prereqSearch.toLowerCase()) ||
-        node.category.toLowerCase().includes(prereqSearch.toLowerCase())
+        node.name.toLowerCase().includes(query) ||
+        node.category.toLowerCase().includes(query) ||
+        (node.summary && node.summary.toLowerCase().includes(query)) ||
+        node.id.toLowerCase().includes(query)
       );
     });
-  }, [topicNodes, prereqSearch]);
+
+    return [...filtered].sort((a, b) => {
+      const aSelected = selectedPrereqs.includes(a.id);
+      const bSelected = selectedPrereqs.includes(b.id);
+      if (aSelected && !bSelected) return -1;
+      if (!aSelected && bSelected) return 1;
+      return a.name.localeCompare(b.name);
+    });
+  }, [topicNodes, prereqSearch, selectedPrereqs]);
 
   const togglePrereq = (nodeId: string) => {
     setSelectedPrereqs((prev) =>
@@ -71,7 +83,7 @@ export default function CreateNodeModal() {
     e.preventDefault();
     const trimmedName = name.trim();
     if (!trimmedName) {
-      setErrorMessage('Topic name is required');
+      setErrorMessage('Concept name is required');
       return;
     }
 
@@ -86,7 +98,7 @@ export default function CreateNodeModal() {
         category,
         summary: summary.trim(),
         status,
-        mastery: Math.max(0, Math.min(100, Number(mastery) || 0)),
+        mastery: 0,
         coordinates,
         lastReviewed: 'Never',
         prerequisites: [],
@@ -129,7 +141,9 @@ export default function CreateNodeModal() {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
             onClick={() => !isSubmitting && setIsCreateNodeOpen(false)}
-            className="absolute inset-0 bg-black/80 backdrop-blur-md cursor-pointer"
+            className={`absolute inset-0 backdrop-blur-md cursor-pointer transition-colors duration-200 ${
+              isLight ? 'bg-slate-900/40' : 'bg-black/80'
+            }`}
           />
 
           {/* Modal Container */}
@@ -142,10 +156,14 @@ export default function CreateNodeModal() {
             exit={{ opacity: 0, scale: 0.9, y: 10 }}
             transition={{ duration: 0.18, ease: 'easeOut' }}
             style={{
-              borderColor: `${activeColor}70`,
-              boxShadow: `0 0 50px ${activeColor}30, 0 0 20px ${activeColor}15`
+              borderColor: isLight ? `${activeColor}40` : `${activeColor}70`,
+              boxShadow: isLight
+                ? `0 12px 40px rgba(0, 0, 0, 0.15), 0 0 20px ${activeColor}15`
+                : `0 0 50px ${activeColor}30, 0 0 20px ${activeColor}15`
             }}
-            className="relative w-full max-w-xl max-h-[90vh] flex flex-col bg-[#080c16]/95 border rounded-2xl overflow-hidden font-sans z-50 shadow-2xl"
+            className={`relative w-full max-w-xl max-h-[90vh] flex flex-col border rounded-2xl overflow-hidden font-sans z-50 shadow-2xl transition-colors duration-200 ${
+              isLight ? 'bg-white/95 border-slate-200 text-slate-900' : 'bg-[#080c16]/95 border-white/10 text-slate-100'
+            }`}
           >
             {/* Top Accent Scanline Bar */}
             <div
@@ -156,24 +174,25 @@ export default function CreateNodeModal() {
             />
 
             {/* Header */}
-            <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/10 bg-slate-950/70 flex-shrink-0">
+            <div className={`flex items-center justify-between px-5 py-3.5 border-b flex-shrink-0 transition-colors duration-200 ${
+              isLight ? 'border-slate-200 bg-slate-50/90' : 'border-white/10 bg-slate-950/70'
+            }`}>
               <div className="flex items-center gap-2.5">
                 <div
-                  className="p-1.5 rounded-lg"
+                  className="p-1.5 rounded-lg transition-colors"
                   style={{
-                    backgroundColor: `${activeColor}20`,
+                    backgroundColor: isLight ? `${activeColor}15` : `${activeColor}20`,
                     color: activeColor
                   }}
                 >
                   <PlusCircle size={17} />
                 </div>
                 <div>
-                  <h2 id="create-node-modal-title" className="text-slate-100 font-bold text-sm tracking-wider uppercase">
-                    Create Knowledge Node
+                  <h2 id="create-node-modal-title" className={`font-bold text-sm tracking-wider uppercase ${
+                    isLight ? 'text-slate-900' : 'text-slate-100'
+                  }`}>
+                    Create Concept Node
                   </h2>
-                  <p className="text-[10px] text-slate-400">
-                    Add a manual concept node with automated 3D spatial positioning
-                  </p>
                 </div>
               </div>
 
@@ -181,7 +200,11 @@ export default function CreateNodeModal() {
                 type="button"
                 onClick={() => setIsCreateNodeOpen(false)}
                 disabled={isSubmitting}
-                className="p-1.5 rounded-lg border border-white/10 hover:border-white/25 text-slate-400 hover:text-white bg-slate-900/60 transition-all cursor-pointer"
+                className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
+                  isLight
+                    ? 'border-slate-200 hover:border-slate-300 text-slate-500 hover:text-slate-800 bg-white hover:bg-slate-100'
+                    : 'border-white/10 hover:border-white/25 text-slate-400 hover:text-white bg-slate-900/60'
+                }`}
                 title="Close (ESC)"
               >
                 <X size={15} />
@@ -190,20 +213,28 @@ export default function CreateNodeModal() {
 
             {/* Form Body */}
             <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
-              <div className="flex-1 overflow-y-auto p-5 space-y-4 text-xs text-slate-200 overscroll-contain">
+              <div className={`flex-1 overflow-y-auto p-5 space-y-4 text-xs overscroll-contain transition-colors ${
+                isLight ? 'text-slate-800' : 'text-slate-200'
+              }`}>
                 {/* Error Banner */}
                 {errorMessage && (
-                  <div className="p-2.5 rounded-lg bg-red-950/50 border border-red-500/40 text-red-300 text-xs flex items-start gap-2">
-                    <AlertCircle size={15} className="flex-shrink-0 mt-0.5 text-red-400" />
+                  <div className={`p-2.5 rounded-lg border text-xs flex items-start gap-2 ${
+                    isLight
+                      ? 'bg-rose-50 border-rose-200 text-rose-700'
+                      : 'bg-red-950/50 border-red-500/40 text-red-300'
+                  }`}>
+                    <AlertCircle size={15} className={`flex-shrink-0 mt-0.5 ${isLight ? 'text-rose-500' : 'text-red-400'}`} />
                     <span>{errorMessage}</span>
                   </div>
                 )}
 
                 {/* Node Name */}
                 <div className="space-y-1">
-                  <label htmlFor="create-node-name-input" className="text-[11px] font-bold text-slate-300 tracking-wider flex items-center justify-between">
-                    <span>TOPIC NAME *</span>
-                    <span className="text-[10px] text-slate-500 font-normal">Required</span>
+                  <label htmlFor="create-node-name-input" className={`text-[11px] font-bold tracking-wider flex items-center justify-between ${
+                    isLight ? 'text-slate-700' : 'text-slate-300'
+                  }`}>
+                    <span>CONCEPT *</span>
+                    <span className={`text-[10px] font-normal ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>Required</span>
                   </label>
                   <input
                     id="create-node-name-input"
@@ -214,7 +245,11 @@ export default function CreateNodeModal() {
                     onChange={(e) => setName(e.target.value)}
                     placeholder="e.g. Diffusion Models, Transformer Attention..."
                     disabled={isSubmitting}
-                    className="w-full bg-slate-900/90 border border-white/15 focus:border-[#00f0ff] rounded-lg px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none transition-colors"
+                    className={`w-full border rounded-lg px-3 py-2 text-xs focus:outline-none transition-colors ${
+                      isLight
+                        ? 'bg-white border-slate-300 text-slate-900 placeholder-slate-400 focus:border-sky-500'
+                        : 'bg-slate-900/90 border-white/15 text-slate-100 placeholder-slate-500 focus:border-[#00f0ff]'
+                    }`}
                     data-testid="create-node-name-input"
                   />
                 </div>
@@ -223,19 +258,25 @@ export default function CreateNodeModal() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {/* Category */}
                   <div className="space-y-1">
-                    <label htmlFor="create-node-category-select" className="text-[11px] font-bold text-slate-300 tracking-wider">
-                      DOMAIN CATEGORY
+                    <label htmlFor="create-node-category-select" className={`text-[11px] font-bold tracking-wider ${
+                      isLight ? 'text-slate-700' : 'text-slate-300'
+                    }`}>
+                      DOMAIN
                     </label>
                     <select
                       id="create-node-category-select"
                       value={category}
                       onChange={(e) => setCategory(e.target.value as DomainCategory)}
                       disabled={isSubmitting}
-                      className="w-full bg-slate-900/90 border border-white/15 focus:border-[#00f0ff] rounded-lg px-3 py-2 text-xs text-slate-100 focus:outline-none transition-colors cursor-pointer"
+                      className={`w-full border rounded-lg px-3 py-2 text-xs focus:outline-none transition-colors cursor-pointer ${
+                        isLight
+                          ? 'bg-white border-slate-300 text-slate-900 focus:border-sky-500'
+                          : 'bg-slate-900/90 border-white/15 text-slate-100 focus:border-[#00f0ff]'
+                      }`}
                       data-testid="create-node-category-select"
                     >
                       {DEFAULT_DOMAINS.map((dom) => (
-                        <option key={dom} value={dom} className="bg-slate-950 text-slate-100">
+                        <option key={dom} value={dom} className={isLight ? 'bg-white text-slate-900' : 'bg-slate-950 text-slate-100'}>
                           {dom}
                         </option>
                       ))}
@@ -244,62 +285,40 @@ export default function CreateNodeModal() {
 
                   {/* Status */}
                   <div className="space-y-1">
-                    <label htmlFor="create-node-status-select" className="text-[11px] font-bold text-slate-300 tracking-wider">
-                      INITIAL STATUS
+                    <label htmlFor="create-node-status-select" className={`text-[11px] font-bold tracking-wider ${
+                      isLight ? 'text-slate-700' : 'text-slate-300'
+                    }`}>
+                      STATUS
                     </label>
                     <select
                       id="create-node-status-select"
                       value={status}
                       onChange={(e) => setStatus(e.target.value as TopicStatus)}
                       disabled={isSubmitting}
-                      className="w-full bg-slate-900/90 border border-white/15 focus:border-[#00f0ff] rounded-lg px-3 py-2 text-xs text-slate-100 focus:outline-none transition-colors cursor-pointer"
+                      className={`w-full border rounded-lg px-3 py-2 text-xs focus:outline-none transition-colors cursor-pointer ${
+                        isLight
+                          ? 'bg-white border-slate-300 text-slate-900 focus:border-sky-500'
+                          : 'bg-slate-900/90 border-white/15 text-slate-100 focus:border-[#00f0ff]'
+                      }`}
                       data-testid="create-node-status-select"
                     >
-                      <option value="NEW" className="bg-slate-950 text-slate-100">NEW</option>
-                      <option value="LEARNING" className="bg-slate-950 text-slate-100">LEARNING</option>
-                      <option value="MASTERED" className="bg-slate-950 text-slate-100">MASTERED</option>
-                      <option value="DUE" className="bg-slate-950 text-slate-100">DUE</option>
+                      <option value="NEW" className={isLight ? 'bg-white text-slate-900' : 'bg-slate-950 text-slate-100'}>NEW</option>
+                      <option value="LEARNING" className={isLight ? 'bg-white text-slate-900' : 'bg-slate-950 text-slate-100'}>LEARNING</option>
+                      <option value="MASTERED" className={isLight ? 'bg-white text-slate-900' : 'bg-slate-950 text-slate-100'}>MASTERED</option>
+                      <option value="DUE" className={isLight ? 'bg-white text-slate-900' : 'bg-slate-950 text-slate-100'}>DUE</option>
                     </select>
                   </div>
                 </div>
 
-                {/* Mastery Level */}
-                <div className="space-y-1.5">
-                  <div className="flex justify-between items-center text-[11px] font-bold text-slate-300">
-                    <label htmlFor="create-node-mastery-slider">INITIAL MASTERY</label>
-                    <span className="text-[#00ff9d] font-mono">{mastery}%</span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <input
-                      id="create-node-mastery-slider"
-                      aria-label="Initial mastery percentage"
-                      type="range"
-                      min={0}
-                      max={100}
-                      step={5}
-                      value={mastery}
-                      onChange={(e) => setMastery(Number(e.target.value))}
-                      disabled={isSubmitting}
-                      className="flex-1 accent-[#00f0ff] cursor-pointer"
-                    />
-                    <input
-                      aria-label="Initial mastery percentage numerical value"
-                      type="number"
-                      min={0}
-                      max={100}
-                      value={mastery}
-                      onChange={(e) => setMastery(Math.max(0, Math.min(100, Number(e.target.value) || 0)))}
-                      disabled={isSubmitting}
-                      className="w-16 bg-slate-900/90 border border-white/15 rounded-lg px-2 py-1 text-center text-xs font-mono text-slate-100 focus:outline-none focus:border-[#00f0ff]"
-                    />
-                  </div>
-                </div>
+
 
                 {/* Summary */}
                 <div className="space-y-1">
-                  <div className="flex justify-between items-center text-[11px] font-bold text-slate-300 tracking-wider">
-                    <label htmlFor="create-node-summary-input">SUMMARY & CONCEPTS</label>
-                    <span className="text-[10px] text-slate-500 font-mono">{summary.length} chars</span>
+                  <div className={`flex justify-between items-center text-[11px] font-bold tracking-wider ${
+                    isLight ? 'text-slate-700' : 'text-slate-300'
+                  }`}>
+                    <label htmlFor="create-node-summary-input">SUMMARY</label>
+                    <span className={`text-[10px] font-mono ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>{summary.length} chars</span>
                   </div>
                   <textarea
                     id="create-node-summary-input"
@@ -308,41 +327,74 @@ export default function CreateNodeModal() {
                     onChange={(e) => setSummary(e.target.value)}
                     placeholder="Brief description of the topic concept..."
                     disabled={isSubmitting}
-                    className="w-full bg-slate-900/90 border border-white/15 focus:border-[#00f0ff] rounded-lg p-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none transition-colors resize-none leading-relaxed"
+                    className={`w-full border rounded-lg p-2.5 text-xs focus:outline-none transition-colors resize-none leading-relaxed ${
+                      isLight
+                        ? 'bg-white border-slate-300 text-slate-900 placeholder-slate-400 focus:border-sky-500'
+                        : 'bg-slate-900/90 border-white/15 text-slate-100 placeholder-slate-500 focus:border-[#00f0ff]'
+                    }`}
                     data-testid="create-node-summary-input"
                   />
                 </div>
 
                 {/* Prerequisites Picker */}
-                <div className="space-y-2 pt-2 border-t border-white/10">
-                  <div className="flex items-center justify-between text-[11px] font-bold text-slate-300">
-                    <span className="flex items-center gap-1.5 text-[#ffaa00]">
+                <div className={`space-y-2 pt-2 border-t ${isLight ? 'border-slate-200' : 'border-white/10'}`}>
+                  <div className={`flex items-center justify-between text-[11px] font-bold ${
+                    isLight ? 'text-slate-700' : 'text-slate-300'
+                  }`}>
+                    <span className={`flex items-center gap-1.5 ${isLight ? 'text-amber-600' : 'text-[#ffaa00]'}`}>
                       <ShieldAlert size={13} />
                       PREREQUISITES ({selectedPrereqs.length} SELECTED)
                     </span>
-                    <span className="text-[10px] text-slate-500 font-normal">Optional</span>
+                    <span className={`text-[10px] font-normal ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>Optional</span>
                   </div>
 
-                  <input
-                    type="text"
-                    placeholder="Filter existing topics to link..."
-                    value={prereqSearch}
-                    onChange={(e) => setPrereqSearch(e.target.value)}
-                    disabled={isSubmitting}
-                    className="w-full bg-slate-900/60 border border-white/10 rounded-lg px-2.5 py-1.5 text-[11px] text-slate-200 placeholder-slate-500 focus:outline-none focus:border-[#ffaa00]"
-                  />
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="Filter existing topics to link..."
+                      value={prereqSearch}
+                      onChange={(e) => setPrereqSearch(e.target.value)}
+                      disabled={isSubmitting}
+                      className={`w-full border rounded-lg px-2.5 py-1.5 text-[11px] focus:outline-none transition-colors ${
+                        prereqSearch ? 'pr-7' : ''
+                      } ${
+                        isLight
+                          ? 'bg-white border-slate-300 text-slate-900 placeholder-slate-400 focus:border-amber-500'
+                          : 'bg-slate-900/60 border-white/10 text-slate-200 placeholder-slate-500 focus:border-[#ffaa00]'
+                      }`}
+                      data-testid="create-node-prereq-search"
+                    />
+                    {prereqSearch && (
+                      <button
+                        type="button"
+                        onClick={() => setPrereqSearch('')}
+                        className={`absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded cursor-pointer ${
+                          isLight ? 'text-slate-400 hover:text-slate-700' : 'text-slate-500 hover:text-slate-200'
+                        }`}
+                        title="Clear search"
+                      >
+                        <X size={12} />
+                      </button>
+                    )}
+                  </div>
 
-                  <div className="max-h-36 overflow-y-auto space-y-1 bg-slate-950/70 border border-white/10 rounded-lg p-1.5">
+                  <div className={`max-h-44 overflow-y-auto space-y-1 border rounded-lg p-1.5 ${
+                    isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-950/70 border-white/10'
+                  }`}>
                     {availablePrereqs.length > 0 ? (
-                      availablePrereqs.slice(0, 25).map((node) => {
+                      availablePrereqs.map((node) => {
                         const isChecked = selectedPrereqs.includes(node.id);
                         return (
                           <label
                             key={node.id}
                             className={`px-2 py-1.5 rounded text-xs flex items-center justify-between cursor-pointer transition-colors ${
                               isChecked
-                                ? 'bg-[#ffaa00]/20 border border-[#ffaa00]/40 text-[#ffaa00]'
-                                : 'hover:bg-slate-900/80 text-slate-300'
+                                ? (isLight
+                                    ? 'bg-amber-100/70 border border-amber-300 text-amber-900'
+                                    : 'bg-[#ffaa00]/20 border border-[#ffaa00]/40 text-[#ffaa00]')
+                                : (isLight
+                                    ? 'hover:bg-slate-200/60 text-slate-700'
+                                    : 'hover:bg-slate-900/80 text-slate-300')
                             }`}
                           >
                             <div className="flex items-center gap-2 truncate">
@@ -352,19 +404,21 @@ export default function CreateNodeModal() {
                                 disabled={isSubmitting}
                                 onChange={() => togglePrereq(node.id)}
                                 aria-label={node.name}
-                                className="accent-[#ffaa00] cursor-pointer"
+                                className={`cursor-pointer ${isLight ? 'accent-amber-600' : 'accent-[#ffaa00]'}`}
                               />
                               <span className="truncate font-medium">{node.name}</span>
                             </div>
-                            <span className="text-[10px] text-slate-500 font-mono ml-2 flex-shrink-0">
+                            <span className={`text-[10px] font-mono ml-2 flex-shrink-0 ${
+                              isLight ? 'text-slate-400' : 'text-slate-500'
+                            }`}>
                               {node.category}
                             </span>
                           </label>
                         );
                       })
                     ) : (
-                      <div className="p-3 text-center text-slate-500 text-[11px] italic">
-                        No topics match your search.
+                      <div className={`p-3 text-center text-[11px] italic ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
+                        {topicNodes.length === 0 ? 'No existing topics in the graph yet.' : 'No topics match your search.'}
                       </div>
                     )}
                   </div>
@@ -372,12 +426,18 @@ export default function CreateNodeModal() {
               </div>
 
               {/* Modal Footer */}
-              <div className="px-5 py-3 border-t border-white/10 bg-slate-950/70 flex items-center justify-end gap-2.5 flex-shrink-0">
+              <div className={`px-5 py-3 border-t flex items-center justify-end gap-2.5 flex-shrink-0 transition-colors duration-200 ${
+                isLight ? 'border-slate-200 bg-slate-50/90' : 'border-white/10 bg-slate-950/70'
+              }`}>
                 <button
                   type="button"
                   onClick={() => setIsCreateNodeOpen(false)}
                   disabled={isSubmitting}
-                  className="px-3.5 py-1.5 rounded-lg border border-white/10 hover:border-white/20 text-slate-300 hover:text-white bg-slate-900/60 transition-all text-xs font-mono cursor-pointer disabled:opacity-50"
+                  className={`px-3.5 py-1.5 rounded-lg border text-xs font-mono cursor-pointer transition-all disabled:opacity-50 ${
+                    isLight
+                      ? 'border-slate-300 hover:border-slate-400 text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-100'
+                      : 'border-white/10 hover:border-white/20 text-slate-300 hover:text-white bg-slate-900/60'
+                  }`}
                 >
                   Cancel
                 </button>
@@ -386,9 +446,11 @@ export default function CreateNodeModal() {
                   disabled={isSubmitting || !name.trim()}
                   style={{
                     backgroundColor: activeColor,
-                    boxShadow: `0 0 15px ${activeColor}50`
+                    boxShadow: isLight ? `0 2px 10px ${activeColor}40` : `0 0 15px ${activeColor}50`
                   }}
-                  className="px-4 py-1.5 rounded-lg text-slate-950 font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed hover:brightness-110 active:scale-95"
+                  className={`px-4 py-1.5 rounded-lg font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed hover:brightness-105 active:scale-95 ${
+                    isLight ? 'text-white' : 'text-slate-950'
+                  }`}
                   data-testid="create-node-submit-btn"
                 >
                   {isSubmitting ? (
@@ -399,7 +461,7 @@ export default function CreateNodeModal() {
                   ) : (
                     <>
                       <Network size={13} />
-                      <span>CREATE NODE</span>
+                      <span>CREATE CONCEPT NODE</span>
                     </>
                   )}
                 </button>

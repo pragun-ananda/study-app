@@ -25,7 +25,10 @@ import {
   Edit3,
   Save,
   Sun,
-  Moon
+  Moon,
+  Globe,
+  PlusCircle,
+  AlertTriangle
 } from 'lucide-react';
 import NoteViewerModal from './NoteViewerModal';
 import NotificationsDropdown from './NotificationsDropdown';
@@ -213,12 +216,44 @@ export default function TelemetryHUD() {
     }
   };
 
-  const handleDeleteTopic = async () => {
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isDeletingTopic, setIsDeletingTopic] = useState(false);
+  const [deleteTopicError, setDeleteTopicError] = useState<string | null>(null);
+
+  const handleDeleteTopic = () => {
     if (!selectedNode) return;
-    if (window.confirm(`Are you sure you want to delete topic "${selectedNode.name}" from the graph?`)) {
+    setDeleteTopicError(null);
+    setIsDeleteModalOpen(true);
+  };
+
+  const handleConfirmDeleteTopic = async () => {
+    if (!selectedNode) return;
+    setIsDeletingTopic(true);
+    setDeleteTopicError(null);
+    try {
       await deleteTopicNode(selectedNode.id);
+      setIsDeleteModalOpen(false);
+    } catch (err: any) {
+      setDeleteTopicError(err?.message || 'Failed to delete topic node');
+    } finally {
+      setIsDeletingTopic(false);
     }
   };
+
+  // Escape key handler for dedicated Delete Node confirmation modal
+  useEffect(() => {
+    if (!isDeleteModalOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        if (!isDeletingTopic) {
+          setIsDeleteModalOpen(false);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown, { capture: true });
+    return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
+  }, [isDeleteModalOpen, isDeletingTopic]);
 
   // Dynamic Mastery Score calculated per active Subgraph
   const activeSubgraphNodes = selectedCategory && selectedCategory !== 'ALL'
@@ -343,25 +378,9 @@ export default function TelemetryHUD() {
           </AnimatePresence>
         </div>
 
-        {/* 2. Top Right Cluster: Add Node + URL Ingest Button + Theme Toggle + Notifications Dropdown + Quick Search Bar */}
+        {/* 2. Top Right Cluster: Unified Add Button + Theme Toggle + Notifications Dropdown + Quick Search Bar */}
         <div className="flex items-center gap-2 flex-shrink-0">
-          {/* Manual Add Node Button */}
-          <button
-            type="button"
-            onClick={() => setIsCreateNodeOpen(true)}
-            className={`px-2.5 py-1.5 rounded-lg border text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer backdrop-blur-md shadow-sm ${
-              isLight
-                ? 'border-slate-200 bg-white/85 text-slate-700 hover:text-sky-600 hover:border-sky-300 shadow-slate-200/50'
-                : 'border-white/10 bg-[#080c16]/70 text-slate-300 hover:text-[#00f0ff] hover:border-[#00f0ff]/40'
-            }`}
-            title="Create new node manually (N)"
-            data-testid="create-node-btn"
-          >
-            <Plus size={14} className={isLight ? 'text-sky-600' : 'text-[#00f0ff]'} />
-            <span>NODE</span>
-          </button>
-
-          {/* Plus icon to open URL Ingest Textbox */}
+          {/* Unified Add Button (URL Ingest or Manual Node Creation) */}
           <div className="relative" ref={urlInputRef}>
             <button
               type="button"
@@ -371,8 +390,8 @@ export default function TelemetryHUD() {
                   ? (isLight ? 'bg-sky-500/20 border-sky-500 text-sky-600 shadow-sm' : 'bg-[#00f0ff]/20 border-[#00f0ff] text-[#00f0ff] shadow-[0_0_15px_rgba(0,240,255,0.3)]')
                   : (isLight ? 'bg-white/85 border-slate-200 text-slate-600 hover:text-slate-900 hover:border-slate-300 shadow-sm' : 'bg-[#080c16]/70 border-white/10 text-slate-400 hover:text-slate-200 hover:border-white/20')
               }`}
-              title="Add content from URL (+)"
-              aria-label="Add content from URL"
+              title="Add to graph (URL or manual node) (+)"
+              aria-label="Add to graph"
               data-testid="ingest-url-btn"
             >
               <Plus size={15} />
@@ -385,17 +404,19 @@ export default function TelemetryHUD() {
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 8, scale: 0.95 }}
                   transition={{ duration: 0.15, ease: 'easeOut' }}
-                  className={`absolute right-0 mt-2 w-80 md:w-96 p-3 rounded-xl backdrop-blur-xl z-50 flex flex-col gap-2 border ${
+                  className={`absolute right-0 mt-2 w-80 md:w-96 p-3 rounded-xl backdrop-blur-xl z-50 flex flex-col gap-2.5 border ${
                     isLight
                       ? 'bg-white/95 border-slate-200 text-slate-900 shadow-xl'
                       : 'bg-[#080c16]/95 border-[#00f0ff]/30 text-slate-100 shadow-2xl'
                   }`}
                 >
-                  <div className="flex items-center justify-between">
+                  <div className={`flex items-center justify-between pb-2 border-b ${
+                    isLight ? 'border-slate-200' : 'border-white/10'
+                  }`}>
                     <span className={`text-[11px] font-bold tracking-wider flex items-center gap-1.5 ${
                       isLight ? 'text-sky-600' : 'text-[#00f0ff]'
                     }`}>
-                      <Plus size={13} /> INGEST FROM URL
+                      <Plus size={13} /> ADD TO GRAPH
                     </span>
                     <button
                       type="button"
@@ -407,70 +428,126 @@ export default function TelemetryHUD() {
                     </button>
                   </div>
 
-                  <form onSubmit={handleIngestSubmit} className="flex flex-col gap-2">
-                    <div className={`flex items-center gap-2 border rounded-lg px-2.5 py-1.5 transition-all ${
-                      isLight
-                        ? 'bg-slate-50 border-slate-200 focus-within:border-sky-500'
-                        : 'bg-slate-950/80 border-white/10 focus-within:border-[#00f0ff]/50'
+                  {/* Section 1: Ingest from URL */}
+                  <div className="flex flex-col gap-1.5">
+                    <span className={`text-[10px] font-bold tracking-wider uppercase flex items-center gap-1.5 ${
+                      isLight ? 'text-slate-600' : 'text-slate-400'
                     }`}>
-                      <input
-                        type="url"
-                        autoFocus
-                        required
-                        placeholder="https://example.com/article..."
-                        value={inputUrl}
-                        onChange={(e) => setInputUrl(e.target.value)}
-                        disabled={isIngesting}
-                        className={`bg-transparent font-sans text-xs focus:outline-none flex-1 min-w-0 ${
-                          isLight ? 'text-slate-900 placeholder-slate-400' : 'text-slate-100 placeholder-slate-500'
-                        }`}
-                        data-testid="ingest-url-input"
-                      />
-                      <button
-                        type="submit"
-                        disabled={isIngesting || !inputUrl.trim()}
-                        className={`px-2.5 py-1 rounded disabled:opacity-40 disabled:cursor-not-allowed font-bold text-[11px] transition-all flex items-center gap-1 cursor-pointer flex-shrink-0 border ${
+                      <Globe size={11} className={isLight ? 'text-sky-600' : 'text-[#00f0ff]'} /> INGEST FROM URL
+                    </span>
+
+                    <form onSubmit={handleIngestSubmit} className="flex flex-col gap-2">
+                      <div className={`flex items-center gap-2 border rounded-lg px-2.5 py-1.5 transition-all ${
+                        isLight
+                          ? 'bg-slate-50 border-slate-200 focus-within:border-sky-500'
+                          : 'bg-slate-950/80 border-white/10 focus-within:border-[#00f0ff]/50'
+                      }`}>
+                        <input
+                          type="url"
+                          autoFocus
+                          required
+                          placeholder="https://example.com/article..."
+                          value={inputUrl}
+                          onChange={(e) => setInputUrl(e.target.value)}
+                          disabled={isIngesting}
+                          className={`bg-transparent font-sans text-xs focus:outline-none flex-1 min-w-0 ${
+                            isLight ? 'text-slate-900 placeholder-slate-400' : 'text-slate-100 placeholder-slate-500'
+                          }`}
+                          data-testid="ingest-url-input"
+                        />
+                        <button
+                          type="submit"
+                          disabled={isIngesting || !inputUrl.trim()}
+                          className={`px-2.5 py-1 rounded disabled:opacity-40 disabled:cursor-not-allowed font-bold text-[11px] transition-all flex items-center gap-1 cursor-pointer flex-shrink-0 border ${
+                            isLight
+                              ? 'bg-sky-500/15 border-sky-500/40 text-sky-600 hover:bg-sky-500/25'
+                              : 'bg-[#00f0ff]/20 border-[#00f0ff]/40 text-[#00f0ff] hover:bg-[#00f0ff]/30'
+                          }`}
+                          data-testid="ingest-url-submit-btn"
+                        >
+                          {isIngesting ? (
+                            <>
+                              <Loader2 size={12} className="animate-spin" />
+                              <span>INGESTING...</span>
+                            </>
+                          ) : (
+                            <>
+                              <span>INGEST</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+
+                      {ingestError && (
+                        <div className={`text-[10px] rounded p-1.5 flex items-start gap-1 border ${
                           isLight
-                            ? 'bg-sky-500/15 border-sky-500/40 text-sky-600 hover:bg-sky-500/25'
-                            : 'bg-[#00f0ff]/20 border-[#00f0ff]/40 text-[#00f0ff] hover:bg-[#00f0ff]/30'
-                        }`}
-                        data-testid="ingest-url-submit-btn"
-                      >
-                        {isIngesting ? (
-                          <>
-                            <Loader2 size={12} className="animate-spin" />
-                            <span>INGESTING...</span>
-                          </>
-                        ) : (
-                          <>
-                            <span>INGEST</span>
-                          </>
-                        )}
-                      </button>
+                            ? 'text-rose-600 bg-rose-50 border-rose-200'
+                            : 'text-red-400 bg-red-950/40 border-red-500/30'
+                        }`}>
+                          <AlertCircle size={12} className="flex-shrink-0 mt-0.5" />
+                          <span>{ingestError}</span>
+                        </div>
+                      )}
+
+                      {ingestSuccessMsg && (
+                        <div className={`text-[10px] rounded p-1.5 flex items-center gap-1 border ${
+                          isLight
+                            ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
+                            : 'text-emerald-400 bg-emerald-950/40 border-emerald-500/30'
+                        }`}>
+                          <CheckCircle2 size={12} className="flex-shrink-0" />
+                          <span>{ingestSuccessMsg}</span>
+                        </div>
+                      )}
+                    </form>
+                  </div>
+
+                  {/* Visual Divider: OR */}
+                  <div className="flex items-center gap-2 py-0.5">
+                    <div className={`flex-1 h-px ${isLight ? 'bg-slate-200' : 'bg-white/10'}`} />
+                    <span className={`text-[9px] font-bold uppercase tracking-wider ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
+                      OR
+                    </span>
+                    <div className={`flex-1 h-px ${isLight ? 'bg-slate-200' : 'bg-white/10'}`} />
+                  </div>
+
+                  {/* Section 2: Create Node Manually */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsUrlInputOpen(false);
+                      setIsCreateNodeOpen(true);
+                    }}
+                    className={`w-full p-2.5 rounded-lg border text-left flex items-center justify-between transition-all cursor-pointer ${
+                      isLight
+                        ? 'bg-slate-50 hover:bg-sky-50/60 border-slate-200 hover:border-sky-300 text-slate-800 group'
+                        : 'bg-slate-950/60 hover:bg-[#00f0ff]/10 border-white/10 hover:border-[#00f0ff]/40 text-slate-200 group'
+                    }`}
+                    data-testid="create-node-btn"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <div className={`p-1.5 rounded-md ${
+                        isLight ? 'bg-sky-100 text-sky-600' : 'bg-[#00f0ff]/15 text-[#00f0ff]'
+                      }`}>
+                        <PlusCircle size={15} />
+                      </div>
+                      <div>
+                        <div className={`text-xs font-bold ${isLight ? 'group-hover:text-sky-600' : 'group-hover:text-[#00f0ff]'}`}>
+                          Create Node Manually
+                        </div>
+                        <div className={`text-[10px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                          Set category, summary & prerequisites
+                        </div>
+                      </div>
                     </div>
-
-                    {ingestError && (
-                      <div className={`text-[10px] rounded p-1.5 flex items-start gap-1 border ${
-                        isLight
-                          ? 'text-rose-600 bg-rose-50 border-rose-200'
-                          : 'text-red-400 bg-red-950/40 border-red-500/30'
-                      }`}>
-                        <AlertCircle size={12} className="flex-shrink-0 mt-0.5" />
-                        <span>{ingestError}</span>
-                      </div>
-                    )}
-
-                    {ingestSuccessMsg && (
-                      <div className={`text-[10px] rounded p-1.5 flex items-center gap-1 border ${
-                        isLight
-                          ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
-                          : 'text-emerald-400 bg-emerald-950/40 border-emerald-500/30'
-                      }`}>
-                        <CheckCircle2 size={12} className="flex-shrink-0" />
-                        <span>{ingestSuccessMsg}</span>
-                      </div>
-                    )}
-                  </form>
+                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono border font-bold ${
+                      isLight
+                        ? 'bg-white border-slate-200 text-slate-500'
+                        : 'bg-slate-900 border-white/10 text-slate-400'
+                    }`}>
+                      N
+                    </span>
+                  </button>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -1430,6 +1507,154 @@ export default function TelemetryHUD() {
 
       {/* Ingestion Pedagogical Walkthrough Modal */}
       <IngestionWalkthroughModal />
+
+      {/* Dedicated Delete Node Confirmation Popup */}
+      <AnimatePresence>
+        {isDeleteModalOpen && selectedNode && (
+          <div
+            data-testid="delete-node-modal"
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-6 pointer-events-auto font-sans"
+          >
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              onClick={() => !isDeletingTopic && setIsDeleteModalOpen(false)}
+              className={`absolute inset-0 backdrop-blur-md cursor-pointer transition-colors ${
+                isLight ? 'bg-slate-900/40' : 'bg-black/80'
+              }`}
+            />
+
+            {/* Modal Card */}
+            <motion.div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="delete-node-modal-title"
+              initial={{ opacity: 0, scale: 0.9, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 10 }}
+              transition={{ duration: 0.18, ease: 'easeOut' }}
+              className={`relative w-full max-w-md flex flex-col border rounded-2xl overflow-hidden font-sans z-50 shadow-2xl transition-colors ${
+                isLight
+                  ? 'bg-white/95 border-slate-200 text-slate-900 shadow-2xl'
+                  : 'bg-[#080c16]/95 border-red-500/30 text-slate-100 shadow-[0_0_50px_rgba(255,23,68,0.2)]'
+              }`}
+            >
+              {/* Top Accent Danger Bar */}
+              <div className="h-1 w-full bg-gradient-to-r from-transparent via-red-500 to-transparent opacity-90" />
+
+              {/* Header */}
+              <div className={`flex items-center justify-between px-5 py-3.5 border-b flex-shrink-0 ${
+                isLight ? 'border-slate-200 bg-slate-50/90' : 'border-white/10 bg-slate-950/70'
+              }`}>
+                <div className="flex items-center gap-2.5">
+                  <div className={`p-1.5 rounded-lg ${
+                    isLight ? 'bg-rose-100 text-rose-600' : 'bg-red-500/20 text-red-400'
+                  }`}>
+                    <AlertTriangle size={18} />
+                  </div>
+                  <h2 id="delete-node-modal-title" className={`font-bold text-sm tracking-wider uppercase ${
+                    isLight ? 'text-slate-900' : 'text-slate-100'
+                  }`}>
+                    Delete Topic Node
+                  </h2>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsDeleteModalOpen(false)}
+                  disabled={isDeletingTopic}
+                  className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
+                    isLight
+                      ? 'border-slate-200 hover:border-slate-300 text-slate-500 hover:text-slate-800 bg-white hover:bg-slate-100'
+                      : 'border-white/10 hover:border-white/25 text-slate-400 hover:text-white bg-slate-900/60'
+                  }`}
+                  title="Close (ESC)"
+                >
+                  <X size={15} />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="p-5 space-y-3.5 text-xs">
+                <p className={`text-sm ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+                  Are you sure you want to delete &ldquo;
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsDeleteModalOpen(false);
+                      setSelectedTopicId(selectedNode.id);
+                      setIsInspectorOpen(true);
+                    }}
+                    className={`font-bold underline cursor-pointer transition-colors ${
+                      isLight
+                        ? 'text-sky-600 hover:text-sky-700'
+                        : 'text-[#00f0ff] hover:text-cyan-300'
+                    }`}
+                    title={`Focus node: ${selectedNode.name}`}
+                    data-testid="delete-node-link"
+                  >
+                    {selectedNode.name}
+                  </button>
+                  &rdquo;?
+                </p>
+
+                {deleteTopicError && (
+                  <div className={`p-2.5 rounded-lg border text-xs flex items-start gap-2 ${
+                    isLight
+                      ? 'bg-rose-50 border-rose-200 text-rose-700'
+                      : 'bg-red-950/50 border-red-500/40 text-red-300'
+                  }`}>
+                    <AlertCircle size={15} className="flex-shrink-0 mt-0.5 text-rose-500" />
+                    <span>{deleteTopicError}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className={`px-5 py-3 border-t flex items-center justify-end gap-2.5 flex-shrink-0 ${
+                isLight ? 'border-slate-200 bg-slate-50/90' : 'border-white/10 bg-slate-950/70'
+              }`}>
+                <button
+                  type="button"
+                  onClick={() => setIsDeleteModalOpen(false)}
+                  disabled={isDeletingTopic}
+                  className={`px-3.5 py-1.5 rounded-lg border text-xs font-mono cursor-pointer transition-all disabled:opacity-50 ${
+                    isLight
+                      ? 'border-slate-300 hover:border-slate-400 text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-100'
+                      : 'border-white/10 hover:border-white/20 text-slate-300 hover:text-white bg-slate-900/60'
+                  }`}
+                  data-testid="cancel-delete-node-btn"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleConfirmDeleteTopic}
+                  disabled={isDeletingTopic}
+                  className="px-4 py-1.5 rounded-lg font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed bg-rose-600 hover:bg-rose-500 active:scale-95 text-white shadow-md shadow-rose-600/30"
+                  data-testid="confirm-delete-node-btn"
+                >
+                  {isDeletingTopic ? (
+                    <>
+                      <Loader2 size={13} className="animate-spin" />
+                      <span>DELETING...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 size={13} />
+                      <span>DELETE NODE</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Manual Create Node Modal */}
       <CreateNodeModal />

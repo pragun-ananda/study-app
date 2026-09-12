@@ -568,11 +568,11 @@ describe('Zustand State Store (useStore)', () => {
       expect(localStorage.getItem('study-app-theme')).toBe('dark');
     });
 
-    it('getInitialTheme retrieves theme from localStorage if valid', () => {
-      localStorage.setItem('study-app-theme', 'light');
-      expect(getInitialTheme()).toBe('light');
+    it('getInitialTheme defaults to dark theme on refresh and URL load, or respects URL theme query', () => {
+      expect(getInitialTheme()).toBe('dark');
 
-      localStorage.setItem('study-app-theme', 'dark');
+      // Stale localStorage does not override default dark mode
+      localStorage.setItem('study-app-theme', 'light');
       expect(getInitialTheme()).toBe('dark');
 
       localStorage.removeItem('study-app-theme');

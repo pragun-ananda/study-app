@@ -15,6 +15,7 @@ describe('CreateNodeModal Component', () => {
     render(<CreateNodeModal />);
 
     expect(screen.getByTestId('create-node-modal')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /create concept node/i })).toBeInTheDocument();
     expect(screen.getByTestId('create-node-name-input')).toBeInTheDocument();
     expect(screen.getByTestId('create-node-category-select')).toBeInTheDocument();
     expect(screen.getByTestId('create-node-status-select')).toBeInTheDocument();
@@ -92,6 +93,7 @@ describe('CreateNodeModal Component', () => {
           name: 'Diffusion Probabilistic Models',
           category: 'AI & ML',
           status: 'LEARNING',
+          mastery: 0,
           summary: 'Denoising diffusion fundamentals'
         })
       );
@@ -138,5 +140,47 @@ describe('CreateNodeModal Component', () => {
     const closeXBtn = screen.getByTitle('Close (ESC)');
     fireEvent.click(closeXBtn);
     expect(useStore.getState().isCreateNodeOpen).toBe(false);
+  });
+
+  it('applies light mode classes when theme is set to light', () => {
+    useStore.getState().setTheme('light');
+    render(<CreateNodeModal />);
+
+    const dialog = screen.getByRole('dialog');
+    expect(dialog.className).toContain('bg-white/95');
+    expect(dialog.className).toContain('text-slate-900');
+  });
+
+  it('renders concise labels (CONCEPT, DOMAIN, STATUS, SUMMARY) and omits 3d spatial subtitle and initial mastery input', () => {
+    render(<CreateNodeModal />);
+
+    expect(screen.getByText('CONCEPT *')).toBeInTheDocument();
+    expect(screen.getByText('DOMAIN')).toBeInTheDocument();
+    expect(screen.getByText('STATUS')).toBeInTheDocument();
+    expect(screen.getByText('SUMMARY')).toBeInTheDocument();
+    expect(screen.queryByText(/TOPIC NAME/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/add a manual concept node with automated 3d/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/initial mastery/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/initial mastery/i)).not.toBeInTheDocument();
+  });
+
+  it('filters prerequisite nodes by search query and allows clearing search', () => {
+    render(<CreateNodeModal />);
+
+    const searchInput = screen.getByTestId('create-node-prereq-search');
+    const existingTopics = useStore.getState().topicNodes;
+    expect(existingTopics.length).toBeGreaterThan(1);
+
+    // Search for a specific topic
+    const targetTopic = existingTopics[1];
+    fireEvent.change(searchInput, { target: { value: targetTopic.name } });
+
+    expect(screen.getByText(targetTopic.name)).toBeInTheDocument();
+
+    // Clear search button appears and resets search
+    const clearBtn = screen.getByTitle('Clear search');
+    fireEvent.click(clearBtn);
+
+    expect(searchInput).toHaveValue('');
   });
 });

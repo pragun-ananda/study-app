@@ -524,7 +524,7 @@ const KnowledgeNode = React.memo(({ node, isConnectedComponent }: { node: TopicN
               node.name.length
             )} ${
               isSelected || isHovered
-                ? 'text-white border border-transparent scale-105'
+                ? `${isLight ? 'text-white' : 'text-black'} border border-transparent scale-105`
                 : isLight
                   ? 'text-slate-800 bg-white/95 border border-slate-300 shadow-sm'
                   : 'text-slate-200 bg-slate-950/90 border border-white/20'

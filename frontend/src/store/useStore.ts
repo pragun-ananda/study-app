@@ -146,13 +146,11 @@ export { INITIAL_TODOS };
 
 export function getInitialTheme(): 'dark' | 'light' {
   try {
-    if (typeof window !== 'undefined' && window.localStorage && typeof window.localStorage.getItem === 'function') {
-      const saved = window.localStorage.getItem('study-app-theme');
-      if (saved === 'light' || saved === 'dark') {
-        return saved;
-      }
-      if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
-        return 'light';
+    if (typeof window !== 'undefined' && window.location) {
+      const params = new URLSearchParams(window.location.search);
+      const urlTheme = params.get('theme');
+      if (urlTheme === 'light' || urlTheme === 'dark') {
+        return urlTheme;
       }
     }
   } catch {
