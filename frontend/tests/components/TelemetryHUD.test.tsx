@@ -284,6 +284,222 @@ describe('TelemetryHUD Component', () => {
     });
   });
 
+  describe('Manual Node Creation and Content Editing', () => {
+    it('opens CreateNodeModal when unified + button is opened and Create Node Manually is clicked', () => {
+      render(<TelemetryHUD />);
+
+      // Open the unified Add popover
+      const plusBtn = screen.getByTestId('ingest-url-btn');
+      fireEvent.click(plusBtn);
+
+      const createBtn = screen.getByTestId('create-node-btn');
+      expect(createBtn).toBeInTheDocument();
+
+      fireEvent.click(createBtn);
+      expect(useStore.getState().isCreateNodeOpen).toBe(true);
+    });
+
+    it('opens CreateNodeModal when sidebar CREATE NODE button is clicked', () => {
+      render(<TelemetryHUD />);
+
+      // Expand sidebar
+      fireEvent.click(screen.getByLabelText('Toggle study panel'));
+
+      const sidebarBtn = screen.getByTestId('sidebar-add-node-btn');
+      expect(sidebarBtn).toBeInTheDocument();
+
+      fireEvent.click(sidebarBtn);
+      expect(useStore.getState().isCreateNodeOpen).toBe(true);
+    });
+
+    it('toggles edit mode in Inspector and updates topic metadata on save', async () => {
+      const topic = useStore.getState().topicNodes[0];
+      useStore.getState().setSelectedTopicId(topic.id);
+      useStore.getState().setIsInspectorOpen(true);
+
+      const updateSpy = vi.spyOn(useStore.getState(), 'updateTopicNode').mockResolvedValueOnce({
+        ...topic,
+        name: 'Edited Topic Name',
+        summary: 'Updated summary content'
+      });
+
+      render(<TelemetryHUD />);
+
+      // Toggle edit mode
+      const editBtn = screen.getByTestId('inspector-edit-toggle-btn');
+      fireEvent.click(editBtn);
+
+      expect(screen.getByTestId('inspector-edit-form')).toBeInTheDocument();
+
+      // Change name and summary
+      const nameInput = screen.getByTestId('inspector-edit-name-input');
+      fireEvent.change(nameInput, { target: { value: 'Edited Topic Name' } });
+
+      const summaryInput = screen.getByTestId('inspector-edit-summary-input');
+      fireEvent.change(summaryInput, { target: { value: 'Updated summary content' } });
+
+      // Save
+      const saveBtn = screen.getByTestId('inspector-save-topic-btn');
+      fireEvent.click(saveBtn);
+
+      await waitFor(() => {
+        expect(updateSpy).toHaveBeenCalledWith(
+          topic.id,
+          expect.objectContaining({
+            name: 'Edited Topic Name',
+            summary: 'Updated summary content'
+          })
+        );
+      });
+
+      updateSpy.mockRestore();
+    });
+
+    it('keeps edit form open and displays error banner when updateTopicNode fails', async () => {
+      const topic = useStore.getState().topicNodes[0];
+      useStore.getState().setSelectedTopicId(topic.id);
+      useStore.getState().setIsInspectorOpen(true);
+
+      const updateSpy = vi.spyOn(useStore.getState(), 'updateTopicNode').mockResolvedValueOnce(undefined as any);
+      useStore.setState({ error: 'Network error updating topic' });
+
+      render(<TelemetryHUD />);
+
+      // Toggle edit mode
+      fireEvent.click(screen.getByTestId('inspector-edit-toggle-btn'));
+      expect(screen.getByTestId('inspector-edit-form')).toBeInTheDocument();
+
+      // Submit form
+      fireEvent.submit(screen.getByTestId('inspector-edit-form'));
+
+      await waitFor(() => {
+        expect(screen.getByText('Network error updating topic')).toBeInTheDocument();
+        expect(screen.getByTestId('inspector-edit-form')).toBeInTheDocument();
+      });
+
+      updateSpy.mockRestore();
+    });
+
+    it('allows adding and removing prerequisites directly in Inspector Edit Mode', async () => {
+      const topics = useStore.getState().topicNodes;
+      const mainTopic = topics[0];
+      const otherTopic = topics[1];
+
+      // Ensure mainTopic has otherTopic as prereq initially
+      mainTopic.prerequisites = [otherTopic.id];
+      useStore.getState().setSelectedTopicId(mainTopic.id);
+      useStore.getState().setIsInspectorOpen(true);
+
+      const removeSpy = vi.spyOn(useStore.getState(), 'removePrerequisiteEdge').mockResolvedValueOnce();
+      const addSpy = vi.spyOn(useStore.getState(), 'addPrerequisiteEdge').mockResolvedValueOnce();
+
+      render(<TelemetryHUD />);
+
+      // Open edit mode
+      fireEvent.click(screen.getByTestId('inspector-edit-toggle-btn'));
+
+      // Remove prereq
+      const removeBtn = screen.getByTestId(`remove-prereq-${otherTopic.id}`);
+      fireEvent.click(removeBtn);
+      expect(removeSpy).toHaveBeenCalledWith(mainTopic.id, otherTopic.id);
+
+      // Add third topic as prereq
+      const thirdTopic = topics[2];
+      const addSelect = screen.getByTestId('inspector-add-prereq-select');
+      fireEvent.change(addSelect, { target: { value: thirdTopic.id } });
+
+      const linkBtn = screen.getByTestId('inspector-add-prereq-btn');
+      fireEvent.click(linkBtn);
+      expect(addSpy).toHaveBeenCalledWith(mainTopic.id, thirdTopic.id);
+
+      removeSpy.mockRestore();
+      addSpy.mockRestore();
+    });
+
+    it('opens dedicated confirmation modal when DELETE button is clicked and deletes on confirm', async () => {
+      const topic = useStore.getState().topicNodes[0];
+      useStore.getState().setSelectedTopicId(topic.id);
+      useStore.getState().setIsInspectorOpen(true);
+
+      const deleteSpy = vi.spyOn(useStore.getState(), 'deleteTopicNode').mockResolvedValueOnce();
+
+      render(<TelemetryHUD />);
+
+      // Open edit mode
+      fireEvent.click(screen.getByTestId('inspector-edit-toggle-btn'));
+
+      // Click delete
+      const deleteBtn = screen.getByTestId('inspector-delete-topic-btn');
+      fireEvent.click(deleteBtn);
+
+      // Verify dedicated modal is shown and window.confirm was NOT used
+      const modal = screen.getByTestId('delete-node-modal');
+      expect(modal).toBeInTheDocument();
+      expect(screen.getByText('Delete Topic Node')).toBeInTheDocument();
+      expect(modal).toHaveTextContent(topic.name);
+
+      // Click confirm delete in modal
+      const confirmBtn = screen.getByTestId('confirm-delete-node-btn');
+      fireEvent.click(confirmBtn);
+
+      expect(deleteSpy).toHaveBeenCalledWith(topic.id);
+
+      deleteSpy.mockRestore();
+    });
+
+    it('cancels deletion when cancel button in modal is clicked', async () => {
+      const topic = useStore.getState().topicNodes[0];
+      useStore.getState().setSelectedTopicId(topic.id);
+      useStore.getState().setIsInspectorOpen(true);
+
+      const deleteSpy = vi.spyOn(useStore.getState(), 'deleteTopicNode').mockResolvedValueOnce();
+
+      render(<TelemetryHUD />);
+
+      // Open edit mode and click delete
+      fireEvent.click(screen.getByTestId('inspector-edit-toggle-btn'));
+      fireEvent.click(screen.getByTestId('inspector-delete-topic-btn'));
+
+      expect(screen.getByTestId('delete-node-modal')).toBeInTheDocument();
+
+      // Click cancel inside delete modal
+      const cancelBtn = screen.getByTestId('cancel-delete-node-btn');
+      fireEvent.click(cancelBtn);
+
+      await waitFor(() => {
+        expect(screen.queryByTestId('delete-node-modal')).not.toBeInTheDocument();
+      });
+      expect(deleteSpy).not.toHaveBeenCalled();
+
+      deleteSpy.mockRestore();
+    });
+
+    it('focuses node and dismisses modal when bold node name link is clicked in delete popup', async () => {
+      const topic = useStore.getState().topicNodes[0];
+      useStore.getState().setSelectedTopicId(topic.id);
+      useStore.getState().setIsInspectorOpen(true);
+
+      render(<TelemetryHUD />);
+
+      // Open edit mode and click delete
+      fireEvent.click(screen.getByTestId('inspector-edit-toggle-btn'));
+      fireEvent.click(screen.getByTestId('inspector-delete-topic-btn'));
+
+      const linkBtn = screen.getByTestId('delete-node-link');
+      expect(linkBtn).toBeInTheDocument();
+      expect(linkBtn).toHaveTextContent(topic.name);
+      expect(linkBtn.className).toContain('font-bold');
+
+      fireEvent.click(linkBtn);
+
+      await waitFor(() => {
+        expect(screen.queryByTestId('delete-node-modal')).not.toBeInTheDocument();
+      });
+      expect(useStore.getState().selectedTopicId).toBe(topic.id);
+      expect(useStore.getState().isInspectorOpen).toBe(true);
+    });
+  });
+
   describe('Theme Toggle Button', () => {
     it('renders theme toggle button with correct title and switches theme on click', () => {
       render(<TelemetryHUD />);

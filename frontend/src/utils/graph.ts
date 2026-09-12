@@ -234,3 +234,51 @@ export function calculateOverviewFramingDistance(
   return Math.max(54.0, Math.min(75.0, Number(calculatedZ.toFixed(1))));
 }
 
+/**
+ * Calculates responsive 3D Cartesian coordinates [x, y, z] for a newly created topic node.
+ * Automatically clusters the node near existing peers in the same domain category,
+ * or positions it on a radial orbit for empty / emergent categories.
+ */
+export function calculateNewNodeCoordinates(
+  category: string,
+  existingNodes: TopicNode[]
+): [number, number, number] {
+  const categoryNodes = existingNodes.filter((n) => n.category === category);
+
+  if (categoryNodes.length > 0) {
+    const sumX = categoryNodes.reduce((acc, n) => acc + (Number(n.coordinates[0]) || 0), 0);
+    const sumY = categoryNodes.reduce((acc, n) => acc + (Number(n.coordinates[1]) || 0), 0);
+    const sumZ = categoryNodes.reduce((acc, n) => acc + (Number(n.coordinates[2]) || 0), 0);
+
+    const avgX = sumX / categoryNodes.length;
+    const avgY = sumY / categoryNodes.length;
+    const avgZ = sumZ / categoryNodes.length;
+
+    // Radial jitter around cluster centroid
+    const angle = Math.random() * Math.PI * 2;
+    const distance = 3.5 + Math.random() * 2.0;
+    const newX = avgX + Math.cos(angle) * distance;
+    const newY = avgY + Math.sin(angle) * distance;
+    const newZ = avgZ + (Math.random() - 0.5) * 2.5;
+
+    return [
+      Number(newX.toFixed(2)),
+      Number(newY.toFixed(2)),
+      Number(newZ.toFixed(2))
+    ];
+  }
+
+  // Fallback for empty/emergent categories or empty graph
+  const angle = Math.random() * Math.PI * 2;
+  const radius = 18.0;
+  const newX = Math.cos(angle) * radius;
+  const newY = Math.sin(angle) * radius;
+  const newZ = (Math.random() - 0.5) * 5.0;
+
+  return [
+    Number(newX.toFixed(2)),
+    Number(newY.toFixed(2)),
+    Number(newZ.toFixed(2))
+  ];
+}
+

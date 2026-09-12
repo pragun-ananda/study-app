@@ -22,15 +22,21 @@ import {
   CheckCircle2,
   AlertCircle,
   HelpCircle,
+  Edit3,
+  Save,
   Sun,
-  Moon
+  Moon,
+  Globe,
+  PlusCircle,
+  AlertTriangle
 } from 'lucide-react';
 import NoteViewerModal from './NoteViewerModal';
 import NotificationsDropdown from './NotificationsDropdown';
 import DiffViewerModal from './DiffViewerModal';
 import IngestionWalkthroughModal from './IngestionWalkthroughModal';
+import CreateNodeModal from './CreateNodeModal';
 import { useStore } from '../../store/useStore';
-import { TopicNode, DomainCategory, TodoPriority } from '../../types/telemetry';
+import { TopicNode, DomainCategory, TodoPriority, DEFAULT_DOMAINS, TopicStatus } from '../../types/telemetry';
 import { DOMAIN_BASE_COLORS, DOMAIN_LIGHT_COLORS, getCategoryShade } from '../../utils/theme';
 import { getTopologicalPrerequisites } from '../../utils/graph';
 
@@ -155,6 +161,100 @@ export default function TelemetryHUD() {
     [selectedNode?.id, topicNodes]
   );
 
+  const setIsCreateNodeOpen = useStore((state) => state.setIsCreateNodeOpen);
+  const updateTopicNode = useStore((state) => state.updateTopicNode);
+  const deleteTopicNode = useStore((state) => state.deleteTopicNode);
+  const addPrerequisiteEdge = useStore((state) => state.addPrerequisiteEdge);
+  const removePrerequisiteEdge = useStore((state) => state.removePrerequisiteEdge);
+
+  const [isInspectorEditing, setIsInspectorEditing] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editCategory, setEditCategory] = useState<DomainCategory>('CS');
+  const [editStatus, setEditStatus] = useState<TopicStatus>('NEW');
+  const [editMastery, setEditMastery] = useState<number>(0);
+  const [editSummary, setEditSummary] = useState('');
+  const [selectedPrereqToAdd, setSelectedPrereqToAdd] = useState('');
+  const [isSavingTopic, setIsSavingTopic] = useState(false);
+  const [topicEditError, setTopicEditError] = useState<string | null>(null);
+
+  // Synchronize edit fields when selected topic changes
+  useEffect(() => {
+    setIsInspectorEditing(false);
+    setTopicEditError(null);
+    if (selectedNode) {
+      setEditName(selectedNode.name);
+      setEditCategory(selectedNode.category);
+      setEditStatus(selectedNode.status);
+      setEditMastery(selectedNode.mastery);
+      setEditSummary(selectedNode.summary || '');
+      setSelectedPrereqToAdd('');
+    }
+  }, [selectedTopicId]);
+
+  const handleSaveTopicEdit = async (e?: React.FormEvent | React.MouseEvent) => {
+    if (e) e.preventDefault();
+    if (!selectedNode || !editName.trim()) return;
+    setIsSavingTopic(true);
+    setTopicEditError(null);
+    try {
+      const updated = await updateTopicNode(selectedNode.id, {
+        name: editName.trim(),
+        category: editCategory,
+        status: editStatus,
+        mastery: Math.max(0, Math.min(100, Number(editMastery) || 0)),
+        summary: editSummary.trim()
+      });
+      if (updated) {
+        setIsInspectorEditing(false);
+      } else {
+        setTopicEditError(useStore.getState().error || 'Failed to update topic');
+      }
+    } catch (err: any) {
+      setTopicEditError(err.message || 'Failed to update topic');
+    } finally {
+      setIsSavingTopic(false);
+    }
+  };
+
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isDeletingTopic, setIsDeletingTopic] = useState(false);
+  const [deleteTopicError, setDeleteTopicError] = useState<string | null>(null);
+
+  const handleDeleteTopic = () => {
+    if (!selectedNode) return;
+    setDeleteTopicError(null);
+    setIsDeleteModalOpen(true);
+  };
+
+  const handleConfirmDeleteTopic = async () => {
+    if (!selectedNode) return;
+    setIsDeletingTopic(true);
+    setDeleteTopicError(null);
+    try {
+      await deleteTopicNode(selectedNode.id);
+      setIsDeleteModalOpen(false);
+    } catch (err: any) {
+      setDeleteTopicError(err?.message || 'Failed to delete topic node');
+    } finally {
+      setIsDeletingTopic(false);
+    }
+  };
+
+  // Escape key handler for dedicated Delete Node confirmation modal
+  useEffect(() => {
+    if (!isDeleteModalOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        if (!isDeletingTopic) {
+          setIsDeleteModalOpen(false);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown, { capture: true });
+    return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
+  }, [isDeleteModalOpen, isDeletingTopic]);
+
   // Dynamic Mastery Score calculated per active Subgraph
   const activeSubgraphNodes = selectedCategory && selectedCategory !== 'ALL'
     ? topicNodes.filter((n) => n.category === selectedCategory)
@@ -278,9 +378,9 @@ export default function TelemetryHUD() {
           </AnimatePresence>
         </div>
 
-        {/* 2. Top Right Cluster: URL Ingest Button + Theme Toggle + Notifications Dropdown + Quick Search Bar */}
+        {/* 2. Top Right Cluster: Unified Add Button + Theme Toggle + Notifications Dropdown + Quick Search Bar */}
         <div className="flex items-center gap-2 flex-shrink-0">
-          {/* Plus icon to open URL Ingest Textbox */}
+          {/* Unified Add Button (URL Ingest or Manual Node Creation) */}
           <div className="relative" ref={urlInputRef}>
             <button
               type="button"
@@ -290,8 +390,8 @@ export default function TelemetryHUD() {
                   ? (isLight ? 'bg-sky-500/20 border-sky-500 text-sky-600 shadow-sm' : 'bg-[#00f0ff]/20 border-[#00f0ff] text-[#00f0ff] shadow-[0_0_15px_rgba(0,240,255,0.3)]')
                   : (isLight ? 'bg-white/85 border-slate-200 text-slate-600 hover:text-slate-900 hover:border-slate-300 shadow-sm' : 'bg-[#080c16]/70 border-white/10 text-slate-400 hover:text-slate-200 hover:border-white/20')
               }`}
-              title="Add content from URL (+)"
-              aria-label="Add content from URL"
+              title="Add to graph (URL or manual node) (+)"
+              aria-label="Add to graph"
               data-testid="ingest-url-btn"
             >
               <Plus size={15} />
@@ -304,17 +404,19 @@ export default function TelemetryHUD() {
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 8, scale: 0.95 }}
                   transition={{ duration: 0.15, ease: 'easeOut' }}
-                  className={`absolute right-0 mt-2 w-80 md:w-96 p-3 rounded-xl backdrop-blur-xl z-50 flex flex-col gap-2 border ${
+                  className={`absolute right-0 mt-2 w-80 md:w-96 p-3 rounded-xl backdrop-blur-xl z-50 flex flex-col gap-2.5 border ${
                     isLight
                       ? 'bg-white/95 border-slate-200 text-slate-900 shadow-xl'
                       : 'bg-[#080c16]/95 border-[#00f0ff]/30 text-slate-100 shadow-2xl'
                   }`}
                 >
-                  <div className="flex items-center justify-between">
+                  <div className={`flex items-center justify-between pb-2 border-b ${
+                    isLight ? 'border-slate-200' : 'border-white/10'
+                  }`}>
                     <span className={`text-[11px] font-bold tracking-wider flex items-center gap-1.5 ${
                       isLight ? 'text-sky-600' : 'text-[#00f0ff]'
                     }`}>
-                      <Plus size={13} /> INGEST FROM URL
+                      <Plus size={13} /> ADD TO GRAPH
                     </span>
                     <button
                       type="button"
@@ -326,70 +428,126 @@ export default function TelemetryHUD() {
                     </button>
                   </div>
 
-                  <form onSubmit={handleIngestSubmit} className="flex flex-col gap-2">
-                    <div className={`flex items-center gap-2 border rounded-lg px-2.5 py-1.5 transition-all ${
-                      isLight
-                        ? 'bg-slate-50 border-slate-200 focus-within:border-sky-500'
-                        : 'bg-slate-950/80 border-white/10 focus-within:border-[#00f0ff]/50'
+                  {/* Section 1: Ingest from URL */}
+                  <div className="flex flex-col gap-1.5">
+                    <span className={`text-[10px] font-bold tracking-wider uppercase flex items-center gap-1.5 ${
+                      isLight ? 'text-slate-600' : 'text-slate-400'
                     }`}>
-                      <input
-                        type="url"
-                        autoFocus
-                        required
-                        placeholder="https://example.com/article..."
-                        value={inputUrl}
-                        onChange={(e) => setInputUrl(e.target.value)}
-                        disabled={isIngesting}
-                        className={`bg-transparent font-sans text-xs focus:outline-none flex-1 min-w-0 ${
-                          isLight ? 'text-slate-900 placeholder-slate-400' : 'text-slate-100 placeholder-slate-500'
-                        }`}
-                        data-testid="ingest-url-input"
-                      />
-                      <button
-                        type="submit"
-                        disabled={isIngesting || !inputUrl.trim()}
-                        className={`px-2.5 py-1 rounded disabled:opacity-40 disabled:cursor-not-allowed font-bold text-[11px] transition-all flex items-center gap-1 cursor-pointer flex-shrink-0 border ${
+                      <Globe size={11} className={isLight ? 'text-sky-600' : 'text-[#00f0ff]'} /> INGEST FROM URL
+                    </span>
+
+                    <form onSubmit={handleIngestSubmit} className="flex flex-col gap-2">
+                      <div className={`flex items-center gap-2 border rounded-lg px-2.5 py-1.5 transition-all ${
+                        isLight
+                          ? 'bg-slate-50 border-slate-200 focus-within:border-sky-500'
+                          : 'bg-slate-950/80 border-white/10 focus-within:border-[#00f0ff]/50'
+                      }`}>
+                        <input
+                          type="url"
+                          autoFocus
+                          required
+                          placeholder="https://example.com/article..."
+                          value={inputUrl}
+                          onChange={(e) => setInputUrl(e.target.value)}
+                          disabled={isIngesting}
+                          className={`bg-transparent font-sans text-xs focus:outline-none flex-1 min-w-0 ${
+                            isLight ? 'text-slate-900 placeholder-slate-400' : 'text-slate-100 placeholder-slate-500'
+                          }`}
+                          data-testid="ingest-url-input"
+                        />
+                        <button
+                          type="submit"
+                          disabled={isIngesting || !inputUrl.trim()}
+                          className={`px-2.5 py-1 rounded disabled:opacity-40 disabled:cursor-not-allowed font-bold text-[11px] transition-all flex items-center gap-1 cursor-pointer flex-shrink-0 border ${
+                            isLight
+                              ? 'bg-sky-500/15 border-sky-500/40 text-sky-600 hover:bg-sky-500/25'
+                              : 'bg-[#00f0ff]/20 border-[#00f0ff]/40 text-[#00f0ff] hover:bg-[#00f0ff]/30'
+                          }`}
+                          data-testid="ingest-url-submit-btn"
+                        >
+                          {isIngesting ? (
+                            <>
+                              <Loader2 size={12} className="animate-spin" />
+                              <span>INGESTING...</span>
+                            </>
+                          ) : (
+                            <>
+                              <span>INGEST</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+
+                      {ingestError && (
+                        <div className={`text-[10px] rounded p-1.5 flex items-start gap-1 border ${
                           isLight
-                            ? 'bg-sky-500/15 border-sky-500/40 text-sky-600 hover:bg-sky-500/25'
-                            : 'bg-[#00f0ff]/20 border-[#00f0ff]/40 text-[#00f0ff] hover:bg-[#00f0ff]/30'
-                        }`}
-                        data-testid="ingest-url-submit-btn"
-                      >
-                        {isIngesting ? (
-                          <>
-                            <Loader2 size={12} className="animate-spin" />
-                            <span>INGESTING...</span>
-                          </>
-                        ) : (
-                          <>
-                            <span>INGEST</span>
-                          </>
-                        )}
-                      </button>
+                            ? 'text-rose-600 bg-rose-50 border-rose-200'
+                            : 'text-red-400 bg-red-950/40 border-red-500/30'
+                        }`}>
+                          <AlertCircle size={12} className="flex-shrink-0 mt-0.5" />
+                          <span>{ingestError}</span>
+                        </div>
+                      )}
+
+                      {ingestSuccessMsg && (
+                        <div className={`text-[10px] rounded p-1.5 flex items-center gap-1 border ${
+                          isLight
+                            ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
+                            : 'text-emerald-400 bg-emerald-950/40 border-emerald-500/30'
+                        }`}>
+                          <CheckCircle2 size={12} className="flex-shrink-0" />
+                          <span>{ingestSuccessMsg}</span>
+                        </div>
+                      )}
+                    </form>
+                  </div>
+
+                  {/* Visual Divider: OR */}
+                  <div className="flex items-center gap-2 py-0.5">
+                    <div className={`flex-1 h-px ${isLight ? 'bg-slate-200' : 'bg-white/10'}`} />
+                    <span className={`text-[9px] font-bold uppercase tracking-wider ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
+                      OR
+                    </span>
+                    <div className={`flex-1 h-px ${isLight ? 'bg-slate-200' : 'bg-white/10'}`} />
+                  </div>
+
+                  {/* Section 2: Create Node Manually */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsUrlInputOpen(false);
+                      setIsCreateNodeOpen(true);
+                    }}
+                    className={`w-full p-2.5 rounded-lg border text-left flex items-center justify-between transition-all cursor-pointer ${
+                      isLight
+                        ? 'bg-slate-50 hover:bg-sky-50/60 border-slate-200 hover:border-sky-300 text-slate-800 group'
+                        : 'bg-slate-950/60 hover:bg-[#00f0ff]/10 border-white/10 hover:border-[#00f0ff]/40 text-slate-200 group'
+                    }`}
+                    data-testid="create-node-btn"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <div className={`p-1.5 rounded-md ${
+                        isLight ? 'bg-sky-100 text-sky-600' : 'bg-[#00f0ff]/15 text-[#00f0ff]'
+                      }`}>
+                        <PlusCircle size={15} />
+                      </div>
+                      <div>
+                        <div className={`text-xs font-bold ${isLight ? 'group-hover:text-sky-600' : 'group-hover:text-[#00f0ff]'}`}>
+                          Create Node Manually
+                        </div>
+                        <div className={`text-[10px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                          Set category, summary & prerequisites
+                        </div>
+                      </div>
                     </div>
-
-                    {ingestError && (
-                      <div className={`text-[10px] rounded p-1.5 flex items-start gap-1 border ${
-                        isLight
-                          ? 'text-rose-600 bg-rose-50 border-rose-200'
-                          : 'text-red-400 bg-red-950/40 border-red-500/30'
-                      }`}>
-                        <AlertCircle size={12} className="flex-shrink-0 mt-0.5" />
-                        <span>{ingestError}</span>
-                      </div>
-                    )}
-
-                    {ingestSuccessMsg && (
-                      <div className={`text-[10px] rounded p-1.5 flex items-center gap-1 border ${
-                        isLight
-                          ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
-                          : 'text-emerald-400 bg-emerald-950/40 border-emerald-500/30'
-                      }`}>
-                        <CheckCircle2 size={12} className="flex-shrink-0" />
-                        <span>{ingestSuccessMsg}</span>
-                      </div>
-                    )}
-                  </form>
+                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono border font-bold ${
+                      isLight
+                        ? 'bg-white border-slate-200 text-slate-500'
+                        : 'bg-slate-900 border-white/10 text-slate-400'
+                    }`}>
+                      N
+                    </span>
+                  </button>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -540,7 +698,17 @@ export default function TelemetryHUD() {
               {activeTab === 'TOPICS' && (
                 <div className="flex-1 flex flex-col space-y-3 overflow-hidden">
                   <div className={`flex justify-between items-center text-[11px] ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
-                    <span>Click any node title to focus camera:</span>
+                    <button
+                      type="button"
+                      onClick={() => setIsCreateNodeOpen(true)}
+                      className={`text-[11px] font-bold hover:underline flex items-center gap-1 cursor-pointer ${
+                        isLight ? 'text-sky-600' : 'text-[#00f0ff]'
+                      }`}
+                      data-testid="sidebar-add-node-btn"
+                    >
+                      <Plus size={12} />
+                      <span>CREATE NODE</span>
+                    </button>
                     <span className={`font-bold ${isLight ? 'text-sky-600' : 'text-[#00f0ff]'}`}>{filteredTopics.length} Nodes</span>
                   </div>
 
@@ -736,289 +904,584 @@ export default function TelemetryHUD() {
             >
               {/* Fixed Header */}
               <div className={`flex items-center justify-between border-b pb-2.5 flex-shrink-0 ${isLight ? 'border-slate-200' : 'border-white/10'}`}>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 truncate">
                   <Target size={15} className={isLight ? 'text-sky-600' : 'text-[#00f0ff]'} />
-                  <span className={`font-sans font-bold uppercase tracking-wider truncate max-w-[220px] ${isLight ? 'text-slate-900' : 'text-slate-100'}`}>
+                  <span className={`font-sans font-bold uppercase tracking-wider truncate max-w-[170px] ${isLight ? 'text-slate-900' : 'text-slate-100'}`}>
                     {selectedNode.name}
                   </span>
                 </div>
-                <button
-                  onClick={() => setIsInspectorOpen(false)}
-                  className={`p-1 font-bold ${isLight ? 'text-slate-400 hover:text-slate-800' : 'text-slate-400 hover:text-slate-100'}`}
-                  title="Close Inspector"
-                >
-                  ✕
-                </button>
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!isInspectorEditing) {
+                        setEditName(selectedNode.name);
+                        setEditCategory(selectedNode.category);
+                        setEditStatus(selectedNode.status);
+                        setEditMastery(selectedNode.mastery);
+                        setEditSummary(selectedNode.summary || '');
+                        setSelectedPrereqToAdd('');
+                        setIsInspectorEditing(true);
+                      } else {
+                        setIsInspectorEditing(false);
+                      }
+                    }}
+                    style={{
+                      color: isInspectorEditing ? selectedNodeColor : undefined,
+                      borderColor: isInspectorEditing ? selectedNodeColor : undefined
+                    }}
+                    className={`px-2 py-0.5 rounded border text-[10px] font-bold transition-colors flex items-center gap-1 cursor-pointer ${
+                      isLight
+                        ? 'border-slate-200 bg-white/90 hover:bg-slate-50 text-slate-700'
+                        : 'border-white/15 bg-slate-900/80 hover:bg-slate-800 text-slate-300'
+                    }`}
+                    data-testid="inspector-edit-toggle-btn"
+                    title={isInspectorEditing ? 'Cancel editing' : 'Edit topic metadata'}
+                  >
+                    <Edit3 size={11} />
+                    <span>{isInspectorEditing ? 'CANCEL' : 'EDIT'}</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setIsInspectorEditing(false);
+                      setIsInspectorOpen(false);
+                    }}
+                    className={`p-1 font-bold ${isLight ? 'text-slate-400 hover:text-slate-800' : 'text-slate-400 hover:text-slate-100'}`}
+                    title="Close Inspector"
+                  >
+                    ✕
+                  </button>
+                </div>
               </div>
 
-              {/* Scrollable Inspector Body */}
-              <div
-                className="flex-1 overflow-y-auto space-y-3.5 pr-1.5 pb-4 overscroll-contain"
-                onWheel={(e) => e.stopPropagation()}
-              >
-                <p className={`text-[11px] leading-relaxed ${isLight ? 'text-slate-600' : 'text-slate-300'}`}>
-                  {selectedNode.summary}
-                </p>
-
-                <div className="grid grid-cols-2 gap-2 text-[11px]">
-                  <div className={`p-2.5 rounded border ${isLight ? 'bg-slate-100/90 border-slate-200' : 'bg-slate-950/60 border-white/5'}`}>
-                    <span className={`block mb-0.5 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>CATEGORY</span>
-                    <span className="font-bold" style={{ color: selectedNodeColor }}>{selectedNode.category}</span>
-                  </div>
-                  <div className={`p-2.5 rounded border ${isLight ? 'bg-slate-100/90 border-slate-200' : 'bg-slate-950/60 border-white/5'}`}>
-                    <span className={`block mb-0.5 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>MASTERY</span>
-                    <span className={`font-bold ${isLight ? 'text-emerald-600' : 'text-[#00ff9d]'}`}>{selectedNode.mastery}%</span>
-                  </div>
-                </div>
-
-                {/* 1. TOPOLOGICAL PREREQUISITES SECTION */}
-                <div className={`pt-2.5 border-t space-y-2 ${isLight ? 'border-slate-200' : 'border-white/10'}`}>
-                  <div className="flex items-center justify-between text-[11px] font-bold">
-                    <div className="flex items-center gap-1.5 text-amber-600">
-                      <ShieldAlert size={13} />
-                      <span>PREREQUISITES (TOPOLOGICAL ORDER)</span>
-                    </div>
-                    {topologicalPrereqs.length > 0 && (
-                      <span className="text-[10px] text-amber-600 font-bold">
-                        {topologicalPrereqs.length} STEPS
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="space-y-1.5">
-                    {topologicalPrereqs.length > 0 ? (
-                      topologicalPrereqs.map((prereqNode, idx) => (
-                        <div
-                          key={prereqNode.id}
-                          onClick={() => setSelectedTopicId(prereqNode.id)}
-                          className={`p-2 rounded border text-[11px] cursor-pointer transition-all flex items-center justify-between group ${
-                            isLight
-                              ? 'bg-white/90 border-amber-500/30 hover:border-amber-500 text-slate-800 shadow-sm'
-                              : 'bg-slate-950/80 border-[#ffaa00]/30 hover:border-[#ffaa00] text-slate-200'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2 truncate">
-                            <span className={`text-[10px] font-mono font-extrabold px-1.5 py-0.5 rounded flex-shrink-0 ${
-                              isLight ? 'text-amber-700 bg-amber-100' : 'text-[#ffaa00] bg-[#ffaa00]/15'
-                            }`}>
-                              {idx + 1}
-                            </span>
-                            <span className={`truncate font-sans font-bold group-hover:text-amber-600 ${
-                              isLight ? 'text-slate-800' : 'text-slate-200'
-                            }`}>
-                              {prereqNode.name}
-                            </span>
-                          </div>
-                          <span className="text-[10px] text-amber-600 font-bold ml-2 flex-shrink-0">
-                            {prereqNode.mastery}%
-                          </span>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="text-[10px] text-slate-400 italic p-1">
-                        No prerequisites required for this foundational topic.
+              {isInspectorEditing ? (
+                /* Edit Mode Form */
+                <form
+                  onSubmit={handleSaveTopicEdit}
+                  className="flex-1 flex flex-col overflow-hidden"
+                  data-testid="inspector-edit-form"
+                >
+                  <div
+                    className="flex-1 overflow-y-auto space-y-3 pr-1.5 pb-2 overscroll-contain"
+                    onWheel={(e) => e.stopPropagation()}
+                  >
+                    {/* Error Banner */}
+                    {topicEditError && (
+                      <div className="p-2 rounded bg-red-950/50 border border-red-500/40 text-red-300 text-[11px] flex items-start gap-1.5">
+                        <AlertCircle size={13} className="flex-shrink-0 mt-0.5 text-red-400" />
+                        <span>{topicEditError}</span>
                       </div>
                     )}
-                  </div>
-                </div>
 
-                {/* 2. NOTES SECTION */}
-                <div className={`pt-2.5 border-t space-y-2 ${isLight ? 'border-slate-200' : 'border-white/10'}`}>
-                  <div className="flex items-center justify-between text-[11px] font-bold">
-                    <div className="flex items-center gap-1.5" style={{ color: selectedNodeColor }}>
-                      <FileText size={13} />
-                      <span>NOTES</span>
+                    {/* Topic Name */}
+                    <div className="space-y-1">
+                      <label className={`text-[10px] font-bold tracking-wider ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>TOPIC NAME</label>
+                      <input
+                        type="text"
+                        required
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                        className={`w-full rounded-lg px-2.5 py-1.5 text-xs focus:outline-none border ${
+                          isLight
+                            ? 'bg-white border-slate-300 text-slate-900 focus:border-sky-500'
+                            : 'bg-slate-900/90 border-white/15 focus:border-[#00f0ff] text-slate-100'
+                        }`}
+                        data-testid="inspector-edit-name-input"
+                      />
                     </div>
-                    {selectedNode.notes && selectedNode.notes.length > 0 && (
-                      <span
-                        className="text-[10px] font-bold"
-                        style={{ color: selectedNodeColor }}
-                      >
-                        {selectedNode.notes.length} FILE{selectedNode.notes.length > 1 ? 'S' : ''}
-                      </span>
-                    )}
-                  </div>
 
-                  <div className="space-y-1.5">
-                    {selectedNode.notes && selectedNode.notes.length > 0 ? (
-                      selectedNode.notes.map((note) => (
-                        <div
-                          key={note.id}
-                          data-testid="inspector-note-item"
-                          onClick={() => setActiveNote(note)}
-                          style={{
-                            borderColor: `${selectedNodeColor}40`
+                    {/* Category & Status */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <label className={`text-[10px] font-bold tracking-wider ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>CATEGORY</label>
+                        <select
+                          value={editCategory}
+                          onChange={(e) => setEditCategory(e.target.value as DomainCategory)}
+                          className={`w-full rounded-lg px-2 py-1 text-xs focus:outline-none cursor-pointer border ${
+                            isLight
+                              ? 'bg-white border-slate-300 text-slate-900 focus:border-sky-500'
+                              : 'bg-slate-900/90 border-white/15 focus:border-[#00f0ff] text-slate-100'
+                          }`}
+                          data-testid="inspector-edit-category-select"
+                        >
+                          {DEFAULT_DOMAINS.map((dom) => (
+                            <option key={dom} value={dom} className={isLight ? 'bg-white text-slate-900' : 'bg-slate-950 text-slate-100'}>{dom}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className={`text-[10px] font-bold tracking-wider ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>STATUS</label>
+                        <select
+                          value={editStatus}
+                          onChange={(e) => setEditStatus(e.target.value as TopicStatus)}
+                          className={`w-full rounded-lg px-2 py-1 text-xs focus:outline-none cursor-pointer border ${
+                            isLight
+                              ? 'bg-white border-slate-300 text-slate-900 focus:border-sky-500'
+                              : 'bg-slate-900/90 border-white/15 focus:border-[#00f0ff] text-slate-100'
+                          }`}
+                          data-testid="inspector-edit-status-select"
+                        >
+                          <option value="NEW" className={isLight ? 'bg-white text-slate-900' : 'bg-slate-950 text-slate-100'}>NEW</option>
+                          <option value="LEARNING" className={isLight ? 'bg-white text-slate-900' : 'bg-slate-950 text-slate-100'}>LEARNING</option>
+                          <option value="MASTERED" className={isLight ? 'bg-white text-slate-900' : 'bg-slate-950 text-slate-100'}>MASTERED</option>
+                          <option value="DUE" className={isLight ? 'bg-white text-slate-900' : 'bg-slate-950 text-slate-100'}>DUE</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Mastery */}
+                    <div className="space-y-1">
+                      <div className={`flex justify-between items-center text-[10px] font-bold ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
+                        <span>MASTERY</span>
+                        <span className={`font-mono ${isLight ? 'text-emerald-600' : 'text-[#00ff9d]'}`}>{editMastery}%</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="range"
+                          min={0}
+                          max={100}
+                          step={5}
+                          value={editMastery}
+                          onChange={(e) => setEditMastery(Number(e.target.value))}
+                          className="flex-1 accent-[#00f0ff] cursor-pointer"
+                        />
+                        <input
+                          type="number"
+                          min={0}
+                          max={100}
+                          value={editMastery}
+                          onChange={(e) => setEditMastery(Math.max(0, Math.min(100, Number(e.target.value) || 0)))}
+                          className={`w-14 rounded px-1.5 py-0.5 text-center text-xs font-mono focus:outline-none border ${
+                            isLight
+                              ? 'bg-white border-slate-300 text-slate-900'
+                              : 'bg-slate-900/90 border-white/15 text-slate-100'
+                          }`}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Summary */}
+                    <div className="space-y-1">
+                      <label className={`text-[10px] font-bold tracking-wider ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>SUMMARY</label>
+                      <textarea
+                        rows={3}
+                        value={editSummary}
+                        onChange={(e) => setEditSummary(e.target.value)}
+                        className={`w-full rounded-lg p-2 text-xs focus:outline-none resize-none leading-relaxed border ${
+                          isLight
+                            ? 'bg-white border-slate-300 text-slate-900 focus:border-sky-500'
+                            : 'bg-slate-900/90 border-white/15 focus:border-[#00f0ff] text-slate-100'
+                        }`}
+                        data-testid="inspector-edit-summary-input"
+                      />
+                    </div>
+
+                    {/* Manage Prerequisites */}
+                    <div className={`space-y-2 pt-2 border-t ${isLight ? 'border-slate-200' : 'border-white/10'}`}>
+                      <div className="flex items-center justify-between text-[10px] font-bold text-amber-600">
+                        <span className="flex items-center gap-1">
+                          <ShieldAlert size={12} />
+                          <span>MANAGE PREREQUISITES</span>
+                        </span>
+                        <span>{selectedNode.prerequisites.length} LINKED</span>
+                      </div>
+
+                      {/* Current linked prerequisites */}
+                      <div className="space-y-1 max-h-28 overflow-y-auto">
+                        {selectedNode.prerequisites.length > 0 ? (
+                          selectedNode.prerequisites.map((prereqId) => {
+                            const prereqNode = topicNodes.find((n) => n.id === prereqId);
+                            return (
+                              <div
+                                key={prereqId}
+                                className={`px-2 py-1 rounded border flex items-center justify-between text-[11px] ${
+                                  isLight
+                                    ? 'bg-white border-slate-200 text-slate-800'
+                                    : 'bg-slate-950/80 border-white/10 text-slate-200'
+                                }`}
+                              >
+                                <span className="truncate mr-2 font-medium">
+                                  {prereqNode ? prereqNode.name : prereqId}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => removePrerequisiteEdge(selectedNode.id, prereqId)}
+                                  className="text-red-400 hover:text-red-300 font-bold px-1 rounded hover:bg-red-500/20 text-xs cursor-pointer"
+                                  title="Unlink prerequisite edge"
+                                  data-testid={`remove-prereq-${prereqId}`}
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                            );
+                          })
+                        ) : (
+                          <div className={`text-[10px] italic p-1 ${isLight ? 'text-slate-500' : 'text-slate-500'}`}>
+                            No prerequisites linked.
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Add new prerequisite selector */}
+                      <div className="flex items-center gap-1.5 pt-1">
+                        <select
+                          value={selectedPrereqToAdd}
+                          onChange={(e) => setSelectedPrereqToAdd(e.target.value)}
+                          className={`flex-1 rounded px-2 py-1 text-[11px] focus:outline-none cursor-pointer border ${
+                            isLight
+                              ? 'bg-white border-slate-300 text-slate-900'
+                              : 'bg-slate-900/90 border-white/15 text-slate-200'
+                          }`}
+                          data-testid="inspector-add-prereq-select"
+                        >
+                          <option value="">+ Add prerequisite topic...</option>
+                          {topicNodes
+                            .filter((n) => n.id !== selectedNode.id && !selectedNode.prerequisites.includes(n.id))
+                            .map((n) => (
+                              <option key={n.id} value={n.id} className={isLight ? 'bg-white text-slate-900' : 'bg-slate-950 text-slate-100'}>
+                                {n.name} ({n.category})
+                              </option>
+                            ))}
+                        </select>
+                        <button
+                          type="button"
+                          disabled={!selectedPrereqToAdd}
+                          onClick={() => {
+                            if (selectedPrereqToAdd) {
+                              addPrerequisiteEdge(selectedNode.id, selectedPrereqToAdd);
+                              setSelectedPrereqToAdd('');
+                            }
                           }}
-                          className={`p-2 rounded border text-[11px] cursor-pointer transition-all flex items-center justify-between group shadow-sm ${
+                          className={`px-2 py-1 rounded border text-[10px] font-bold cursor-pointer disabled:opacity-40 ${
                             isLight
-                              ? 'bg-white/90 hover:bg-slate-50 text-slate-800'
-                              : 'bg-slate-950/80 hover:bg-slate-900 text-slate-200'
+                              ? 'bg-amber-100 border-amber-300 text-amber-800 hover:bg-amber-200'
+                              : 'bg-[#ffaa00]/20 border-[#ffaa00]/40 text-[#ffaa00] hover:bg-[#ffaa00]/30'
                           }`}
+                          data-testid="inspector-add-prereq-btn"
                         >
-                          <div className="flex items-center gap-2 truncate">
-                            <FileText
-                              size={13}
-                              className="flex-shrink-0 group-hover:scale-110 transition-transform"
-                              style={{ color: selectedNodeColor }}
-                            />
-                            <span className={`truncate font-semibold ${isLight ? 'text-slate-800 group-hover:text-slate-950' : 'text-slate-200 group-hover:text-white'}`}>
-                              {note.title}
-                            </span>
-                          </div>
-                          {note.updatedAt && (
-                            <span className={`text-[10px] font-mono ml-2 flex-shrink-0 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
-                              {note.updatedAt}
-                            </span>
-                          )}
-                        </div>
-                      ))
-                    ) : (
-                      <div className="text-[10px] text-slate-400 italic p-1">
-                        No notes attached to this topic.
+                          LINK
+                        </button>
                       </div>
-                    )}
-
-                    {/* Add New Note Button */}
-                    <button
-                      onClick={() => {
-                        setActiveNote(
-                          {
-                            id: '',
-                            title: 'Untitled Note',
-                            content: '',
-                            updatedAt: 'Just now'
-                          },
-                          true
-                        );
-                      }}
-                      style={{
-                        borderColor: `${selectedNodeColor}35`,
-                        color: selectedNodeColor
-                      }}
-                      className={`w-full mt-1 p-2 rounded-lg border border-dashed hover:border-solid text-[11px] font-mono font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm group ${
-                        isLight ? 'hover:bg-slate-50' : 'hover:bg-slate-900/80'
-                      }`}
-                    >
-                      <Plus size={13} className="group-hover:scale-125 transition-transform" />
-                      <span>+ ADD NOTE</span>
-                    </button>
+                    </div>
                   </div>
-                </div>
 
-                {/* 2.5 PRACTICE QUIZZES SECTION */}
-                {selectedNode.quizzes && selectedNode.quizzes.length > 0 && (
+                  {/* Edit Mode Footer Buttons */}
+                  <div className={`pt-2 border-t flex items-center justify-between gap-2 flex-shrink-0 ${isLight ? 'border-slate-200' : 'border-white/10'}`}>
+                    <button
+                      type="button"
+                      onClick={handleDeleteTopic}
+                      className="px-2 py-1.5 rounded border border-red-500/30 bg-red-950/40 text-red-400 hover:text-red-300 hover:bg-red-900/50 text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer"
+                      title="Delete topic from graph"
+                      data-testid="inspector-delete-topic-btn"
+                    >
+                      <Trash2 size={12} />
+                      <span>DELETE</span>
+                    </button>
+
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setIsInspectorEditing(false)}
+                        className={`px-2.5 py-1.5 rounded border text-[11px] font-mono transition-all cursor-pointer ${
+                          isLight
+                            ? 'border-slate-200 text-slate-600 hover:text-slate-900 bg-slate-100'
+                            : 'border-white/10 text-slate-400 hover:text-slate-200 bg-slate-900/60'
+                        }`}
+                      >
+                        CANCEL
+                      </button>
+                      <button
+                        type="submit"
+                        onClick={handleSaveTopicEdit}
+                        disabled={isSavingTopic || !editName.trim()}
+                        style={{
+                          backgroundColor: selectedNodeColor,
+                          boxShadow: `0 0 10px ${selectedNodeColor}40`
+                        }}
+                        className={`px-3 py-1.5 rounded font-bold text-[11px] hover:brightness-110 transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50 ${
+                          isLight ? 'text-white' : 'text-slate-950'
+                        }`}
+                        data-testid="inspector-save-topic-btn"
+                      >
+                        <Save size={12} />
+                        <span>SAVE</span>
+                      </button>
+                    </div>
+                  </div>
+                </form>
+              ) : (
+                /* Read-Only Inspector Body */
+                <div
+                  className="flex-1 overflow-y-auto space-y-3.5 pr-1.5 pb-4 overscroll-contain"
+                  onWheel={(e) => e.stopPropagation()}
+                >
+                  <p className={`text-[11px] leading-relaxed ${isLight ? 'text-slate-600' : 'text-slate-300'}`}>
+                    {selectedNode.summary}
+                  </p>
+
+                  <div className="grid grid-cols-2 gap-2 text-[11px]">
+                    <div className={`p-2.5 rounded border ${isLight ? 'bg-slate-100/90 border-slate-200' : 'bg-slate-950/60 border-white/5'}`}>
+                      <span className={`block mb-0.5 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>CATEGORY</span>
+                      <span className="font-bold" style={{ color: selectedNodeColor }}>{selectedNode.category}</span>
+                    </div>
+                    <div className={`p-2.5 rounded border ${isLight ? 'bg-slate-100/90 border-slate-200' : 'bg-slate-950/60 border-white/5'}`}>
+                      <span className={`block mb-0.5 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>MASTERY</span>
+                      <span className={`font-bold ${isLight ? 'text-emerald-600' : 'text-[#00ff9d]'}`}>{selectedNode.mastery}%</span>
+                    </div>
+                  </div>
+
+                  {/* 1. TOPOLOGICAL PREREQUISITES SECTION */}
                   <div className={`pt-2.5 border-t space-y-2 ${isLight ? 'border-slate-200' : 'border-white/10'}`}>
                     <div className="flex items-center justify-between text-[11px] font-bold">
-                      <div className="flex items-center gap-1.5" style={{ color: selectedNodeColor }}>
-                        <HelpCircle size={13} />
-                        <span>PRACTICE QUIZZES</span>
+                      <div className="flex items-center gap-1.5 text-amber-600">
+                        <ShieldAlert size={13} />
+                        <span>PREREQUISITES (TOPOLOGICAL ORDER)</span>
                       </div>
-                      <span className="text-[10px] font-mono opacity-80" style={{ color: selectedNodeColor }}>
-                        {selectedNode.quizzes.length} BANK{selectedNode.quizzes.length > 1 ? 'S' : ''}
-                      </span>
+                      {topologicalPrereqs.length > 0 && (
+                        <span className="text-[10px] text-amber-600 font-bold">
+                          {topologicalPrereqs.length} STEPS
+                        </span>
+                      )}
                     </div>
 
                     <div className="space-y-1.5">
-                      {selectedNode.quizzes.map((quiz) => (
-                        <div
-                          key={quiz.id}
-                          data-testid="inspector-quiz-item"
-                          onClick={() => setActiveQuiz(quiz)}
-                          style={{
-                            borderColor: `${selectedNodeColor}40`
-                          }}
-                          className={`p-2 rounded border text-[11px] cursor-pointer transition-all flex items-center justify-between group shadow-sm ${
-                            isLight
-                              ? 'bg-white/90 hover:bg-slate-50 text-slate-800'
-                              : 'bg-slate-950/80 hover:bg-slate-900 text-slate-200'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2 truncate">
-                            <HelpCircle
-                              size={13}
-                              className="flex-shrink-0 group-hover:scale-110 transition-transform"
-                              style={{ color: selectedNodeColor }}
-                            />
-                            <span className={`truncate font-semibold ${isLight ? 'text-slate-800 group-hover:text-slate-950' : 'text-slate-200 group-hover:text-white'}`}>
-                              {quiz.title}
-                            </span>
-                          </div>
-                          <span
-                            className="text-[10px] font-mono px-1.5 py-0.5 rounded font-bold ml-2 flex-shrink-0"
-                            style={{
-                              backgroundColor: `${selectedNodeColor}20`,
-                              color: selectedNodeColor
-                            }}
-                          >
-                            {quiz.questions?.length || 0} Qs
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* 3. LEARN NEXT SECTION */}
-                <div className={`pt-2.5 border-t space-y-2 ${isLight ? 'border-slate-200' : 'border-white/10'}`}>
-                  <div className={`flex items-center gap-1.5 text-[11px] font-bold ${isLight ? 'text-emerald-700' : 'text-[#00ff9d]'}`}>
-                    <Zap size={13} />
-                    <span>LEARN NEXT</span>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    {selectedNode.unlocks.length > 0 ? (
-                      selectedNode.unlocks.map((unlockId) => {
-                        const unlockNode = topicNodes.find((n) => n.id === unlockId);
-                        if (!unlockNode) return null;
-
-                        return (
+                      {topologicalPrereqs.length > 0 ? (
+                        topologicalPrereqs.map((prereqNode, idx) => (
                           <div
-                            key={unlockId}
-                            onClick={() => setSelectedTopicId(unlockNode.id)}
+                            key={prereqNode.id}
+                            onClick={() => setSelectedTopicId(prereqNode.id)}
                             className={`p-2 rounded border text-[11px] cursor-pointer transition-all flex items-center justify-between group ${
                               isLight
-                                ? 'bg-white/90 border-emerald-500/30 hover:border-emerald-500 text-slate-800 shadow-sm'
-                                : 'bg-slate-950/80 border-[#00ff9d]/30 hover:border-[#00ff9d] text-slate-200'
+                                ? 'bg-white/90 border-amber-500/30 hover:border-amber-500 text-slate-800 shadow-sm'
+                                : 'bg-slate-950/80 border-[#ffaa00]/30 hover:border-[#ffaa00] text-slate-200'
                             }`}
                           >
-                            <div className="flex items-center gap-1.5 truncate">
-                              <ArrowRight size={12} className={`flex-shrink-0 group-hover:translate-x-0.5 transition-transform ${isLight ? 'text-emerald-600' : 'text-[#00ff9d]'}`} />
-                              <span className={`truncate font-semibold ${isLight ? 'text-slate-800 group-hover:text-emerald-700' : 'text-slate-200 group-hover:text-[#00ff9d]'}`}>
-                                {unlockNode.name}
+                            <div className="flex items-center gap-2 truncate">
+                              <span className={`text-[10px] font-mono font-extrabold px-1.5 py-0.5 rounded flex-shrink-0 ${
+                                isLight ? 'text-amber-700 bg-amber-100' : 'text-[#ffaa00] bg-[#ffaa00]/15'
+                              }`}>
+                                {idx + 1}
+                              </span>
+                              <span className={`truncate font-sans font-bold group-hover:text-amber-600 ${
+                                isLight ? 'text-slate-800' : 'text-slate-200'
+                              }`}>
+                                {prereqNode.name}
                               </span>
                             </div>
-                            <span className={`text-[10px] font-bold ml-2 ${isLight ? 'text-emerald-700' : 'text-[#00ff9d]'}`}>
-                              {unlockNode.mastery}%
+                            <span className="text-[10px] text-amber-600 font-bold ml-2 flex-shrink-0">
+                              {prereqNode.mastery}%
                             </span>
                           </div>
-                        );
-                      })
-                    ) : (
-                      <div className="text-[10px] text-slate-400 italic p-1">
-                        Advanced topic (end of current domain path).
-                      </div>
-                    )}
+                        ))
+                      ) : (
+                        <div className="text-[10px] text-slate-400 italic p-1">
+                          No prerequisites required for this foundational topic.
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
 
-                <div className="h-10 w-full flex-shrink-0 pointer-events-none" />
-              </div>
+                  {/* 2. NOTES SECTION */}
+                  <div className={`pt-2.5 border-t space-y-2 ${isLight ? 'border-slate-200' : 'border-white/10'}`}>
+                    <div className="flex items-center justify-between text-[11px] font-bold">
+                      <div className="flex items-center gap-1.5" style={{ color: selectedNodeColor }}>
+                        <FileText size={13} />
+                        <span>NOTES</span>
+                      </div>
+                      {selectedNode.notes && selectedNode.notes.length > 0 && (
+                        <span
+                          className="text-[10px] font-bold"
+                          style={{ color: selectedNodeColor }}
+                        >
+                          {selectedNode.notes.length} FILE{selectedNode.notes.length > 1 ? 'S' : ''}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="space-y-1.5">
+                      {selectedNode.notes && selectedNode.notes.length > 0 ? (
+                        selectedNode.notes.map((note) => (
+                          <div
+                            key={note.id}
+                            data-testid="inspector-note-item"
+                            onClick={() => setActiveNote(note)}
+                            style={{
+                              borderColor: `${selectedNodeColor}40`
+                            }}
+                            className={`p-2 rounded border text-[11px] cursor-pointer transition-all flex items-center justify-between group shadow-sm ${
+                              isLight
+                                ? 'bg-white/90 hover:bg-slate-50 text-slate-800'
+                                : 'bg-slate-950/80 hover:bg-slate-900 text-slate-200'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 truncate">
+                              <FileText
+                                size={13}
+                                className="flex-shrink-0 group-hover:scale-110 transition-transform"
+                                style={{ color: selectedNodeColor }}
+                              />
+                              <span className={`truncate font-semibold ${isLight ? 'text-slate-800 group-hover:text-slate-950' : 'text-slate-200 group-hover:text-white'}`}>
+                                {note.title}
+                              </span>
+                            </div>
+                            {note.updatedAt && (
+                              <span className={`text-[10px] font-mono ml-2 flex-shrink-0 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                                {note.updatedAt}
+                              </span>
+                            )}
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-[10px] text-slate-400 italic p-1">
+                          No notes attached to this topic.
+                        </div>
+                      )}
+
+                      {/* Add New Note Button */}
+                      <button
+                        onClick={() => {
+                          setActiveNote(
+                            {
+                              id: '',
+                              title: 'Untitled Note',
+                              content: '',
+                              updatedAt: 'Just now'
+                            },
+                            true
+                          );
+                        }}
+                        style={{
+                          borderColor: `${selectedNodeColor}35`,
+                          color: selectedNodeColor
+                        }}
+                        className={`w-full mt-1 p-2 rounded-lg border border-dashed hover:border-solid text-[11px] font-mono font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm group ${
+                          isLight ? 'hover:bg-slate-50' : 'hover:bg-slate-900/80'
+                        }`}
+                      >
+                        <Plus size={13} className="group-hover:scale-125 transition-transform" />
+                        <span>+ ADD NOTE</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 2.5 PRACTICE QUIZZES SECTION */}
+                  {selectedNode.quizzes && selectedNode.quizzes.length > 0 && (
+                    <div className={`pt-2.5 border-t space-y-2 ${isLight ? 'border-slate-200' : 'border-white/10'}`}>
+                      <div className="flex items-center justify-between text-[11px] font-bold">
+                        <div className="flex items-center gap-1.5" style={{ color: selectedNodeColor }}>
+                          <HelpCircle size={13} />
+                          <span>PRACTICE QUIZZES</span>
+                        </div>
+                        <span className="text-[10px] font-mono opacity-80" style={{ color: selectedNodeColor }}>
+                          {selectedNode.quizzes.length} BANK{selectedNode.quizzes.length > 1 ? 'S' : ''}
+                        </span>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        {selectedNode.quizzes.map((quiz) => (
+                          <div
+                            key={quiz.id}
+                            data-testid="inspector-quiz-item"
+                            onClick={() => setActiveQuiz(quiz)}
+                            style={{
+                              borderColor: `${selectedNodeColor}40`
+                            }}
+                            className={`p-2 rounded border text-[11px] cursor-pointer transition-all flex items-center justify-between group shadow-sm ${
+                              isLight
+                                ? 'bg-white/90 hover:bg-slate-50 text-slate-800'
+                                : 'bg-slate-950/80 hover:bg-slate-900 text-slate-200'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 truncate">
+                              <HelpCircle
+                                size={13}
+                                className="flex-shrink-0 group-hover:scale-110 transition-transform"
+                                style={{ color: selectedNodeColor }}
+                              />
+                              <span className={`truncate font-semibold ${isLight ? 'text-slate-800 group-hover:text-slate-950' : 'text-slate-200 group-hover:text-white'}`}>
+                                {quiz.title}
+                              </span>
+                            </div>
+                            <span
+                              className="text-[10px] font-mono px-1.5 py-0.5 rounded font-bold ml-2 flex-shrink-0"
+                              style={{
+                                backgroundColor: `${selectedNodeColor}20`,
+                                color: selectedNodeColor
+                              }}
+                            >
+                              {quiz.questions?.length || 0} Qs
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 3. LEARN NEXT SECTION */}
+                  <div className={`pt-2.5 border-t space-y-2 ${isLight ? 'border-slate-200' : 'border-white/10'}`}>
+                    <div className={`flex items-center gap-1.5 text-[11px] font-bold ${isLight ? 'text-emerald-700' : 'text-[#00ff9d]'}`}>
+                      <Zap size={13} />
+                      <span>LEARN NEXT</span>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      {selectedNode.unlocks.length > 0 ? (
+                        selectedNode.unlocks.map((unlockId) => {
+                          const unlockNode = topicNodes.find((n) => n.id === unlockId);
+                          if (!unlockNode) return null;
+
+                          return (
+                            <div
+                              key={unlockId}
+                              onClick={() => setSelectedTopicId(unlockNode.id)}
+                              className={`p-2 rounded border text-[11px] cursor-pointer transition-all flex items-center justify-between group ${
+                                isLight
+                                  ? 'bg-white/90 border-emerald-500/30 hover:border-emerald-500 text-slate-800 shadow-sm'
+                                  : 'bg-slate-950/80 border-[#00ff9d]/30 hover:border-[#00ff9d] text-slate-200'
+                              }`}
+                            >
+                              <div className="flex items-center gap-1.5 truncate">
+                                <ArrowRight size={12} className={`flex-shrink-0 group-hover:translate-x-0.5 transition-transform ${isLight ? 'text-emerald-600' : 'text-[#00ff9d]'}`} />
+                                <span className={`truncate font-semibold ${isLight ? 'text-slate-800 group-hover:text-emerald-700' : 'text-slate-200 group-hover:text-[#00ff9d]'}`}>
+                                  {unlockNode.name}
+                                </span>
+                              </div>
+                              <span className={`text-[10px] font-bold ml-2 ${isLight ? 'text-emerald-700' : 'text-[#00ff9d]'}`}>
+                                {unlockNode.mastery}%
+                              </span>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <div className="text-[10px] text-slate-400 italic p-1">
+                          Advanced topic (end of current domain path).
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="h-10 w-full flex-shrink-0 pointer-events-none" />
+                </div>
+              )}
 
               {/* Action Button at bottom */}
-              <div className="pt-2 flex-shrink-0">
-                <button
-                  onClick={() => updateTopicMastery(selectedNode.id, selectedNode.mastery + 10)}
-                  style={{
-                    backgroundColor: selectedNodeColor,
-                    boxShadow: isLight ? `0 2px 10px rgba(0,0,0,0.15)` : `0 0 14px ${selectedNodeColor}60`
-                  }}
-                  className={`w-full py-2 rounded font-bold text-center hover:opacity-90 transition-opacity shadow-md cursor-pointer ${
-                    isLight ? 'text-white' : 'text-slate-950'
-                  }`}
-                >
-                  +10% MASTERY RECALL
-                </button>
-              </div>
+              {!isInspectorEditing && (
+                <div className="pt-2 flex-shrink-0">
+                  <button
+                    onClick={() => updateTopicMastery(selectedNode.id, selectedNode.mastery + 10)}
+                    style={{
+                      backgroundColor: selectedNodeColor,
+                      boxShadow: isLight ? `0 2px 10px rgba(0,0,0,0.15)` : `0 0 14px ${selectedNodeColor}60`
+                    }}
+                    className={`w-full py-2 rounded font-bold text-center hover:opacity-90 transition-opacity shadow-md cursor-pointer ${
+                      isLight ? 'text-white' : 'text-slate-950'
+                    }`}
+                  >
+                    +10% MASTERY RECALL
+                  </button>
+                </div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
@@ -1044,6 +1507,157 @@ export default function TelemetryHUD() {
 
       {/* Ingestion Pedagogical Walkthrough Modal */}
       <IngestionWalkthroughModal />
+
+      {/* Dedicated Delete Node Confirmation Popup */}
+      <AnimatePresence>
+        {isDeleteModalOpen && selectedNode && (
+          <div
+            data-testid="delete-node-modal"
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-6 pointer-events-auto font-sans"
+          >
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              onClick={() => !isDeletingTopic && setIsDeleteModalOpen(false)}
+              className={`absolute inset-0 backdrop-blur-md cursor-pointer transition-colors ${
+                isLight ? 'bg-slate-900/40' : 'bg-black/80'
+              }`}
+            />
+
+            {/* Modal Card */}
+            <motion.div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="delete-node-modal-title"
+              initial={{ opacity: 0, scale: 0.9, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 10 }}
+              transition={{ duration: 0.18, ease: 'easeOut' }}
+              className={`relative w-full max-w-md flex flex-col border rounded-2xl overflow-hidden font-sans z-50 shadow-2xl transition-colors ${
+                isLight
+                  ? 'bg-white/95 border-slate-200 text-slate-900 shadow-2xl'
+                  : 'bg-[#080c16]/95 border-red-500/30 text-slate-100 shadow-[0_0_50px_rgba(255,23,68,0.2)]'
+              }`}
+            >
+              {/* Top Accent Danger Bar */}
+              <div className="h-1 w-full bg-gradient-to-r from-transparent via-red-500 to-transparent opacity-90" />
+
+              {/* Header */}
+              <div className={`flex items-center justify-between px-5 py-3.5 border-b flex-shrink-0 ${
+                isLight ? 'border-slate-200 bg-slate-50/90' : 'border-white/10 bg-slate-950/70'
+              }`}>
+                <div className="flex items-center gap-2.5">
+                  <div className={`p-1.5 rounded-lg ${
+                    isLight ? 'bg-rose-100 text-rose-600' : 'bg-red-500/20 text-red-400'
+                  }`}>
+                    <AlertTriangle size={18} />
+                  </div>
+                  <h2 id="delete-node-modal-title" className={`font-bold text-sm tracking-wider uppercase ${
+                    isLight ? 'text-slate-900' : 'text-slate-100'
+                  }`}>
+                    Delete Topic Node
+                  </h2>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsDeleteModalOpen(false)}
+                  disabled={isDeletingTopic}
+                  className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
+                    isLight
+                      ? 'border-slate-200 hover:border-slate-300 text-slate-500 hover:text-slate-800 bg-white hover:bg-slate-100'
+                      : 'border-white/10 hover:border-white/25 text-slate-400 hover:text-white bg-slate-900/60'
+                  }`}
+                  title="Close (ESC)"
+                >
+                  <X size={15} />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="p-5 space-y-3.5 text-xs">
+                <p className={`text-sm ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+                  Are you sure you want to delete &ldquo;
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsDeleteModalOpen(false);
+                      setSelectedTopicId(selectedNode.id);
+                      setIsInspectorOpen(true);
+                    }}
+                    className={`font-bold underline cursor-pointer transition-colors ${
+                      isLight
+                        ? 'text-sky-600 hover:text-sky-700'
+                        : 'text-[#00f0ff] hover:text-cyan-300'
+                    }`}
+                    title={`Focus node: ${selectedNode.name}`}
+                    data-testid="delete-node-link"
+                  >
+                    {selectedNode.name}
+                  </button>
+                  &rdquo;?
+                </p>
+
+                {deleteTopicError && (
+                  <div className={`p-2.5 rounded-lg border text-xs flex items-start gap-2 ${
+                    isLight
+                      ? 'bg-rose-50 border-rose-200 text-rose-700'
+                      : 'bg-red-950/50 border-red-500/40 text-red-300'
+                  }`}>
+                    <AlertCircle size={15} className="flex-shrink-0 mt-0.5 text-rose-500" />
+                    <span>{deleteTopicError}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className={`px-5 py-3 border-t flex items-center justify-end gap-2.5 flex-shrink-0 ${
+                isLight ? 'border-slate-200 bg-slate-50/90' : 'border-white/10 bg-slate-950/70'
+              }`}>
+                <button
+                  type="button"
+                  onClick={() => setIsDeleteModalOpen(false)}
+                  disabled={isDeletingTopic}
+                  className={`px-3.5 py-1.5 rounded-lg border text-xs font-mono cursor-pointer transition-all disabled:opacity-50 ${
+                    isLight
+                      ? 'border-slate-300 hover:border-slate-400 text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-100'
+                      : 'border-white/10 hover:border-white/20 text-slate-300 hover:text-white bg-slate-900/60'
+                  }`}
+                  data-testid="cancel-delete-node-btn"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleConfirmDeleteTopic}
+                  disabled={isDeletingTopic}
+                  className="px-4 py-1.5 rounded-lg font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed bg-rose-600 hover:bg-rose-500 active:scale-95 text-white shadow-md shadow-rose-600/30"
+                  data-testid="confirm-delete-node-btn"
+                >
+                  {isDeletingTopic ? (
+                    <>
+                      <Loader2 size={13} className="animate-spin" />
+                      <span>DELETING...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 size={13} />
+                      <span>DELETE NODE</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Manual Create Node Modal */}
+      <CreateNodeModal />
     </div>
   );
 }

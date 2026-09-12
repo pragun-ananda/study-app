@@ -18,15 +18,23 @@ export default function App() {
   // Global Keyboard Shortcuts Listener
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      const isInput = ['INPUT', 'TEXTAREA'].includes((event.target as HTMLElement)?.tagName);
+      const target = event.target as HTMLElement;
+      const isInput =
+        ['INPUT', 'TEXTAREA', 'SELECT'].includes(target?.tagName) ||
+        Boolean(target?.isContentEditable);
 
       // Handle Escape globally to dismiss topmost active modal, overlay, or selection
       if (event.key === 'Escape' || event.code === 'Escape') {
         if (isInput) {
-          (event.target as HTMLElement)?.blur();
+          target?.blur();
         }
 
         const state = useStore.getState();
+        // If CreateNodeModal is open, let CreateNodeModal manage its own dismissal
+        // to respect its submission lock and prevent unmounting in-flight requests.
+        if (state.isCreateNodeOpen) {
+          return;
+        }
         if (state.activeNote) {
           state.setActiveNote(null);
           return;
@@ -59,6 +67,21 @@ export default function App() {
       // Avoid triggering typing shortcuts when focused inside input elements
       if (isInput) {
         return;
+      }
+
+      // Ignore if modifier keys are pressed (e.g. Cmd+N, Ctrl+N)
+      if (event.metaKey || event.ctrlKey || event.altKey) {
+        return;
+      }
+
+      // 'N': Open Create Node Modal
+      if (event.key === 'n' || event.key === 'N' || event.code === 'KeyN') {
+        const state = useStore.getState();
+        if (!state.isCreateNodeOpen && !state.activeNote && !state.activeDiffUpdateId) {
+          event.preventDefault();
+          state.setIsCreateNodeOpen(true);
+          return;
+        }
       }
 
       // '/': Focus Concept Search & Open Study Sidebar

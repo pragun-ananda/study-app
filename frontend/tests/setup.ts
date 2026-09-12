@@ -144,6 +144,11 @@ const mockFetch: typeof fetch = async (input: RequestInfo | URL, init?: RequestI
     });
   }
 
+  // DELETE /api/topics/:id
+  if (url.match(/^\/api\/topics\/[^/]+$/) && method === 'DELETE') {
+    return new Response(null, { status: 204 });
+  }
+
   // POST /api/topics/:topicId/notes
   if (url.match(/\/api\/topics\/[^/]+\/notes$/) && method === 'POST') {
     const randomSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();

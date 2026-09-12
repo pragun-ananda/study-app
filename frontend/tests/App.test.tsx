@@ -138,6 +138,40 @@ describe('App Component', () => {
 
     document.body.removeChild(input);
   });
+
+  it('handles KeyN shortcut to open CreateNodeModal when not in input', () => {
+    render(<App />);
+    expect(useStore.getState().isCreateNodeOpen).toBe(false);
+
+    fireEvent.keyDown(window, { key: 'n', code: 'KeyN' });
+    expect(useStore.getState().isCreateNodeOpen).toBe(true);
+
+    // Escape should dismiss it
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(useStore.getState().isCreateNodeOpen).toBe(false);
+  });
+
+  it('ignores KeyN shortcut if modifier keys are pressed (e.g. Cmd+N)', () => {
+    render(<App />);
+    expect(useStore.getState().isCreateNodeOpen).toBe(false);
+
+    fireEvent.keyDown(window, { key: 'n', code: 'KeyN', metaKey: true });
+    expect(useStore.getState().isCreateNodeOpen).toBe(false);
+  });
+
+  it('ignores KeyN shortcut when focused inside a select dropdown', () => {
+    render(<App />);
+    expect(useStore.getState().isCreateNodeOpen).toBe(false);
+
+    const select = document.createElement('select');
+    document.body.appendChild(select);
+    select.focus();
+
+    fireEvent.keyDown(select, { key: 'n', code: 'KeyN' });
+    expect(useStore.getState().isCreateNodeOpen).toBe(false);
+
+    document.body.removeChild(select);
+  });
 });
 
 
