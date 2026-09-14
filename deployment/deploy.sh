@@ -95,16 +95,53 @@ case "$ACTION" in
         fi
         ;;
     update)
-        echo "📥 Pulling latest git changes..."
-        git -C "$DIR/.." pull
-        echo "🔄 Rebuilding and redeploying..."
-        docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --build
-        echo "🧹 Pruning old dangling images..."
-        docker image prune -f
-        echo "✅ Update complete!"
+        "$DIR/auto-update.sh" --force
+        ;;
+    autoupdate-install)
+        echo "📦 Installing Study App auto-update LaunchAgent..."
+        LAUNCHAGENT_DIR="$HOME/Library/LaunchAgents"
+        PLIST_FILE="$LAUNCHAGENT_DIR/com.studyapp.autoupdate.plist"
+        mkdir -p "$LAUNCHAGENT_DIR"
+        cp "$DIR/com.studyapp.autoupdate.plist" "$PLIST_FILE"
+        launchctl unload "$PLIST_FILE" 2>/dev/null || true
+        launchctl load "$PLIST_FILE"
+        echo "✅ LaunchAgent loaded successfully! Auto-sync will check for commits every 2 minutes."
+        ;;
+    autoupdate-uninstall)
+        echo "🛑 Unloading Study App auto-update LaunchAgent..."
+        PLIST_FILE="$HOME/Library/LaunchAgents/com.studyapp.autoupdate.plist"
+        if [ -f "$PLIST_FILE" ]; then
+            launchctl unload "$PLIST_FILE" 2>/dev/null || true
+            rm -f "$PLIST_FILE"
+            echo "✅ LaunchAgent unloaded and removed."
+        else
+            echo "ℹ️  LaunchAgent was not installed."
+        fi
+        ;;
+    autoupdate-status)
+        echo "=== Study App Auto-Update Daemon Status ==="
+        if launchctl list | grep -q "com.studyapp.autoupdate"; then
+            echo "✅ LaunchAgent is currently LOADED and ACTIVE."
+            launchctl list | grep "com.studyapp.autoupdate" || true
+        else
+            echo "ℹ️  LaunchAgent is NOT loaded."
+        fi
+        echo ""
+        echo "=== Recent Auto-Update Log Entries ==="
+        if [ -f "$DIR/auto-update.log" ]; then
+            tail -n 20 "$DIR/auto-update.log"
+        else
+            echo "No log file found at $DIR/auto-update.log."
+        fi
+        ;;
+    autoupdate-logs)
+        LOG_FILE="$DIR/auto-update.log"
+        touch "$LOG_FILE"
+        echo "📄 Streaming $LOG_FILE (Ctrl+C to exit)..."
+        tail -f "$LOG_FILE"
         ;;
     *)
-        echo "Usage: $0 {up|down|restart|build|logs [service]|status|backup|seed|update}"
+        echo "Usage: $0 {up|down|restart|build|logs [service]|status|backup|seed|update|autoupdate-install|autoupdate-uninstall|autoupdate-status|autoupdate-logs}"
         exit 1
         ;;
 esac

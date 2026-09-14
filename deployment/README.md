@@ -78,7 +78,11 @@ sudo pmset -a autorestart 1
 | Stop Stack | `./deployment/deploy.sh down` |
 | Restart Stack | `./deployment/deploy.sh restart` |
 | Run Database Backup | `./deployment/deploy.sh backup` |
-| Update from Git & Rebuild | `./deployment/deploy.sh update` |
+| Force Immediate Update & Rebuild | `./deployment/deploy.sh update` |
+| Install Auto-Deploy LaunchAgent | `./deployment/deploy.sh autoupdate-install` |
+| Check Auto-Deploy Daemon Status | `./deployment/deploy.sh autoupdate-status` |
+| Stream Auto-Deploy Logs | `./deployment/deploy.sh autoupdate-logs` |
+| Uninstall Auto-Deploy LaunchAgent | `./deployment/deploy.sh autoupdate-uninstall` |
 
 ---
 
@@ -101,3 +105,31 @@ To restore a database snapshot into PostgreSQL:
 ```bash
 gunzip -c deployment/backups/backup_study_db_YYYYMMDD_HHMMSS.sql.gz | docker exec -i study_app_postgres psql -U postgres -d study_db
 ```
+
+---
+
+## 6. Automated Continuous Deployment (Git Push Auto-Sync)
+
+The Mac Mini runs a lightweight background daemon managed by native macOS `launchd` (`com.studyapp.autoupdate`). Every 2 minutes, it checks `origin/main` for new commits:
+1. **Change Detection**: Compares local `HEAD` against `origin/main`. If there are no changes, it exits cleanly without CPU or disk churn.
+2. **Safety Backup**: Creates an automatic snapshot of the PostgreSQL database before pulling any code.
+3. **Fast-Forward Pull**: Executes `git pull --ff-only origin main`.
+4. **Rebuild & Rolling Restart**: Rebuilds changed Docker images and recreates containers with zero manual steps.
+5. **Image Pruning**: Automatically prunes orphaned Docker layers to conserve disk space.
+6. **Health Verification**: Polls `http://localhost:3000/health` to confirm the gateway and backend are healthy.
+
+### Management Commands
+```bash
+# Enable & start auto-sync (runs every 2 minutes and survives reboots)
+./deployment/deploy.sh autoupdate-install
+
+# Check daemon and recent sync history
+./deployment/deploy.sh autoupdate-status
+
+# Watch live auto-update logs
+./deployment/deploy.sh autoupdate-logs
+
+# Disable auto-sync
+./deployment/deploy.sh autoupdate-uninstall
+```
+
