@@ -41,10 +41,11 @@ Open `http://localhost:3000` in your browser.
 
 Tailscale provides end-to-end encrypted private mesh access to your Mac Mini with zero open ports on your home router.
 
-- **Mac Mini Tailscale IP**: `100.127.187.98`
+- **Tailscale IP**: Find your host's Tailscale IP (`tailscale ip -4`)
 - **Access from any device on your Tailscale network**:
-  - Direct IP: `http://100.127.187.98:3000`
-  - MagicDNS: `http://praguns-mac-mini:3000`
+  - Direct IP: `http://<tailscale-ip>:3000`
+  - MagicDNS: `http://<mac-mini-name>:3000`
+  - Tailscale Serve HTTPS (if enabled): `https://<mac-mini-name>.<tailnet-name>.ts.net`
 
 ---
 
@@ -95,9 +96,9 @@ Add a cron job to create daily timestamped backups at 3:00 AM:
 ```bash
 crontab -e
 ```
-Add the following entry:
+Add the following entry (adjusting `/path/to/study-app` to your actual repo location):
 ```cron
-0 3 * * * /Users/cheese/Desktop/study-app/deployment/backup-db.sh >> /Users/cheese/Desktop/study-app/deployment/backups/backup.log 2>&1
+0 3 * * * /path/to/study-app/deployment/backup-db.sh >> /path/to/study-app/deployment/backups/backup.log 2>&1
 ```
 
 Backups are saved to `deployment/backups/` as compressed `.sql.gz` archives with a 14-day automatic rotation policy.
@@ -137,6 +138,6 @@ The Mac Mini runs a lightweight background daemon that periodically checks `orig
 
 > [!NOTE]
 > **macOS LaunchAgent Note**:
-> macOS protects `~/Desktop` with Transparency, Consent, and Control (TCC) security restrictions, blocking background LaunchAgents that lack Full Disk Access from reading Desktop folders. The `autoupdate-start` command runs in your user session where Desktop permissions are active. For standalone system boot LaunchAgents (`autoupdate-install`), keep production clones in a standard folder such as `/Users/cheese/test/projects/study-app` (where other 24/7 Mac Mini servers run).
+> macOS protects `~/Desktop` with Transparency, Consent, and Control (TCC) security restrictions, blocking background LaunchAgents that lack Full Disk Access from reading Desktop folders. The `autoupdate-start` command runs in your user session where Desktop permissions are active. For standalone system boot LaunchAgents (`autoupdate-install`), keep production clones in a standard user folder such as `~/projects/study-app` (where other 24/7 Mac Mini servers run).
 
 

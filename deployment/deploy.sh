@@ -135,10 +135,41 @@ case "$ACTION" in
         LAUNCHAGENT_DIR="$HOME/Library/LaunchAgents"
         PLIST_FILE="$LAUNCHAGENT_DIR/com.studyapp.autoupdate.plist"
         mkdir -p "$LAUNCHAGENT_DIR"
-        cp "$DIR/com.studyapp.autoupdate.plist" "$PLIST_FILE"
+        cat << EOF > "$PLIST_FILE"
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.studyapp.autoupdate</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>$DIR/auto-update.sh</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>$REPO_DIR</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <key>HOME</key>
+        <string>$HOME</string>
+    </dict>
+    <key>StartInterval</key>
+    <integer>120</integer>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>$DIR/auto-update.log</string>
+    <key>StandardErrorPath</key>
+    <string>$DIR/auto-update.log</string>
+</dict>
+</plist>
+EOF
         launchctl unload "$PLIST_FILE" 2>/dev/null || true
         launchctl load "$PLIST_FILE"
-        echo "✅ LaunchAgent loaded successfully! Auto-sync will check for commits every 2 minutes."
+        echo "✅ LaunchAgent generated and loaded successfully! Auto-sync will check for commits every 2 minutes."
         ;;
     autoupdate-uninstall)
         echo "🛑 Unloading Study App auto-update LaunchAgent..."
