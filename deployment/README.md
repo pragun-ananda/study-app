@@ -45,7 +45,20 @@ Tailscale provides end-to-end encrypted private mesh access to your Mac Mini wit
 - **Access from any device on your Tailscale network**:
   - Direct IP: `http://<tailscale-ip>:3000`
   - MagicDNS: `http://<mac-mini-name>:3000`
-  - Tailscale Serve HTTPS (if enabled): `https://<mac-mini-name>.<tailnet-name>.ts.net`
+
+### Secure HTTPS via Tailscale Serve
+To serve the app over valid, browser-trusted HTTPS with automatic Let's Encrypt certificates (no certificate warnings on Chrome, Safari, iOS, or Android):
+```bash
+# Proxy port 3000 to HTTPS on your private Tailnet
+tailscale serve --bg 3000
+
+# Verify active proxy status and view your full HTTPS URL
+tailscale serve status
+
+# To disable or reset Tailscale serve
+tailscale serve reset
+```
+Access via: `https://<mac-mini-name>.<tailnet-name>.ts.net`
 
 ---
 
