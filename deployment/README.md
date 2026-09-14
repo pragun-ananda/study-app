@@ -79,9 +79,11 @@ sudo pmset -a autorestart 1
 | Restart Stack | `./deployment/deploy.sh restart` |
 | Run Database Backup | `./deployment/deploy.sh backup` |
 | Force Immediate Update & Rebuild | `./deployment/deploy.sh update` |
-| Install Auto-Deploy LaunchAgent | `./deployment/deploy.sh autoupdate-install` |
+| Start Background Auto-Deploy Daemon | `./deployment/deploy.sh autoupdate-start` |
+| Stop Background Auto-Deploy Daemon | `./deployment/deploy.sh autoupdate-stop` |
 | Check Auto-Deploy Daemon Status | `./deployment/deploy.sh autoupdate-status` |
 | Stream Auto-Deploy Logs | `./deployment/deploy.sh autoupdate-logs` |
+| Install Auto-Deploy LaunchAgent | `./deployment/deploy.sh autoupdate-install` |
 | Uninstall Auto-Deploy LaunchAgent | `./deployment/deploy.sh autoupdate-uninstall` |
 
 ---
@@ -110,7 +112,7 @@ gunzip -c deployment/backups/backup_study_db_YYYYMMDD_HHMMSS.sql.gz | docker exe
 
 ## 6. Automated Continuous Deployment (Git Push Auto-Sync)
 
-The Mac Mini runs a lightweight background daemon managed by native macOS `launchd` (`com.studyapp.autoupdate`). Every 2 minutes, it checks `origin/main` for new commits:
+The Mac Mini runs a lightweight background daemon that periodically checks `origin/main` for new commits:
 1. **Change Detection**: Compares local `HEAD` against `origin/main`. If there are no changes, it exits cleanly without CPU or disk churn.
 2. **Safety Backup**: Creates an automatic snapshot of the PostgreSQL database before pulling any code.
 3. **Fast-Forward Pull**: Executes `git pull --ff-only origin main`.
@@ -118,18 +120,23 @@ The Mac Mini runs a lightweight background daemon managed by native macOS `launc
 5. **Image Pruning**: Automatically prunes orphaned Docker layers to conserve disk space.
 6. **Health Verification**: Polls `http://localhost:3000/health` to confirm the gateway and backend are healthy.
 
-### Management Commands
+### Running the Auto-Deploy Daemon
 ```bash
-# Enable & start auto-sync (runs every 2 minutes and survives reboots)
-./deployment/deploy.sh autoupdate-install
+# Start background auto-update daemon (runs every 2 minutes in your user session)
+./deployment/deploy.sh autoupdate-start
 
-# Check daemon and recent sync history
+# Check daemon status and recent sync history
 ./deployment/deploy.sh autoupdate-status
 
 # Watch live auto-update logs
 ./deployment/deploy.sh autoupdate-logs
 
-# Disable auto-sync
-./deployment/deploy.sh autoupdate-uninstall
+# Stop background daemon
+./deployment/deploy.sh autoupdate-stop
 ```
+
+> [!NOTE]
+> **macOS LaunchAgent Note**:
+> macOS protects `~/Desktop` with Transparency, Consent, and Control (TCC) security restrictions, blocking background LaunchAgents that lack Full Disk Access from reading Desktop folders. The `autoupdate-start` command runs in your user session where Desktop permissions are active. For standalone system boot LaunchAgents (`autoupdate-install`), keep production clones in a standard folder such as `/Users/cheese/test/projects/study-app` (where other 24/7 Mac Mini servers run).
+
 
