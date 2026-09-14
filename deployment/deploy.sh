@@ -97,15 +97,79 @@ case "$ACTION" in
     update)
         "$DIR/auto-update.sh" --force
         ;;
+    autoupdate-start)
+        PID_FILE="/tmp/study_app_daemon.pid"
+        if [ -f "$PID_FILE" ]; then
+            EXISTING_PID="$(cat "$PID_FILE" 2>/dev/null || echo "")"
+            if [ -n "$EXISTING_PID" ] && kill -0 "$EXISTING_PID" 2>/dev/null; then
+                echo "ℹ️  Auto-update background daemon is already running (PID: $EXISTING_PID)."
+                exit 0
+            fi
+        fi
+        echo "🚀 Starting Study App background auto-update daemon..."
+        nohup "$DIR/auto-update-daemon.sh" 120 >/dev/null 2>&1 &
+        sleep 1
+        NEW_PID="$(cat "$PID_FILE" 2>/dev/null || echo "")"
+        echo "✅ Daemon started successfully (PID: ${NEW_PID:-unknown}). Checks origin/main every 2 minutes."
+        ;;
+    autoupdate-stop)
+        PID_FILE="/tmp/study_app_daemon.pid"
+        STOPPED=false
+        if [ -f "$PID_FILE" ]; then
+            EXISTING_PID="$(cat "$PID_FILE" 2>/dev/null || echo "")"
+            if [ -n "$EXISTING_PID" ] && kill -0 "$EXISTING_PID" 2>/dev/null; then
+                kill "$EXISTING_PID" 2>/dev/null || true
+                rm -f "$PID_FILE"
+                echo "🛑 Stopped background auto-update daemon (PID: $EXISTING_PID)."
+                STOPPED=true
+            fi
+        fi
+        # Also check for any orphaned daemon processes
+        pkill -f "auto-update-daemon.sh" 2>/dev/null && STOPPED=true || true
+        if [ "$STOPPED" = false ]; then
+            echo "ℹ️  No active background daemon process found."
+        fi
+        ;;
     autoupdate-install)
         echo "📦 Installing Study App auto-update LaunchAgent..."
         LAUNCHAGENT_DIR="$HOME/Library/LaunchAgents"
         PLIST_FILE="$LAUNCHAGENT_DIR/com.studyapp.autoupdate.plist"
         mkdir -p "$LAUNCHAGENT_DIR"
-        cp "$DIR/com.studyapp.autoupdate.plist" "$PLIST_FILE"
+        cat << EOF > "$PLIST_FILE"
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.studyapp.autoupdate</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>$DIR/auto-update.sh</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>$REPO_DIR</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <key>HOME</key>
+        <string>$HOME</string>
+    </dict>
+    <key>StartInterval</key>
+    <integer>120</integer>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>$DIR/auto-update.log</string>
+    <key>StandardErrorPath</key>
+    <string>$DIR/auto-update.log</string>
+</dict>
+</plist>
+EOF
         launchctl unload "$PLIST_FILE" 2>/dev/null || true
         launchctl load "$PLIST_FILE"
-        echo "✅ LaunchAgent loaded successfully! Auto-sync will check for commits every 2 minutes."
+        echo "✅ LaunchAgent generated and loaded successfully! Auto-sync will check for commits every 2 minutes."
         ;;
     autoupdate-uninstall)
         echo "🛑 Unloading Study App auto-update LaunchAgent..."
@@ -120,12 +184,26 @@ case "$ACTION" in
         ;;
     autoupdate-status)
         echo "=== Study App Auto-Update Daemon Status ==="
+        PID_FILE="/tmp/study_app_daemon.pid"
+        DAEMON_RUNNING=false
+        if [ -f "$PID_FILE" ]; then
+            EXISTING_PID="$(cat "$PID_FILE" 2>/dev/null || echo "")"
+            if [ -n "$EXISTING_PID" ] && kill -0 "$EXISTING_PID" 2>/dev/null; then
+                echo "✅ Background Session Daemon: RUNNING (PID: $EXISTING_PID)"
+                DAEMON_RUNNING=true
+            fi
+        fi
+        if [ "$DAEMON_RUNNING" = false ]; then
+            echo "ℹ️  Background Session Daemon: INACTIVE"
+        fi
+
         if launchctl list | grep -q "com.studyapp.autoupdate"; then
-            echo "✅ LaunchAgent is currently LOADED and ACTIVE."
+            echo "✅ macOS LaunchAgent: LOADED"
             launchctl list | grep "com.studyapp.autoupdate" || true
         else
-            echo "ℹ️  LaunchAgent is NOT loaded."
+            echo "ℹ️  macOS LaunchAgent: NOT LOADED"
         fi
+
         echo ""
         echo "=== Recent Auto-Update Log Entries ==="
         if [ -f "$DIR/auto-update.log" ]; then
@@ -141,7 +219,7 @@ case "$ACTION" in
         tail -f "$LOG_FILE"
         ;;
     *)
-        echo "Usage: $0 {up|down|restart|build|logs [service]|status|backup|seed|update|autoupdate-install|autoupdate-uninstall|autoupdate-status|autoupdate-logs}"
+        echo "Usage: $0 {up|down|restart|build|logs [service]|status|backup|seed|update|autoupdate-start|autoupdate-stop|autoupdate-status|autoupdate-logs|autoupdate-install|autoupdate-uninstall}"
         exit 1
         ;;
 esac

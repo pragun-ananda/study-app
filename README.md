@@ -27,9 +27,18 @@ study-app/
 
 ## Deployment & Self-Hosting
 
-The app can be run 24/7 on a home server (such as a Mac Mini) using Docker Compose and Nginx, with remote mesh access via Tailscale. See [deployment/README.md](deployment/README.md) for full instructions.
+The app can be run 24/7 on a home server (such as a Mac Mini) using Docker Compose and Nginx, with remote mesh access via Tailscale and continuous git auto-deployment.
 
-Quick start:
+### Quick Start
 ```bash
+# 1. Start production stack (PostgreSQL, Backend API, Nginx Gateway)
 ./deployment/deploy.sh up
+
+# 2. Start automated git auto-deployment daemon (checks origin/main every 2m)
+./deployment/deploy.sh autoupdate-start
+
+# 3. Check health and container status
+./deployment/deploy.sh status
 ```
+
+See **[deployment/README.md](deployment/README.md)** for complete documentation on environment variables, Tailscale HTTPS setup, automated backups, and 24/7 host resilience.
