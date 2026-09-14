@@ -8,9 +8,10 @@ import {
   StudyTodo,
   LineReviewComment,
   GraphUpdate,
-  QuizItem
+  QuizItem,
+  ApplicationItem
 } from '../types/telemetry';
-import { DOMAIN_DATA, INITIAL_TODOS } from '../data/test';
+import { DOMAIN_DATA, INITIAL_TODOS, SEED_APPLICATIONS } from '../data/test';
 import { INITIAL_UPDATES, INITIAL_QUEUE_ITEMS } from '../data/test/updates';
 import * as api from '../api/client';
 
@@ -144,6 +145,30 @@ export function generateCosmosNodes(): TopicNode[] {
 export const INITIAL_TOPICS = generateCosmosNodes();
 export { INITIAL_TODOS };
 
+export function resolveApplications(
+  topics: TopicNode[],
+  rawApps: ApplicationItem[] = SEED_APPLICATIONS
+): ApplicationItem[] {
+  const nameToId = new Map<string, string>();
+  topics.forEach((t) => nameToId.set(t.name.toLowerCase().trim(), t.id));
+
+  return rawApps.map((app) => {
+    const resolvedIds = new Set<string>(app.topicIds || []);
+    if (app.topicNames) {
+      app.topicNames.forEach((name) => {
+        const id = nameToId.get(name.toLowerCase().trim());
+        if (id) resolvedIds.add(id);
+      });
+    }
+    return {
+      ...app,
+      topicIds: Array.from(resolvedIds)
+    };
+  });
+}
+
+export const INITIAL_APPLICATIONS = resolveApplications(INITIAL_TOPICS, SEED_APPLICATIONS);
+
 export function getInitialTheme(): 'dark' | 'light' {
   try {
     if (typeof window !== 'undefined' && window.location) {
@@ -203,6 +228,10 @@ export const INITIAL_STATE: TelemetryState = {
   activeModalTab: 'NOTE',
   isNoteEditing: false,
   todos: INITIAL_TODOS,
+
+  // Applied Content
+  applications: INITIAL_APPLICATIONS,
+  activeApplication: null,
 
   // Review & Diff Updates (FRO-11)
   graphUpdates: INITIAL_UPDATES,
@@ -265,11 +294,13 @@ export const useStore = create<TelemetryStore>((set, get) => ({
       const queueItems = queueData?.queueItems && queueData.queueItems.length > 0
         ? queueData.queueItems
         : get().queueItems;
+      const resolvedApps = resolveApplications(topics, get().applications);
       set({
         topicNodes: topics,
         todos,
         graphUpdates: updates,
         queueItems,
+        applications: resolvedApps,
         isLoading: false,
         error: null
       });
@@ -284,7 +315,8 @@ export const useStore = create<TelemetryStore>((set, get) => ({
   fetchTopics: async () => {
     try {
       const topics = await api.fetchTopics();
-      set({ topicNodes: topics, error: null });
+      const resolvedApps = resolveApplications(topics, get().applications);
+      set({ topicNodes: topics, applications: resolvedApps, error: null });
     } catch (err: any) {
       set({ error: err.message || 'Failed to fetch topics' });
     }
@@ -300,7 +332,8 @@ export const useStore = create<TelemetryStore>((set, get) => ({
   },
 
   hydrate: (topics: TopicNode[], todos: StudyTodo[]) => {
-    set({ topicNodes: topics, todos, isLoading: false, error: null });
+    const resolvedApps = resolveApplications(topics, get().applications);
+    set({ topicNodes: topics, todos, applications: resolvedApps, isLoading: false, error: null });
   },
 
   // Knowledge Graph Actions
@@ -313,6 +346,12 @@ export const useStore = create<TelemetryStore>((set, get) => ({
   setActiveModalTab: (activeModalTab: 'NOTE' | 'QUIZ') =>
     set({ activeModalTab }),
   setIsNoteEditing: (isNoteEditing: boolean) => set({ isNoteEditing }),
+
+  // Applied Content Actions
+  setActiveApplication: (activeApplication: ApplicationItem | null) =>
+    set({ activeApplication }),
+  setApplications: (applications: ApplicationItem[]) =>
+    set({ applications }),
 
   addNoteToTopic: async (topicId: string, noteData: Omit<NoteItem, 'id'>) => {
     try {

@@ -48,6 +48,24 @@ export interface QuizItem {
   questions: QuizQuestionItem[];
 }
 
+export type ApplicationType = 'CASE_STUDY' | 'INTERVIEW_PROBLEM' | 'PROJECT_BLUEPRINT';
+export type ApplicationDifficulty = 'BEGINNER' | 'INTERMEDIATE' | 'ADVANCED';
+
+export interface ApplicationItem {
+  id: string;
+  title: string;
+  type: ApplicationType;
+  domain: DomainCategory;
+  difficulty: ApplicationDifficulty;
+  organization?: string;
+  readTimeMinutes: number;
+  summary: string;
+  content: string;
+  topicIds: string[];
+  topicNames?: string[];
+  externalUrl?: string;
+}
+
 export interface TopicNode {
   id: string;
   name: string;
@@ -216,6 +234,10 @@ export interface TelemetryState {
   isNoteEditing: boolean;
   todos: StudyTodo[];
 
+  // Applied Content (Case Studies, Interviews, Project Blueprints)
+  applications: ApplicationItem[];
+  activeApplication: ApplicationItem | null;
+
   // Review & Diff Updates (FRO-11)
   graphUpdates: GraphUpdate[];
   queueItems: ReviewQueueItemDTO[];
@@ -283,6 +305,10 @@ export interface TelemetryActions {
   toggleTodo: (id: string) => Promise<void>;
   addTodo: (todo: Omit<StudyTodo, 'id'>) => Promise<StudyTodo | void>;
   deleteTodo: (id: string) => Promise<void>;
+
+  // Applied Content Actions
+  setActiveApplication: (app: ApplicationItem | null) => void;
+  setApplications: (apps: ApplicationItem[]) => void;
 
   // Diff Review Actions (FRO-11)
   setIsNotificationsOpen: (open: boolean) => void;

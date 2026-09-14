@@ -5,6 +5,7 @@ import { useStore, applyThemeToDocument } from './store/useStore';
 
 export default function App() {
   const theme = useStore((state) => state.theme);
+  const activeApplication = useStore((state) => state.activeApplication);
 
   useEffect(() => {
     document.title = 'Knowledge Graph';
@@ -33,6 +34,10 @@ export default function App() {
         // If CreateNodeModal is open, let CreateNodeModal manage its own dismissal
         // to respect its submission lock and prevent unmounting in-flight requests.
         if (state.isCreateNodeOpen) {
+          return;
+        }
+        if (state.activeApplication) {
+          state.setActiveApplication(null);
           return;
         }
         if (state.activeNote) {
@@ -119,7 +124,12 @@ export default function App() {
       data-theme={theme}
     >
       {/* Layer z-0: 3D Scene Viewport & WebGL Post Processing */}
-      <div className="absolute inset-0 z-0">
+      <div
+        className={`absolute inset-y-0 right-0 z-0 transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] will-change-[left] ${
+          activeApplication ? 'left-0 md:left-1/2' : 'left-0'
+        }`}
+        data-testid="scene-canvas-container"
+      >
         <SceneCanvas />
       </div>
 

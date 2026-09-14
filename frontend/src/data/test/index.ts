@@ -40,3 +40,5 @@ export const DOMAIN_DATA: { category: TopicNode['category']; topics: RawTopic[] 
 }));
 
 export const INITIAL_TODOS: StudyTodo[] = rawTodos as StudyTodo[];
+
+export * from './applications';

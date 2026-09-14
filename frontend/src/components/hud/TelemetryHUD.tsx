@@ -28,9 +28,12 @@ import {
   Moon,
   Globe,
   PlusCircle,
-  AlertTriangle
+  AlertTriangle,
+  Layers,
+  Sparkles
 } from 'lucide-react';
 import NoteViewerModal from './NoteViewerModal';
+import ApplicationViewerModal from './ApplicationViewerModal';
 import NotificationsDropdown from './NotificationsDropdown';
 import DiffViewerModal from './DiffViewerModal';
 import IngestionWalkthroughModal from './IngestionWalkthroughModal';
@@ -69,13 +72,15 @@ export default function TelemetryHUD() {
   const addTodo = useStore((state) => state.addTodo);
   const toggleTodo = useStore((state) => state.toggleTodo);
   const deleteTodo = useStore((state) => state.deleteTodo);
+  const applications = useStore((state) => state.applications);
+  const setActiveApplication = useStore((state) => state.setActiveApplication);
 
   // Ingestion State & Actions
   const ingestUrl = useStore((state) => state.ingestUrl);
   const isIngesting = useStore((state) => state.isIngesting);
   const ingestError = useStore((state) => state.ingestError);
 
-  const [activeTab, setActiveTab] = useState<'TOPICS' | 'TODOS'>('TOPICS');
+  const [activeTab, setActiveTab] = useState<'TOPICS' | 'APPLICATIONS' | 'TODOS'>('TOPICS');
   const [isSubgraphsOpen, setIsSubgraphsOpen] = useState(false);
   const [newTodoTitle, setNewTodoTitle] = useState('');
   const [newTodoCategory, setNewTodoCategory] = useState<DomainCategory>('AI & ML');
@@ -254,6 +259,22 @@ export default function TelemetryHUD() {
     window.addEventListener('keydown', handleKeyDown, { capture: true });
     return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
   }, [isDeleteModalOpen, isDeletingTopic]);
+
+  const filteredApplications = useMemo(() => {
+    return applications.filter((app) => {
+      const categoryMatch = !selectedCategory || selectedCategory === 'ALL' || app.domain === selectedCategory;
+      const searchMatch =
+        !searchQuery ||
+        app.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        app.summary.toLowerCase().includes(searchQuery.toLowerCase());
+      return categoryMatch && searchMatch;
+    });
+  }, [applications, selectedCategory, searchQuery]);
+
+  const topicApplications = useMemo(() => {
+    if (!selectedNode) return [];
+    return applications.filter((app) => app.topicIds.includes(selectedNode.id));
+  }, [selectedNode, applications]);
 
   // Dynamic Mastery Score calculated per active Subgraph
   const activeSubgraphNodes = selectedCategory && selectedCategory !== 'ALL'
@@ -670,26 +691,37 @@ export default function TelemetryHUD() {
             <div className="flex flex-col h-full space-y-4 overflow-hidden">
 
               <div className={`flex items-center justify-between border-b pb-2 ${isLight ? 'border-slate-200' : 'border-white/10'}`}>
-                <div className={`flex items-center gap-1 p-1 rounded-lg ${isLight ? 'bg-slate-200/70' : 'bg-slate-950/60'}`}>
+                <div className={`flex items-center gap-1 p-1 rounded-lg w-full justify-between ${isLight ? 'bg-slate-200/70' : 'bg-slate-950/60'}`}>
                   <button
                     onClick={() => setActiveTab('TOPICS')}
-                    className={`px-3 py-1 rounded text-xs font-bold transition-all flex items-center gap-1.5 ${
+                    className={`flex-1 px-2 py-1 rounded text-xs font-bold transition-all flex items-center justify-center gap-1 ${
                       activeTab === 'TOPICS'
                         ? (isLight ? 'bg-sky-600 text-white shadow-sm' : 'bg-[#00f0ff] text-slate-950 shadow-[0_0_10px_rgba(0,240,255,0.3)]')
                         : (isLight ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-slate-200')
                     }`}
                   >
-                    <BookOpen size={13} /> GRAPH NODES ({filteredTopics.length})
+                    <BookOpen size={12} /> GRAPH NODES ({filteredTopics.length})
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('APPLICATIONS')}
+                    data-testid="sidebar-tab-applications"
+                    className={`flex-1 px-2 py-1 rounded text-xs font-bold transition-all flex items-center justify-center gap-1 ${
+                      activeTab === 'APPLICATIONS'
+                        ? (isLight ? 'bg-sky-600 text-white shadow-sm' : 'bg-[#00f0ff] text-slate-950 shadow-[0_0_10px_rgba(0,240,255,0.3)]')
+                        : (isLight ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-slate-200')
+                    }`}
+                  >
+                    <Layers size={12} /> APPLIED ({applications.length})
                   </button>
                   <button
                     onClick={() => setActiveTab('TODOS')}
-                    className={`px-3 py-1 rounded text-xs font-bold transition-all flex items-center gap-1.5 ${
+                    className={`flex-1 px-2 py-1 rounded text-xs font-bold transition-all flex items-center justify-center gap-1 ${
                       activeTab === 'TODOS'
                         ? (isLight ? 'bg-sky-600 text-white shadow-sm' : 'bg-[#00f0ff] text-slate-950 shadow-[0_0_10px_rgba(0,240,255,0.3)]')
                         : (isLight ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-slate-200')
                     }`}
                   >
-                    <CheckSquare size={13} /> TASKS ({completedTodosCount}/{todos.length})
+                    <CheckSquare size={12} /> TASKS ({completedTodosCount}/{todos.length})
                   </button>
                 </div>
               </div>
@@ -758,7 +790,86 @@ export default function TelemetryHUD() {
                 </div>
               )}
 
-              {/* TAB 2: TODAY'S TO-DO LIST */}
+              {/* TAB 2: APPLIED CONTENT (CASE STUDIES & INTERVIEWS) */}
+              {activeTab === 'APPLICATIONS' && (
+                <div className="flex-1 flex flex-col space-y-3 overflow-hidden">
+                  <div className={`flex justify-between items-center text-[11px] ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
+                    <span className="font-bold uppercase tracking-wider flex items-center gap-1.5">
+                      <Sparkles size={12} className={isLight ? 'text-sky-600' : 'text-[#00f0ff]'} />
+                      <span>REAL-WORLD SCENARIOS</span>
+                    </span>
+                    <span className={`font-bold ${isLight ? 'text-sky-600' : 'text-[#00f0ff]'}`}>
+                      {filteredApplications.length} Items
+                    </span>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto space-y-2.5 pr-1.5 pb-6 overscroll-contain" onWheel={(e) => e.stopPropagation()}>
+                    {filteredApplications.length > 0 ? (
+                      filteredApplications.map((app) => (
+                        <div
+                          key={app.id}
+                          data-testid="sidebar-application-card"
+                          onClick={() => {
+                            setActiveApplication(app);
+                            setIsSidebarOpen(false);
+                          }}
+                          className={`p-3 rounded-xl border text-xs cursor-pointer transition-all ${
+                            isLight
+                              ? 'border-slate-200 bg-white/95 hover:border-sky-400 hover:shadow-md shadow-sm'
+                              : 'border-white/10 bg-slate-950/70 hover:border-[#00f0ff]/50 hover:bg-slate-900/80'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-1.5 mb-1.5">
+                            <span
+                              className={`text-[9px] font-mono px-1.5 py-0.5 rounded font-bold uppercase tracking-wider ${
+                                isLight
+                                  ? 'bg-sky-100 text-sky-700'
+                                  : 'bg-cyan-950/60 text-cyan-300 border border-cyan-500/20'
+                              }`}
+                            >
+                              {app.type.replace('_', ' ')}
+                            </span>
+                            <span
+                              className={`text-[9px] font-mono px-1.5 py-0.5 rounded font-bold uppercase ${
+                                app.difficulty === 'ADVANCED'
+                                  ? isLight ? 'bg-rose-100 text-rose-700' : 'bg-rose-950/50 text-rose-400'
+                                  : app.difficulty === 'INTERMEDIATE'
+                                  ? isLight ? 'bg-amber-100 text-amber-700' : 'bg-amber-950/50 text-amber-400'
+                                  : isLight ? 'bg-emerald-100 text-emerald-700' : 'bg-emerald-950/50 text-emerald-400'
+                              }`}
+                            >
+                              {app.difficulty}
+                            </span>
+                          </div>
+
+                          <h4 className={`font-sans font-bold text-xs leading-snug mb-1 ${isLight ? 'text-slate-900' : 'text-slate-100'}`}>
+                            {app.title}
+                          </h4>
+
+                          <p className={`text-[10.5px] line-clamp-2 leading-relaxed mb-2 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                            {app.summary}
+                          </p>
+
+                          <div className="flex items-center justify-between text-[10px] font-mono pt-1.5 border-t border-slate-100 dark:border-white/5">
+                            <span className="text-slate-400">{app.domain} • {app.readTimeMinutes} min</span>
+                            <span className={`font-bold flex items-center gap-1 ${isLight ? 'text-sky-600' : 'text-[#00f0ff]'}`}>
+                              <Layers size={10} />
+                              {app.topicIds.length} Concepts
+                            </span>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className={`p-4 text-center text-xs italic ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
+                        No applications found matching criteria.
+                      </div>
+                    )}
+                    <div className="h-10 w-full flex-shrink-0 pointer-events-none" />
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 3: TODAY'S TO-DO LIST */}
               {activeTab === 'TODOS' && (
                 <div className="flex-1 flex flex-col space-y-3 overflow-hidden">
                   <form onSubmit={handleAddTodo} className="flex gap-2">
@@ -1461,25 +1572,79 @@ export default function TelemetryHUD() {
                     </div>
                   </div>
 
-                  <div className="h-10 w-full flex-shrink-0 pointer-events-none" />
-                </div>
-              )}
+                  {/* 4. REAL-WORLD APPLICATIONS */}
+                  {topicApplications.length > 0 && (
+                    <div className={`pt-2.5 border-t space-y-2 ${isLight ? 'border-slate-200' : 'border-white/10'}`}>
+                      <div className="flex items-center justify-between text-[11px] font-bold">
+                        <div className="flex items-center gap-1.5" style={{ color: selectedNodeColor }}>
+                          <Layers size={13} />
+                          <span>REAL-WORLD APPLICATIONS</span>
+                        </div>
+                        <span className="text-[10px] font-mono opacity-80" style={{ color: selectedNodeColor }}>
+                          {topicApplications.length} SCENARIO{topicApplications.length > 1 ? 'S' : ''}
+                        </span>
+                      </div>
 
-              {/* Action Button at bottom */}
-              {!isInspectorEditing && (
-                <div className="pt-2 flex-shrink-0">
-                  <button
-                    onClick={() => updateTopicMastery(selectedNode.id, selectedNode.mastery + 10)}
-                    style={{
-                      backgroundColor: selectedNodeColor,
-                      boxShadow: isLight ? `0 2px 10px rgba(0,0,0,0.15)` : `0 0 14px ${selectedNodeColor}60`
-                    }}
-                    className={`w-full py-2 rounded font-bold text-center hover:opacity-90 transition-opacity shadow-md cursor-pointer ${
-                      isLight ? 'text-white' : 'text-slate-950'
-                    }`}
-                  >
-                    +10% MASTERY RECALL
-                  </button>
+                      <div className="space-y-1.5">
+                        {topicApplications.map((app) => (
+                          <div
+                            key={app.id}
+                            data-testid="inspector-application-item"
+                            onClick={() => {
+                              setActiveApplication(app);
+                              setIsInspectorOpen(false);
+                              setIsSidebarOpen(false);
+                            }}
+                            style={{
+                              borderColor: `${selectedNodeColor}40`
+                            }}
+                            className={`p-2.5 rounded-lg border text-[11px] cursor-pointer transition-all flex items-center justify-between group shadow-sm hover:scale-[1.02] ${
+                              isLight
+                                ? 'bg-white/95 hover:bg-slate-50 text-slate-800 hover:border-sky-400'
+                                : 'bg-slate-950/80 hover:bg-slate-900 text-slate-200 hover:border-[#00f0ff]/60'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5 truncate">
+                              <Sparkles
+                                size={14}
+                                className="flex-shrink-0 group-hover:scale-110 transition-transform"
+                                style={{ color: selectedNodeColor }}
+                              />
+                              <div className="truncate min-w-0">
+                                <span className="truncate font-semibold block group-hover:text-sky-500 dark:group-hover:text-[#00f0ff] transition-colors">
+                                  {app.title}
+                                </span>
+                                <span className="text-[9.5px] font-mono text-slate-400">
+                                  {app.type.replace('_', ' ')} • {app.readTimeMinutes} min
+                                </span>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1.5 ml-2 flex-shrink-0">
+                              <span
+                                className={`text-[9px] font-mono px-1.5 py-0.5 rounded font-bold uppercase ${
+                                  app.difficulty === 'ADVANCED'
+                                    ? 'text-rose-500 bg-rose-500/10'
+                                    : app.difficulty === 'INTERMEDIATE'
+                                    ? 'text-amber-500 bg-amber-500/10'
+                                    : 'text-emerald-500 bg-emerald-500/10'
+                                }`}
+                              >
+                                {app.difficulty}
+                              </span>
+                              <span
+                                className="text-xs font-bold opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all"
+                                style={{ color: selectedNodeColor }}
+                              >
+                                →
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="h-4 w-full flex-shrink-0 pointer-events-none" />
                 </div>
               )}
             </motion.div>
@@ -1501,6 +1666,9 @@ export default function TelemetryHUD() {
 
       {/* Markdown Note Viewing Modal */}
       <NoteViewerModal />
+
+      {/* Applied Content Viewing Modal */}
+      <ApplicationViewerModal />
 
       {/* Review Diff Modal (FRO-11) */}
       <DiffViewerModal />
