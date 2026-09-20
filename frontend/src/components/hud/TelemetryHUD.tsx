@@ -82,6 +82,16 @@ export default function TelemetryHUD() {
   const [inputUrl, setInputUrl] = useState('');
   const [ingestSuccessMsg, setIngestSuccessMsg] = useState<string | null>(null);
   const urlInputRef = useRef<HTMLDivElement>(null);
+  const ingestTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Cleanup pending timeouts on unmount
+  useEffect(() => {
+    return () => {
+      if (ingestTimerRef.current) {
+        clearTimeout(ingestTimerRef.current);
+      }
+    };
+  }, []);
 
   // Click outside and Escape key handler for URL input
   useEffect(() => {
@@ -115,7 +125,10 @@ export default function TelemetryHUD() {
       await ingestUrl(url);
       setIngestSuccessMsg('Content staged to review queue!');
       setInputUrl('');
-      setTimeout(() => {
+      if (ingestTimerRef.current) {
+        clearTimeout(ingestTimerRef.current);
+      }
+      ingestTimerRef.current = setTimeout(() => {
         setIngestSuccessMsg(null);
         setIsUrlInputOpen(false);
       }, 2000);
