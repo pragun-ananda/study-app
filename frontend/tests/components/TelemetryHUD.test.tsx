@@ -73,18 +73,18 @@ describe('TelemetryHUD Component', () => {
     expect(useStore.getState().searchQuery).toBe('');
   });
 
-  it('expands left sidebar and switches between TOPICS and TASKS tabs', () => {
+  it('expands left sidebar and switches between CONCEPTS and APPLIED tabs', () => {
     render(<TelemetryHUD />);
 
     // Click toggle button to expand left sidebar
     const expandButton = screen.getByLabelText('Toggle study panel');
     fireEvent.click(expandButton);
 
-    // Find and click the TASKS tab button
-    const tasksTab = screen.getByRole('button', { name: /TASKS/i });
-    fireEvent.click(tasksTab);
+    // Find and click the APPLIED tab button
+    const appliedTab = screen.getByTestId('sidebar-tab-applications');
+    fireEvent.click(appliedTab);
 
-    expect(screen.getByPlaceholderText('Add new study goal...')).toBeInTheDocument();
+    expect(screen.getByText(/REAL-WORLD SCENARIOS/i)).toBeInTheDocument();
   });
 
   it('clicks a topic row in left sidebar list to select and focus it', () => {
@@ -99,47 +99,44 @@ describe('TelemetryHUD Component', () => {
     expect(useStore.getState().selectedTopicId).toBe(firstTopic.id);
   });
 
-  it('adds a new todo from the HUD task panel', async () => {
+  it('renders CONCEPTS and APPLIED tabs and verifies absence of TASKS tab', () => {
     render(<TelemetryHUD />);
 
     // Expand sidebar
     const expandButton = screen.getByLabelText('Toggle study panel');
     fireEvent.click(expandButton);
 
-    // Switch to TASKS tab
-    const tasksTab = screen.getByRole('button', { name: /TASKS/i });
-    fireEvent.click(tasksTab);
+    // Verify CONCEPTS tab exists with node count
+    const conceptsTab = screen.getByTestId('sidebar-tab-concepts');
+    expect(conceptsTab).toBeInTheDocument();
+    expect(conceptsTab).toHaveTextContent(/CONCEPTS/i);
 
-    const input = screen.getByPlaceholderText('Add new study goal...');
-    fireEvent.change(input, { target: { value: 'Review Vector Embeddings' } });
+    // Verify APPLICATIONS tab exists
+    const appliedTab = screen.getByTestId('sidebar-tab-applications');
+    expect(appliedTab).toBeInTheDocument();
+    expect(appliedTab).toHaveTextContent(/APPLICATIONS/i);
 
-    // Submit form by triggering submit on input's form
-    fireEvent.submit(input.closest('form')!);
-
-    await waitFor(() => {
-      expect(useStore.getState().todos.some((t) => t.title === 'Review Vector Embeddings')).toBe(true);
-    });
+    // Verify TASKS tab does NOT exist
+    expect(screen.queryByRole('button', { name: /TASKS/i })).not.toBeInTheDocument();
   });
 
-  it('toggles task completion and deletes tasks from HUD', async () => {
+  it('switches between CONCEPTS and APPLIED tabs in HUD sidebar', () => {
     render(<TelemetryHUD />);
 
-    // Expand sidebar and go to TASKS
+    // Expand sidebar
     fireEvent.click(screen.getByLabelText('Toggle study panel'));
-    fireEvent.click(screen.getByRole('button', { name: /TASKS/i }));
 
-    const firstTodo = useStore.getState().todos[0];
-    const initialCompleted = firstTodo.completed;
+    // Initially in CONCEPTS (TOPICS) tab
+    expect(screen.getByTestId('sidebar-add-node-btn')).toBeInTheDocument();
 
-    // Click the toggle button for first task
-    const todoTitle = screen.getByText(firstTodo.title);
-    const todoCard = todoTitle.closest('div');
-    const checkboxBtn = todoCard?.parentElement?.querySelector('button');
-    if (checkboxBtn) fireEvent.click(checkboxBtn);
+    // Switch to APPLIED tab
+    fireEvent.click(screen.getByTestId('sidebar-tab-applications'));
+    expect(screen.getByText(/REAL-WORLD SCENARIOS/i)).toBeInTheDocument();
+    expect(screen.queryByTestId('sidebar-add-node-btn')).not.toBeInTheDocument();
 
-    await waitFor(() => {
-      expect(useStore.getState().todos.find((t) => t.id === firstTodo.id)?.completed).toBe(!initialCompleted);
-    });
+    // Switch back to CONCEPTS tab
+    fireEvent.click(screen.getByTestId('sidebar-tab-concepts'));
+    expect(screen.getByTestId('sidebar-add-node-btn')).toBeInTheDocument();
   });
 
   it('renders inspector card with topic metadata and without recall button', () => {

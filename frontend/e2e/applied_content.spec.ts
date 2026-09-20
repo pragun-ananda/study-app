@@ -153,6 +153,118 @@ test.describe('Applied Content Dual-Panel Viewer E2E', () => {
     await expect(page.getByTestId('scene-canvas-container')).toHaveClass(/md:left-1\/2/);
 
     // Verify the inspector card has cleanly closed
-    await expect(page.getByTestId('inspector-application-item')).not.toBeVisible();
+    await expect(page.getByTestId('topic-inspector')).not.toBeVisible();
+  });
+
+  test('switches between OVERVIEW and QUIZ tabs in dual-pane view and interacts with comprehension questions', async ({ page }) => {
+    // Open sidebar and launch scenario
+    await page.getByLabel('Toggle study panel').click();
+    await page.getByTestId('sidebar-tab-applications').click();
+    await page.getByTestId('sidebar-application-card').first().click();
+
+    const leftPane = page.getByTestId('application-viewer-modal');
+    await expect(leftPane).toBeVisible();
+
+    // Verify tab switcher exists with OVERVIEW and QUIZ pills
+    const tabSwitcher = page.getByTestId('application-tab-switcher');
+    await expect(tabSwitcher).toBeVisible();
+
+    const quizTabBtn = page.getByTestId('application-tab-quiz');
+    await expect(quizTabBtn).toBeVisible();
+    await expect(quizTabBtn).toHaveText(/QUIZ \(\d+\)/);
+
+    // Switch to QUIZ tab
+    await quizTabBtn.click();
+
+    // Quiz container is visible with questions
+    const quizContainer = page.getByTestId('application-quiz-container');
+    await expect(quizContainer).toBeVisible();
+    await expect(page.getByTestId('quiz-viewer')).toBeVisible();
+
+    // Verify relevant concept nodes quick-reference is shown below quiz
+    await expect(page.getByText(/Relevant Concept Nodes/i)).toBeVisible();
+
+    // Right-side 3D graph canvas remains present and docked at md:left-1/2
+    const canvasContainer = page.getByTestId('scene-canvas-container');
+    await expect(canvasContainer).toBeVisible();
+    await expect(canvasContainer).toHaveClass(/md:left-1\/2/);
+
+    // Switch back to OVERVIEW tab
+    const overviewTabBtn = page.getByTestId('application-tab-overview');
+    await overviewTabBtn.click();
+    await expect(quizContainer).not.toBeVisible();
+    await expect(page.getByText(/Executive Context/i)).toBeVisible();
+  });
+
+  test('interacts with MATCHING and ORDERING questions in Dynamo & Cassandra quiz', async ({ page }) => {
+    // Open sidebar and launch Dynamo & Cassandra scenario
+    await page.getByLabel('Toggle study panel').click();
+    await page.getByTestId('sidebar-tab-applications').click();
+    const dynamoCard = page.getByTestId('sidebar-application-card').filter({ hasText: /Dynamo & Cassandra/i }).first();
+    await dynamoCard.click();
+
+    // Switch to QUIZ tab
+    const quizTabBtn = page.getByTestId('application-tab-quiz');
+    await quizTabBtn.click();
+
+    // Verify Quiz is in PRACTICE MODE initially
+    await expect(page.getByText('PRACTICE MODE')).toBeVisible();
+
+    // 1. MATCHING question (Question 3)
+    await expect(page.getByText(/Match each Dynamo architectural component/i)).toBeVisible();
+    await expect(page.getByText(/Available Definitions Pool/i)).toBeVisible();
+
+    // Click the custom dropdown trigger for Consistent Hash Ring
+    const hashRingDropdownBtn = page.getByRole('button', { name: /Select definition for Consistent Hash Ring/i });
+    await expect(hashRingDropdownBtn).toBeVisible();
+    await hashRingDropdownBtn.click();
+
+    // Dropdown listbox appears with readable options
+    const listbox = page.getByRole('listbox');
+    await expect(listbox).toBeVisible();
+
+    // Select the correct definition from the listbox
+    const correctChoice = listbox.getByRole('option').filter({ hasText: /Minimizes key migration/i });
+    await expect(correctChoice).toBeVisible();
+    await correctChoice.click();
+
+    // Verify listbox closed and selection is displayed
+    await expect(listbox).not.toBeVisible();
+    await expect(page.getByText('Minimizes key migration when nodes join or leave').first()).toBeVisible();
+
+    // Click Check Matches button
+    const checkMatchesBtn = page.getByRole('button', { name: /Check Matches/i });
+    await expect(checkMatchesBtn).toBeVisible();
+    await checkMatchesBtn.click();
+
+    // Verify CORRECT feedback is displayed
+    await expect(page.getByText('CORRECT').first()).toBeVisible();
+
+    // Verify Reset Matches button is now present
+    const resetMatchesBtn = page.getByRole('button', { name: /Reset Matches/i });
+    await expect(resetMatchesBtn).toBeVisible();
+
+    // 2. ORDERING question (Question 4)
+    await expect(page.getByText(/Order the chronological execution steps/i)).toBeVisible();
+
+    // Find move buttons on ordering steps
+    const moveStepUpBtns = page.getByTitle('Move Step Up');
+    await expect(moveStepUpBtns.first()).toBeVisible();
+    // Move a step up
+    await moveStepUpBtns.nth(1).click();
+
+    // Click Check Order button
+    const checkOrderBtn = page.getByRole('button', { name: /Check Order/i });
+    await expect(checkOrderBtn).toBeVisible();
+    await checkOrderBtn.click();
+
+    // Verify evaluation summary badge and Reset Order button
+    const resetOrderBtn = page.getByRole('button', { name: /Reset Order/i });
+    await expect(resetOrderBtn).toBeVisible();
+
+    // 3. Toggle between PRACTICE MODE and AUDIT MODE
+    const modeBtn = page.getByText('PRACTICE MODE');
+    await modeBtn.click();
+    await expect(page.getByText('AUDIT MODE')).toBeVisible();
   });
 });

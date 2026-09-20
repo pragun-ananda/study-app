@@ -7,7 +7,10 @@ import {
   AlertTriangle,
   Lightbulb,
   CheckSquare,
-  Square
+  Square,
+  Layers,
+  Sparkles,
+  ExternalLink
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -97,25 +100,87 @@ export function CodeBlock({ language, codeString, nodeColor, isLight = false }: 
   );
 }
 
+/**
+ * Normalizes custom wiki-style markdown links (app://, concept://, topic://, etc.)
+ * so that URLs with spaces, parentheses, and special characters conform to CommonMark
+ * syntax and are reliably parsed by ReactMarkdown.
+ */
+export function normalizeMarkdownWikiLinks(rawMarkdown: string): string {
+  if (!rawMarkdown) return '';
+
+  return rawMarkdown.replace(
+    /\[([^\]]+)\]\(((?:concept|concepts|topic|topics|app|application|applications):\/\/[^\n\r]+)/gi,
+    (fullMatch, label, uriWithMaybeTrailing) => {
+      let depth = 1;
+      let targetEnd = -1;
+      for (let i = 0; i < uriWithMaybeTrailing.length; i++) {
+        if (uriWithMaybeTrailing[i] === '(') {
+          depth++;
+        } else if (uriWithMaybeTrailing[i] === ')') {
+          depth--;
+          if (depth === 0) {
+            targetEnd = i;
+            break;
+          }
+        }
+      }
+
+      if (targetEnd === -1) {
+        return fullMatch;
+      }
+
+      const fullUri = uriWithMaybeTrailing.slice(0, targetEnd);
+      const remainder = uriWithMaybeTrailing.slice(targetEnd + 1);
+
+      const schemaMatch = fullUri.match(
+        /^((?:concept|concepts|topic|topics|app|application|applications):\/\/)(.*)$/i
+      );
+      if (!schemaMatch) return fullMatch;
+
+      const schema = schemaMatch[1];
+      let target = schemaMatch[2].trim();
+      try {
+        target = decodeURIComponent(target);
+      } catch {
+        // use target as-is if malformed percent encoding
+      }
+
+      // Encode characters including parentheses so CommonMark parser does not break
+      const encodedTarget = encodeURIComponent(target)
+        .replace(/\(/g, '%28')
+        .replace(/\)/g, '%29');
+
+      return `[${label}](${schema}${encodedTarget})${remainder}`;
+    }
+  );
+}
+
 export interface MarkdownContentProps {
   content: string;
   accentColor?: string;
   className?: string;
+  onNavigateApplication?: (appIdOrName: string) => void;
+  onNavigateConcept?: (topicIdOrName: string) => void;
 }
 
 export function MarkdownContent({
   content,
   accentColor = '#00f0ff',
-  className = ''
+  className = '',
+  onNavigateApplication,
+  onNavigateConcept
 }: MarkdownContentProps) {
   const theme = useStore((state) => state.theme);
   const isLight = theme === 'light';
 
   if (!content) return null;
 
+  const normalizedContent = normalizeMarkdownWikiLinks(content);
+
   return (
     <div className={`prose ${isLight ? 'prose-slate' : 'prose-invert'} max-w-none text-sm leading-relaxed font-sans ${className}`}>
       <ReactMarkdown
+        urlTransform={(url) => url}
         remarkPlugins={[remarkGfm, remarkMath]}
         rehypePlugins={[[rehypeKatex, { strict: false, throwOnError: false }]]}
         components={{
@@ -328,21 +393,78 @@ export function MarkdownContent({
               )}
             </span>
           ),
-          a: ({ node, href, children, ...props }) => (
-            <a
-              href={href}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={`underline transition-colors font-medium ${isLight ? 'hover:text-cyan-700' : 'hover:text-[#00ff9d]'}`}
-              style={{ color: accentColor }}
-              {...props}
-            >
-              {children}
-            </a>
-          )
+          a: ({ node, href, children, ...props }) => {
+            const rawHref = href || '';
+            const isApp = /^(app|applications?):\/\//i.test(rawHref);
+            const isConcept = /^(concept|concepts?|topic|topics?):\/\//i.test(rawHref);
+
+            if (isApp) {
+              const appTarget = decodeURIComponent(rawHref.replace(/^(app|applications?):\/\//i, ''));
+              return (
+                <button
+                  type="button"
+                  data-testid={`wiki-link-app-${appTarget}`}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onNavigateApplication?.(appTarget);
+                  }}
+                  className={`inline-flex items-center gap-1 px-1.5 py-0.5 mx-0.5 rounded text-xs font-semibold font-mono border transition-all cursor-pointer select-none align-baseline ${
+                    isLight
+                      ? 'bg-sky-50 hover:bg-sky-100 text-sky-700 hover:text-sky-900 border-sky-200 shadow-2xs hover:shadow-xs'
+                      : 'bg-cyan-950/60 hover:bg-cyan-900/80 text-cyan-300 hover:text-cyan-100 border-cyan-500/30 shadow-[0_0_8px_rgba(0,240,255,0.15)] hover:shadow-[0_0_12px_rgba(0,240,255,0.3)]'
+                  }`}
+                  title={`Open applied module: ${appTarget}`}
+                >
+                  <Layers size={11} className={isLight ? 'text-sky-600 shrink-0' : 'text-cyan-400 shrink-0'} />
+                  <span className="underline decoration-dotted underline-offset-2">{children}</span>
+                </button>
+              );
+            }
+
+            if (isConcept) {
+              const conceptTarget = decodeURIComponent(rawHref.replace(/^(concept|concepts?|topic|topics?):\/\//i, ''));
+              return (
+                <button
+                  type="button"
+                  data-testid={`wiki-link-concept-${conceptTarget}`}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onNavigateConcept?.(conceptTarget);
+                  }}
+                  className={`inline-flex items-center gap-1 px-1.5 py-0.5 mx-0.5 rounded text-xs font-semibold font-mono border transition-all cursor-pointer select-none align-baseline ${
+                    isLight
+                      ? 'bg-amber-50 hover:bg-amber-100 text-amber-800 hover:text-amber-950 border-amber-200 shadow-2xs'
+                      : 'bg-amber-950/50 hover:bg-amber-900/70 text-amber-300 hover:text-amber-100 border-amber-500/30 shadow-[0_0_8px_rgba(245,158,11,0.15)]'
+                  }`}
+                  title={`Inspect concept in graph: ${conceptTarget}`}
+                >
+                  <Sparkles size={11} className={isLight ? 'text-amber-600 shrink-0' : 'text-amber-400 shrink-0'} />
+                  <span className="underline decoration-dotted underline-offset-2">{children}</span>
+                </button>
+              );
+            }
+
+            return (
+              <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`inline-flex items-center gap-1 underline transition-colors font-medium ${
+                  isLight ? 'hover:text-cyan-700' : 'hover:text-[#00ff9d]'
+                }`}
+                style={{ color: accentColor }}
+                {...props}
+              >
+                <span>{children}</span>
+                <ExternalLink size={10} className="inline opacity-75" />
+              </a>
+            );
+          }
         }}
       >
-        {content}
+        {normalizedContent}
       </ReactMarkdown>
     </div>
   );

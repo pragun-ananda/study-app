@@ -11,10 +11,10 @@ test.describe('Telemetry HUD & User Controls (FRO-9)', () => {
     await expect(page.getByRole('button', { name: /SUBGRAPHS/i })).toBeVisible();
     await expect(page.getByText(/MASTERY:/i)).toBeVisible();
 
-    // Expand left sidebar to verify graph nodes
+    // Expand left sidebar to verify concepts
     const togglePanelBtn = page.getByLabel('Toggle study panel');
     await togglePanelBtn.click();
-    await expect(page.getByText(/GRAPH NODES/i).first()).toBeVisible();
+    await expect(page.getByText(/CONCEPTS/i).first()).toBeVisible();
   });
 
   test('Filters concepts via real-time search and displays matching node telemetry', async ({ page }) => {
@@ -29,23 +29,26 @@ test.describe('Telemetry HUD & User Controls (FRO-9)', () => {
     await expect(raftNode).toBeVisible();
     await raftNode.click();
 
-    // Verify Floating EXPLORE action button appears on bottom right
+    // Verify Floating EXPLORE action button appears on bottom right and open inspector
     const exploreBtn = page.getByTestId('explore-topic-btn');
     await expect(exploreBtn).toBeVisible();
     await exploreBtn.click();
 
-    // Verify Raft topic details in HUD inspector
-    await expect(page.getByText('Distributed Consensus (Raft)').first()).toBeVisible();
-    await expect(page.getByText('SYSTEMS').first()).toBeVisible();
-
+    // Telemetry Inspector opens with details
+    const inspector = page.getByTestId('topic-inspector');
+    await expect(inspector).toBeVisible();
     // Verify prerequisites & learn next unlock chains are listed
-    await expect(page.getByText(/PREREQUISITES/i).first()).toBeVisible();
-    await expect(page.getByText(/LEARN NEXT/i).first()).toBeVisible();
-    await expect(page.getByText('Paxos Protocol').first()).toBeVisible();
+    await expect(inspector.getByText(/PREREQUISITES/i).first()).toBeVisible();
+    await expect(inspector.getByText(/LEARN NEXT/i)).toBeVisible();
+    await expect(inspector.getByText('Paxos Protocol')).toBeVisible();
+
+    // Close Inspector
+    const closeBtn = page.getByTitle('Close Inspector');
+    await closeBtn.click();
   });
 
-  test('Filters domain subgraphs and dynamically recalibrates category mastery', async ({ page }) => {
-    // Open subgraphs filter
+  test('Expands Subgraphs drawer and filters by category', async ({ page }) => {
+    // Open Subgraphs drawer
     const subgraphsBtn = page.getByRole('button', { name: /SUBGRAPHS/i });
     await subgraphsBtn.click();
 
@@ -62,32 +65,28 @@ test.describe('Telemetry HUD & User Controls (FRO-9)', () => {
     await minimizeBtn.click();
   });
 
-  test('Expands left sidebar, navigates topics, and manages study tasks', async ({ page }) => {
+  test('Expands left sidebar, navigates CONCEPTS tab and APPLIED tab', async ({ page }) => {
     // Open sidebar
     const togglePanelBtn = page.getByLabel('Toggle study panel');
     await togglePanelBtn.click();
 
-    // Switch to Tasks tab
-    const tasksTabBtn = page.getByRole('button', { name: /TASKS/i });
-    await expect(tasksTabBtn).toBeVisible();
-    await tasksTabBtn.click();
+    // Verify CONCEPTS tab is active initially
+    const conceptsTabBtn = page.getByTestId('sidebar-tab-concepts');
+    await expect(conceptsTabBtn).toBeVisible();
+    await expect(conceptsTabBtn).toHaveText(/CONCEPTS \(\d+\)/);
 
-    // Input new study task
-    const todoInput = page.getByPlaceholder('Add new study goal...');
-    await expect(todoInput).toBeVisible();
-    await todoInput.fill('Master GPU Shader Pipelines');
+    // Verify TASKS tab is absent
+    await expect(page.getByRole('button', { name: /TASKS/i })).not.toBeVisible();
 
-    // Submit form via Plus button
-    const submitBtn = page.locator('form').filter({ has: todoInput }).locator('button[type="submit"]');
-    await submitBtn.click();
+    // Switch to APPLIED tab
+    const appliedTabBtn = page.getByTestId('sidebar-tab-applications');
+    await expect(appliedTabBtn).toBeVisible();
+    await appliedTabBtn.click();
+    await expect(page.getByText(/REAL-WORLD SCENARIOS/i)).toBeVisible();
 
-    // Verify new todo appears in list
-    const createdTodo = page.locator('text=Master GPU Shader Pipelines').first();
-    await expect(createdTodo).toBeVisible();
-
-    // Toggle todo completion
-    const todoCheckbox = page.locator('div:has-text("Master GPU Shader Pipelines") input[type="checkbox"], div:has-text("Master GPU Shader Pipelines") button').first();
-    await todoCheckbox.click();
+    // Switch back to CONCEPTS tab
+    await conceptsTabBtn.click();
+    await expect(page.getByTestId('sidebar-add-node-btn')).toBeVisible();
   });
 
   test('Handles Slash (/) to open search & sidebar, and Escape to dismiss', async ({ page }) => {
@@ -96,7 +95,7 @@ test.describe('Telemetry HUD & User Controls (FRO-9)', () => {
     const searchInput = page.getByPlaceholder('Search 220+ concepts...');
     await expect(searchInput).toBeVisible();
     await expect(searchInput).toBeFocused();
-    await expect(page.getByText(/GRAPH NODES/i).first()).toBeVisible();
+    await expect(page.getByText(/CONCEPTS/i).first()).toBeVisible();
 
     // Type search query
     await searchInput.fill('Backpropagation');
@@ -105,7 +104,7 @@ test.describe('Telemetry HUD & User Controls (FRO-9)', () => {
     // 2. Press 'Escape' to dismiss search and collapse sidebar
     await page.keyboard.press('Escape');
     await expect(searchInput).not.toBeVisible();
-    await expect(page.getByText(/GRAPH NODES/i).first()).not.toBeVisible();
+    await expect(page.getByText(/CONCEPTS/i).first()).not.toBeVisible();
   });
 
   test('Toggles light mode and dark mode via button and keyboard shortcut', async ({ page }) => {

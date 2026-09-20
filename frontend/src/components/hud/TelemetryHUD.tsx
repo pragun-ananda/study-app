@@ -1,8 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  CheckSquare,
-  Square,
   BookOpen,
   Plus,
   Trash2,
@@ -39,7 +37,7 @@ import DiffViewerModal from './DiffViewerModal';
 import IngestionWalkthroughModal from './IngestionWalkthroughModal';
 import CreateNodeModal from './CreateNodeModal';
 import { useStore } from '../../store/useStore';
-import { TopicNode, DomainCategory, TodoPriority, DEFAULT_DOMAINS, TopicStatus } from '../../types/telemetry';
+import { TopicNode, DomainCategory, DEFAULT_DOMAINS, TopicStatus } from '../../types/telemetry';
 import { DOMAIN_BASE_COLORS, DOMAIN_LIGHT_COLORS, getCategoryShade } from '../../utils/theme';
 import { getTopologicalPrerequisites } from '../../utils/graph';
 
@@ -68,10 +66,6 @@ export default function TelemetryHUD() {
   const setActiveNote = useStore((state) => state.setActiveNote);
   const setActiveQuiz = useStore((state) => state.setActiveQuiz);
   const updateTopicMastery = useStore((state) => state.updateTopicMastery);
-  const todos = useStore((state) => state.todos);
-  const addTodo = useStore((state) => state.addTodo);
-  const toggleTodo = useStore((state) => state.toggleTodo);
-  const deleteTodo = useStore((state) => state.deleteTodo);
   const applications = useStore((state) => state.applications);
   const setActiveApplication = useStore((state) => state.setActiveApplication);
 
@@ -80,17 +74,24 @@ export default function TelemetryHUD() {
   const isIngesting = useStore((state) => state.isIngesting);
   const ingestError = useStore((state) => state.ingestError);
 
-  const [activeTab, setActiveTab] = useState<'TOPICS' | 'APPLICATIONS' | 'TODOS'>('TOPICS');
+  const [activeTab, setActiveTab] = useState<'TOPICS' | 'APPLICATIONS'>('TOPICS');
   const [isSubgraphsOpen, setIsSubgraphsOpen] = useState(false);
-  const [newTodoTitle, setNewTodoTitle] = useState('');
-  const [newTodoCategory, setNewTodoCategory] = useState<DomainCategory>('AI & ML');
-  const [newTodoPriority, setNewTodoPriority] = useState<TodoPriority>('HIGH');
 
   // URL Ingest Plus-Icon Textbox State
   const [isUrlInputOpen, setIsUrlInputOpen] = useState(false);
   const [inputUrl, setInputUrl] = useState('');
   const [ingestSuccessMsg, setIngestSuccessMsg] = useState<string | null>(null);
   const urlInputRef = useRef<HTMLDivElement>(null);
+  const ingestTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Cleanup pending timeouts on unmount
+  useEffect(() => {
+    return () => {
+      if (ingestTimerRef.current) {
+        clearTimeout(ingestTimerRef.current);
+      }
+    };
+  }, []);
 
   // Click outside and Escape key handler for URL input
   useEffect(() => {
@@ -124,7 +125,10 @@ export default function TelemetryHUD() {
       await ingestUrl(url);
       setIngestSuccessMsg('Content staged to review queue!');
       setInputUrl('');
-      setTimeout(() => {
+      if (ingestTimerRef.current) {
+        clearTimeout(ingestTimerRef.current);
+      }
+      ingestTimerRef.current = setTimeout(() => {
         setIngestSuccessMsg(null);
         setIsUrlInputOpen(false);
       }, 2000);
@@ -142,21 +146,7 @@ export default function TelemetryHUD() {
   }, [isSearchOpen, setIsSidebarOpen]);
 
 
-  const handleAddTodo = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newTodoTitle.trim()) return;
-    addTodo({
-      title: newTodoTitle.trim(),
-      category: newTodoCategory,
-      priority: newTodoPriority,
-      completed: false,
-      dueDate: 'Today'
-    });
-    setNewTodoTitle('');
-  };
-
   const categories = ['ALL', 'AI & ML', 'CS', 'SYSTEMS', 'MATH', 'PHYSICS', 'CYBERSECURITY', 'ARCH'];
-  const completedTodosCount = todos.filter((t) => t.completed).length;
   const selectedNode = topicNodes.find((n) => n.id === selectedTopicId);
   const selectedNodeColor = selectedNode
     ? getCategoryShade(selectedNode.id, selectedNode.category, theme)
@@ -694,34 +684,25 @@ export default function TelemetryHUD() {
                 <div className={`flex items-center gap-1 p-1 rounded-lg w-full justify-between ${isLight ? 'bg-slate-200/70' : 'bg-slate-950/60'}`}>
                   <button
                     onClick={() => setActiveTab('TOPICS')}
-                    className={`flex-1 px-2 py-1 rounded text-xs font-bold transition-all flex items-center justify-center gap-1 ${
+                    data-testid="sidebar-tab-concepts"
+                    className={`flex-1 px-2.5 py-1 rounded text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
                       activeTab === 'TOPICS'
                         ? (isLight ? 'bg-sky-600 text-white shadow-sm' : 'bg-[#00f0ff] text-slate-950 shadow-[0_0_10px_rgba(0,240,255,0.3)]')
                         : (isLight ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-slate-200')
                     }`}
                   >
-                    <BookOpen size={12} /> GRAPH NODES ({filteredTopics.length})
+                    <BookOpen size={12} /> CONCEPTS ({filteredTopics.length})
                   </button>
                   <button
                     onClick={() => setActiveTab('APPLICATIONS')}
                     data-testid="sidebar-tab-applications"
-                    className={`flex-1 px-2 py-1 rounded text-xs font-bold transition-all flex items-center justify-center gap-1 ${
+                    className={`flex-1 px-2.5 py-1 rounded text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
                       activeTab === 'APPLICATIONS'
                         ? (isLight ? 'bg-sky-600 text-white shadow-sm' : 'bg-[#00f0ff] text-slate-950 shadow-[0_0_10px_rgba(0,240,255,0.3)]')
                         : (isLight ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-slate-200')
                     }`}
                   >
-                    <Layers size={12} /> APPLIED ({applications.length})
-                  </button>
-                  <button
-                    onClick={() => setActiveTab('TODOS')}
-                    className={`flex-1 px-2 py-1 rounded text-xs font-bold transition-all flex items-center justify-center gap-1 ${
-                      activeTab === 'TODOS'
-                        ? (isLight ? 'bg-sky-600 text-white shadow-sm' : 'bg-[#00f0ff] text-slate-950 shadow-[0_0_10px_rgba(0,240,255,0.3)]')
-                        : (isLight ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-slate-200')
-                    }`}
-                  >
-                    <CheckSquare size={12} /> TASKS ({completedTodosCount}/{todos.length})
+                    <Layers size={12} /> APPLICATIONS ({applications.length})
                   </button>
                 </div>
               </div>
@@ -869,96 +850,12 @@ export default function TelemetryHUD() {
                 </div>
               )}
 
-              {/* TAB 3: TODAY'S TO-DO LIST */}
-              {activeTab === 'TODOS' && (
-                <div className="flex-1 flex flex-col space-y-3 overflow-hidden">
-                  <form onSubmit={handleAddTodo} className="flex gap-2">
-                    <input
-                      type="text"
-                      placeholder="Add new study goal..."
-                      value={newTodoTitle}
-                      onChange={(e) => setNewTodoTitle(e.target.value)}
-                      className={`flex-1 border rounded px-2.5 py-1.5 text-xs focus:outline-none transition-colors ${
-                        isLight
-                          ? 'bg-white border-slate-300 text-slate-900 placeholder-slate-400 focus:border-sky-500'
-                          : 'bg-slate-950/80 border-white/10 text-slate-100 placeholder-slate-500 focus:border-[#00f0ff]'
-                      }`}
-                    />
-                    <button
-                      type="submit"
-                      className={`p-1.5 rounded transition-colors ${
-                        isLight
-                          ? 'bg-sky-600 text-white hover:bg-sky-700'
-                          : 'bg-[#00f0ff] text-slate-950 hover:bg-[#00f0ff]/80'
-                      }`}
-                    >
-                      <Plus size={16} />
-                    </button>
-                  </form>
-
-                  <div className="flex-1 overflow-y-auto space-y-2 pr-1.5 pb-6 overscroll-contain" onWheel={(e) => e.stopPropagation()}>
-                    {todos.map((todo) => (
-                      <div
-                        key={todo.id}
-                        data-testid="sidebar-todo-item"
-                        className={`p-2.5 rounded-lg border text-xs transition-all flex items-start justify-between gap-2 ${
-                          todo.completed
-                            ? (isLight ? 'bg-slate-100/70 border-slate-200 opacity-60' : 'bg-slate-950/30 border-white/5 opacity-60')
-                            : (isLight ? 'bg-white/95 border-slate-200 hover:border-sky-300 text-slate-800 shadow-sm' : 'bg-slate-950/70 border-white/10 hover:border-[#00f0ff]/40')
-                        }`}
-                      >
-                        <div className="flex items-start gap-2 flex-1">
-                          <button
-                            type="button"
-                            onClick={() => toggleTodo(todo.id)}
-                            className={`mt-0.5 transition-colors ${isLight ? 'text-slate-400 hover:text-sky-600' : 'text-slate-400 hover:text-[#00f0ff]'}`}
-                          >
-                            {todo.completed ? (
-                              <CheckSquare size={15} className={isLight ? 'text-emerald-600' : 'text-[#00ff9d]'} />
-                            ) : (
-                              <Square size={15} />
-                            )}
-                          </button>
-                          <div>
-                            <p className={`font-semibold ${
-                              todo.completed
-                                ? (isLight ? 'text-slate-400 line-through' : 'text-slate-500 line-through')
-                                : (isLight ? 'text-slate-800' : 'text-slate-200')
-                            }`}>
-                              {todo.title}
-                            </p>
-                            <div className="flex items-center gap-2 mt-1 text-[10px]">
-                              <span className={isLight ? 'text-sky-600 font-medium' : 'text-[#00f0ff]'}>{todo.category}</span>
-                              <span className={`px-1 rounded font-bold ${
-                                todo.priority === 'HIGH'
-                                  ? (isLight ? 'bg-rose-100 text-rose-700' : 'bg-[#ff3366]/20 text-[#ff3366]')
-                                  : todo.priority === 'MEDIUM'
-                                  ? (isLight ? 'bg-amber-100 text-amber-700' : 'bg-[#ffaa00]/20 text-[#ffaa00]')
-                                  : (isLight ? 'bg-slate-200 text-slate-600' : 'bg-slate-800 text-slate-400')
-                              }`}>
-                                {todo.priority}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-
-                        <button
-                          onClick={() => deleteTodo(todo.id)}
-                          className="text-slate-400 hover:text-rose-500 transition-colors p-1"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
-                    ))}
-                    <div className="h-10 w-full flex-shrink-0 pointer-events-none" />
-                  </div>
-                </div>
-              )}
+              {/* End Sidebar Tab Content */}
             </div>
           ) : (
             <div className="flex flex-col items-center gap-4 py-4 text-slate-400">
               <BookOpen size={18} />
-              <CheckSquare size={18} />
+              <Layers size={18} />
             </div>
           )}
         </motion.div>
@@ -1011,7 +908,8 @@ export default function TelemetryHUD() {
               animate={{ x: 0, opacity: 1 }}
               exit={{ x: 40, opacity: 0 }}
               onWheel={(e) => e.stopPropagation()}
-              className="pointer-events-auto glass-panel p-4 md:p-5 rounded-xl w-80 md:w-96 text-xs space-y-3.5 mr-6 max-h-[calc(100vh-140px)] flex flex-col shadow-2xl overscroll-contain"
+              data-testid="topic-inspector"
+              className="pointer-events-auto glass-panel p-4 md:p-5 rounded-xl w-80 md:w-96 text-xs space-y-3.5 mr-6 max-h-[calc(100vh-140px)] flex flex-col shadow-2xl overscroll-contain z-30"
             >
               {/* Fixed Header */}
               <div className={`flex items-center justify-between border-b pb-2.5 flex-shrink-0 ${isLight ? 'border-slate-200' : 'border-white/10'}`}>

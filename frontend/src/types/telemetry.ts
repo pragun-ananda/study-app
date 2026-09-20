@@ -64,6 +64,7 @@ export interface ApplicationItem {
   topicIds: string[];
   topicNames?: string[];
   externalUrl?: string;
+  quizzes?: QuizItem[];
 }
 
 export interface TopicNode {

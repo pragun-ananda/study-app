@@ -485,6 +485,7 @@ export default function DiffViewerModal() {
                       questions={activeUpdate.newContent}
                       accentColor={catColor}
                       topicTitle={activeUpdate.targetName}
+                      defaultAuditMode={true}
                     />
                   ) : (
                     <MarkdownContent
