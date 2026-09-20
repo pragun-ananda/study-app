@@ -84,4 +84,64 @@ flowchart TD
 
     expect(await screen.findByText(/MERMAID/i)).toBeInTheDocument();
   });
+
+  it('renders Wikipedia-style app:// and concept:// interactive link buttons and triggers callbacks', () => {
+    const onNavigateApp = vi.fn();
+    const onNavigateConcept = vi.fn();
+
+    const markdown = `
+Here is a reference to [Dynamo & Cassandra](app://APP-001) and [Consistent Hashing](concept://Consistent%20Hashing%20%26%20DHT) and an [External Page](https://example.com).
+`;
+    render(
+      <MarkdownContent
+        content={markdown}
+        onNavigateApplication={onNavigateApp}
+        onNavigateConcept={onNavigateConcept}
+      />
+    );
+
+    // App link button
+    const appBtn = screen.getByTestId('wiki-link-app-APP-001');
+    expect(appBtn).toBeInTheDocument();
+    expect(appBtn).toHaveTextContent('Dynamo & Cassandra');
+    fireEvent.click(appBtn);
+    expect(onNavigateApp).toHaveBeenCalledWith('APP-001');
+
+    // Concept link button (decoded target)
+    const conceptBtn = screen.getByTestId('wiki-link-concept-Consistent Hashing & DHT');
+    expect(conceptBtn).toBeInTheDocument();
+    expect(conceptBtn).toHaveTextContent('Consistent Hashing');
+    fireEvent.click(conceptBtn);
+    expect(onNavigateConcept).toHaveBeenCalledWith('Consistent Hashing & DHT');
+
+    // External link
+    const extLink = screen.getByText('External Page');
+    expect(extLink.closest('a')).toHaveAttribute('href', 'https://example.com');
+  });
+
+  it('correctly handles raw concept links with unencoded spaces and nested parentheses', () => {
+    const onNavigateConcept = vi.fn();
+    const markdown = `
+Modern [Retrieval-Augmented Generation (RAG)](concept://Retrieval-Augmented Generation (RAG)) goes far beyond simple search.
+Also see [Consistent Hashing & DHT](concept://Consistent Hashing & DHT) for distributed routing.
+`;
+    render(
+      <MarkdownContent
+        content={markdown}
+        onNavigateConcept={onNavigateConcept}
+      />
+    );
+
+    const ragBtn = screen.getByTestId('wiki-link-concept-Retrieval-Augmented Generation (RAG)');
+    expect(ragBtn).toBeInTheDocument();
+    expect(ragBtn).toHaveTextContent('Retrieval-Augmented Generation (RAG)');
+    fireEvent.click(ragBtn);
+    expect(onNavigateConcept).toHaveBeenCalledWith('Retrieval-Augmented Generation (RAG)');
+
+    const chBtn = screen.getByTestId('wiki-link-concept-Consistent Hashing & DHT');
+    expect(chBtn).toBeInTheDocument();
+    expect(chBtn).toHaveTextContent('Consistent Hashing & DHT');
+    fireEvent.click(chBtn);
+    expect(onNavigateConcept).toHaveBeenCalledWith('Consistent Hashing & DHT');
+  });
 });
