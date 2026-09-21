@@ -310,7 +310,7 @@ const StarlightGlintShaderMaterial = {
 
       // Pulse modulation
       float pulse = sin(uTime * 3.5) * 0.15 + 0.85;
-      vec3 finalColor = uColor * (1.8 + centerGlow * 2.0);
+      vec3 finalColor = uColor * (1.1 + centerGlow * 1.2);
 
       gl_FragColor = vec4(finalColor, flare * uOpacity * pulse);
     }
@@ -420,10 +420,10 @@ function CircularSoftHalo({ color, scale = 1.0, opacity = 0.3 }: { color: string
   );
 }
 
-const sharedSphereGeometry = new THREE.SphereGeometry(0.38, 16, 16);
-const sharedLightSphereGeometry = new THREE.SphereGeometry(0.54, 32, 32);
-const sharedRingGeometry = new THREE.RingGeometry(0.5, 0.62, 24);
-const sharedLightRingGeometry = new THREE.RingGeometry(0.70, 0.84, 32);
+const sharedSphereGeometry = new THREE.SphereGeometry(0.52, 32, 32);
+const sharedLightSphereGeometry = new THREE.SphereGeometry(0.52, 32, 32);
+const sharedRingGeometry = new THREE.RingGeometry(0.68, 0.82, 32);
+const sharedLightRingGeometry = new THREE.RingGeometry(0.68, 0.82, 32);
 
 // Interactive Knowledge Node Component (Always fully formed and crisp during Deep Space Fly-In)
 const KnowledgeNode = React.memo(({ node, isConnectedComponent }: { node: TopicNode; isConnectedComponent: boolean }) => {
@@ -488,10 +488,10 @@ const KnowledgeNode = React.memo(({ node, isConnectedComponent }: { node: TopicN
     : isAppConcept
     ? 1.2
     : isConnectedComponent
-    ? 0.72
+    ? 0.7
     : isAppActive
     ? 0.18
-    : 0.38;
+    : 0.22;
   const glintOpacity = isSelected
     ? 0.95
     : isHovered
@@ -499,13 +499,13 @@ const KnowledgeNode = React.memo(({ node, isConnectedComponent }: { node: TopicN
     : isAppConcept
     ? 0.9
     : isConnectedComponent
-    ? 0.52
+    ? 0.45
     : isAppActive
     ? 0.1
-    : 0.22;
+    : 0.16;
   const emissiveVal = isLight
     ? (isSelected ? 1.05 : isHovered ? 0.85 : isAppConcept ? 1.0 : isConnectedComponent ? 0.75 : isAppActive ? 0.25 : 0.62)
-    : (isSelected ? 2.4 : isHovered ? 1.4 : isAppConcept ? 2.2 : isConnectedComponent ? 0.95 : isAppActive ? 0.18 : 0.55);
+    : (isSelected ? 2.0 : isHovered ? 1.3 : isAppConcept ? 1.8 : isConnectedComponent ? 0.85 : isAppActive ? 0.18 : 0.6);
 
   return (
     <group position={node.coordinates}>
@@ -543,8 +543,8 @@ const KnowledgeNode = React.memo(({ node, isConnectedComponent }: { node: TopicN
           color={nodeColor}
           emissive={nodeColor}
           emissiveIntensity={emissiveVal}
-          roughness={isLight ? 0.95 : 0.2}
-          metalness={isLight ? 0.0 : 0.8}
+          roughness={isLight ? 0.95 : 0.3}
+          metalness={isLight ? 0.0 : 0.35}
           transparent={!isCategoryMatched || !isSearchMatched}
           opacity={!isCategoryMatched || !isSearchMatched ? 0.2 : 1.0}
         />
