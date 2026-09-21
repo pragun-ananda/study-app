@@ -252,6 +252,7 @@ export interface TelemetryState {
 
   // Theme Mode
   theme: 'dark' | 'light';
+  isManualThemeOverride: boolean;
 
   // Server Synchronization State
   isLoading: boolean;
@@ -260,8 +261,9 @@ export interface TelemetryState {
 
 export interface TelemetryActions {
   // Theme Action
-  setTheme: (theme: 'dark' | 'light') => void;
+  setTheme: (theme: 'dark' | 'light', isManual?: boolean) => void;
   toggleTheme: () => void;
+  syncThemeWithTimeOfDay: (date?: Date) => void;
 
   // System Setters
   setSystemStatus: (status: SystemStatus) => void;
