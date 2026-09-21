@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { useStore, INITIAL_TOPICS, INITIAL_TODOS, generateCosmosNodes, getInitialTheme, applyThemeToDocument } from '../../src/store/useStore';
+import { useStore, INITIAL_TOPICS, INITIAL_TODOS, generateCosmosNodes, getInitialTheme, getThemeForTimeOfDayEST, applyThemeToDocument } from '../../src/store/useStore';
 import * as api from '../../src/api/client';
 
 describe('Zustand State Store (useStore)', () => {
@@ -536,11 +536,32 @@ describe('Zustand State Store (useStore)', () => {
   });
 
   describe('Theme Management', () => {
-    it('initializes with default dark theme or saved preference', () => {
-      expect(useStore.getState().theme).toBe('dark');
+    it('initializes with time of day or theme parameter', () => {
+      // Daytime (10:00 AM EST) -> light
+      const morningEST = new Date('2026-09-21T10:00:00-04:00');
+      expect(getThemeForTimeOfDayEST(morningEST)).toBe('light');
+      expect(getInitialTheme(morningEST)).toBe('light');
+
+      // Nighttime (10:00 PM EST) -> dark
+      const nightEST = new Date('2026-09-21T22:00:00-04:00');
+      expect(getThemeForTimeOfDayEST(nightEST)).toBe('dark');
+      expect(getInitialTheme(nightEST)).toBe('dark');
+
+      // Boundary: 5:59 AM EST -> dark, 6:00 AM EST -> light
+      const preDawnEST = new Date('2026-09-21T05:59:00-04:00');
+      expect(getThemeForTimeOfDayEST(preDawnEST)).toBe('dark');
+      const dawnEST = new Date('2026-09-21T06:00:00-04:00');
+      expect(getThemeForTimeOfDayEST(dawnEST)).toBe('light');
+
+      // Boundary: 5:59 PM EST -> light, 6:00 PM EST -> dark
+      const duskEST = new Date('2026-09-21T17:59:00-04:00');
+      expect(getThemeForTimeOfDayEST(duskEST)).toBe('light');
+      const eveningEST = new Date('2026-09-21T18:00:00-04:00');
+      expect(getThemeForTimeOfDayEST(eveningEST)).toBe('dark');
     });
 
     it('toggles theme between dark and light', () => {
+      useStore.getState().setTheme('dark');
       expect(useStore.getState().theme).toBe('dark');
 
       useStore.getState().toggleTheme();
@@ -549,6 +570,7 @@ describe('Zustand State Store (useStore)', () => {
       expect(document.documentElement.classList.contains('dark')).toBe(false);
       expect(document.documentElement.getAttribute('data-theme')).toBe('light');
       expect(localStorage.getItem('study-app-theme')).toBe('light');
+      expect(useStore.getState().isManualThemeOverride).toBe(true);
 
       useStore.getState().toggleTheme();
       expect(useStore.getState().theme).toBe('dark');
@@ -558,25 +580,27 @@ describe('Zustand State Store (useStore)', () => {
       expect(localStorage.getItem('study-app-theme')).toBe('dark');
     });
 
-    it('sets theme explicitly via setTheme', () => {
+    it('sets theme explicitly via setTheme and records manual override', () => {
       useStore.getState().setTheme('light');
       expect(useStore.getState().theme).toBe('light');
       expect(localStorage.getItem('study-app-theme')).toBe('light');
+      expect(useStore.getState().isManualThemeOverride).toBe(true);
 
       useStore.getState().setTheme('dark');
       expect(useStore.getState().theme).toBe('dark');
       expect(localStorage.getItem('study-app-theme')).toBe('dark');
     });
 
-    it('getInitialTheme defaults to dark theme on refresh and URL load, or respects URL theme query', () => {
-      expect(getInitialTheme()).toBe('dark');
+    it('syncThemeWithTimeOfDay updates theme if not manually overridden', () => {
+      useStore.setState({ isManualThemeOverride: false, theme: 'dark' });
+      const morningEST = new Date('2026-09-21T10:00:00-04:00');
+      useStore.getState().syncThemeWithTimeOfDay(morningEST);
+      expect(useStore.getState().theme).toBe('light');
 
-      // Stale localStorage does not override default dark mode
-      localStorage.setItem('study-app-theme', 'light');
-      expect(getInitialTheme()).toBe('dark');
-
-      localStorage.removeItem('study-app-theme');
-      expect(getInitialTheme()).toBe('dark');
+      // Does not override if user manually chose a theme
+      useStore.setState({ isManualThemeOverride: true, theme: 'dark' });
+      useStore.getState().syncThemeWithTimeOfDay(morningEST);
+      expect(useStore.getState().theme).toBe('dark');
     });
 
     it('applyThemeToDocument updates DOM classes and data attribute', () => {

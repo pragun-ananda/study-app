@@ -169,7 +169,32 @@ export function resolveApplications(
 
 export const INITIAL_APPLICATIONS = resolveApplications(INITIAL_TOPICS, SEED_APPLICATIONS);
 
-export function getInitialTheme(): 'dark' | 'light' {
+/**
+ * Calculates whether the given time in EST / EDT (America/New_York) is daytime or nighttime.
+ * Daytime: 6:00 AM (06:00) to 6:00 PM (18:00) -> 'light'
+ * Nighttime: 6:00 PM (18:00) to 6:00 AM (06:00) -> 'dark'
+ */
+export function getThemeForTimeOfDayEST(date: Date = new Date()): 'dark' | 'light' {
+  try {
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/New_York',
+      hour: 'numeric',
+      hourCycle: 'h23'
+    });
+    const hour = parseInt(formatter.format(date), 10);
+    if (!isNaN(hour) && hour >= 6 && hour < 18) {
+      return 'light';
+    }
+    return 'dark';
+  } catch {
+    // Robust fallback based on UTC offset for EST/EDT
+    const utcHours = date.getUTCHours();
+    const estHour = (utcHours - 5 + 24) % 24;
+    return estHour >= 6 && estHour < 18 ? 'light' : 'dark';
+  }
+}
+
+export function getInitialTheme(date: Date = new Date()): 'dark' | 'light' {
   try {
     if (typeof window !== 'undefined' && window.location) {
       const params = new URLSearchParams(window.location.search);
@@ -179,9 +204,9 @@ export function getInitialTheme(): 'dark' | 'light' {
       }
     }
   } catch {
-    // Fall back to default
+    // Fall back to time of day
   }
-  return 'dark';
+  return getThemeForTimeOfDayEST(date);
 }
 
 export function applyThemeToDocument(theme: 'dark' | 'light') {
@@ -208,6 +233,7 @@ export function applyThemeToDocument(theme: 'dark' | 'light') {
 
 export const INITIAL_STATE: TelemetryState = {
   theme: getInitialTheme(),
+  isManualThemeOverride: false,
   systemStatus: 'OPTIMAL',
   isOverloaded: false,
   bloomIntensity: 1.5,
@@ -252,14 +278,22 @@ export const useStore = create<TelemetryStore>((set, get) => ({
   ...INITIAL_STATE,
 
   // Theme Actions
-  setTheme: (theme: 'dark' | 'light') => {
+  setTheme: (theme: 'dark' | 'light', isManual: boolean = true) => {
     applyThemeToDocument(theme);
-    set({ theme });
+    set({ theme, isManualThemeOverride: isManual });
   },
   toggleTheme: () => {
     const next = get().theme === 'dark' ? 'light' : 'dark';
     applyThemeToDocument(next);
-    set({ theme: next });
+    set({ theme: next, isManualThemeOverride: true });
+  },
+  syncThemeWithTimeOfDay: (date: Date = new Date()) => {
+    if (get().isManualThemeOverride) return;
+    const timeTheme = getThemeForTimeOfDayEST(date);
+    if (get().theme !== timeTheme) {
+      applyThemeToDocument(timeTheme);
+      set({ theme: timeTheme });
+    }
   },
 
   // System Setters

@@ -16,6 +16,14 @@ export default function App() {
     applyThemeToDocument(theme);
   }, [theme]);
 
+  // Periodically synchronize theme based on time of day (EST) if not manually overridden
+  useEffect(() => {
+    const interval = setInterval(() => {
+      useStore.getState().syncThemeWithTimeOfDay();
+    }, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
   // Global Keyboard Shortcuts Listener
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {

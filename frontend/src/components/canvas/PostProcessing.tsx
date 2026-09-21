@@ -14,19 +14,19 @@ export default function PostProcessing() {
   // Dynamic values driven by overload state & theme
   const currentBloom = isLight
     ? (isOverloaded ? bloomIntensity * 0.8 : bloomIntensity * 0.4)
-    : (isOverloaded ? bloomIntensity * 2.2 : bloomIntensity);
+    : (isOverloaded ? bloomIntensity * 2.2 : bloomIntensity * 0.45);
 
   const chromaOffset = new THREE.Vector2(
-    isOverloaded ? 0.005 : (isLight ? 0.0 : 0.0015),
-    isOverloaded ? 0.005 : (isLight ? 0.0 : 0.0015)
+    isOverloaded ? 0.005 : 0.0,
+    isOverloaded ? 0.005 : 0.0
   );
 
   return (
     <EffectComposer enableNormalPass={false}>
       <Bloom
         intensity={currentBloom}
-        luminanceThreshold={isLight ? 0.65 : 0.2}
-        luminanceSmoothing={0.9}
+        luminanceThreshold={isLight ? 0.65 : 0.75}
+        luminanceSmoothing={0.5}
         mipmapBlur
       />
       <ChromaticAberration
@@ -38,10 +38,10 @@ export default function PostProcessing() {
       <Vignette
         eskil={false}
         offset={0.25}
-        darkness={isLight ? 0.15 : 0.8}
+        darkness={isLight ? 0.15 : 0.6}
       />
       <Noise
-        opacity={isOverloaded ? 0.12 : (isLight ? 0.0 : 0.04)}
+        opacity={isOverloaded ? 0.12 : 0.0}
         blendFunction={BlendFunction.OVERLAY}
       />
     </EffectComposer>

@@ -114,7 +114,7 @@ const SolarWindShaderMaterial = {
       if (dist > 0.5) discard;
 
       float intensity = smoothstep(0.5, 0.0, dist);
-      gl_FragColor = vec4(vColor * 2.0, intensity * vAlpha * 0.95);
+      gl_FragColor = vec4(vColor * 1.3, intensity * vAlpha * 0.9);
     }
   `
 };
@@ -310,7 +310,7 @@ const StarlightGlintShaderMaterial = {
 
       // Pulse modulation
       float pulse = sin(uTime * 3.5) * 0.15 + 0.85;
-      vec3 finalColor = uColor * (1.8 + centerGlow * 2.0);
+      vec3 finalColor = uColor * (1.1 + centerGlow * 1.2);
 
       gl_FragColor = vec4(finalColor, flare * uOpacity * pulse);
     }
@@ -420,10 +420,10 @@ function CircularSoftHalo({ color, scale = 1.0, opacity = 0.3 }: { color: string
   );
 }
 
-const sharedSphereGeometry = new THREE.SphereGeometry(0.38, 16, 16);
-const sharedLightSphereGeometry = new THREE.SphereGeometry(0.54, 32, 32);
-const sharedRingGeometry = new THREE.RingGeometry(0.5, 0.62, 24);
-const sharedLightRingGeometry = new THREE.RingGeometry(0.70, 0.84, 32);
+const sharedSphereGeometry = new THREE.SphereGeometry(0.52, 32, 32);
+const sharedLightSphereGeometry = new THREE.SphereGeometry(0.52, 32, 32);
+const sharedRingGeometry = new THREE.RingGeometry(0.68, 0.82, 32);
+const sharedLightRingGeometry = new THREE.RingGeometry(0.68, 0.82, 32);
 
 // Interactive Knowledge Node Component (Always fully formed and crisp during Deep Space Fly-In)
 const KnowledgeNode = React.memo(({ node, isConnectedComponent }: { node: TopicNode; isConnectedComponent: boolean }) => {
@@ -482,30 +482,30 @@ const KnowledgeNode = React.memo(({ node, isConnectedComponent }: { node: TopicN
   };
 
   const glintScale = isSelected
-    ? 1.6
-    : isHovered
-    ? 1.1
-    : isAppConcept
-    ? 1.2
-    : isConnectedComponent
-    ? 0.72
-    : isAppActive
-    ? 0.18
-    : 0.38;
-  const glintOpacity = isSelected
     ? 0.95
     : isHovered
-    ? 0.75
+    ? 0.65
     : isAppConcept
-    ? 0.9
+    ? 0.75
     : isConnectedComponent
-    ? 0.52
+    ? 0.45
+    : isAppActive
+    ? 0.18
+    : 0.2;
+  const glintOpacity = isSelected
+    ? 0.65
+    : isHovered
+    ? 0.5
+    : isAppConcept
+    ? 0.6
+    : isConnectedComponent
+    ? 0.3
     : isAppActive
     ? 0.1
-    : 0.22;
+    : 0.15;
   const emissiveVal = isLight
-    ? (isSelected ? 1.05 : isHovered ? 0.85 : isAppConcept ? 1.0 : isConnectedComponent ? 0.75 : isAppActive ? 0.25 : 0.62)
-    : (isSelected ? 2.4 : isHovered ? 1.4 : isAppConcept ? 2.2 : isConnectedComponent ? 0.95 : isAppActive ? 0.18 : 0.55);
+    ? (isSelected ? 0.85 : isHovered ? 0.75 : isAppConcept ? 0.85 : isConnectedComponent ? 0.65 : isAppActive ? 0.25 : 0.55)
+    : (isSelected ? 1.25 : isHovered ? 0.95 : isAppConcept ? 1.15 : isConnectedComponent ? 0.75 : isAppActive ? 0.18 : 0.55);
 
   return (
     <group position={node.coordinates}>
@@ -513,8 +513,8 @@ const KnowledgeNode = React.memo(({ node, isConnectedComponent }: { node: TopicN
       {isLight ? (
         <CircularSoftHalo
           color={nodeColor}
-          scale={isSelected ? 1.5 : isHovered ? 1.2 : isConnectedComponent ? 0.9 : 0.65}
-          opacity={isSelected ? 0.55 : isHovered ? 0.45 : isConnectedComponent ? 0.35 : 0.25}
+          scale={isSelected ? 1.1 : isHovered ? 0.9 : isConnectedComponent ? 0.75 : 0.55}
+          opacity={isSelected ? 0.4 : isHovered ? 0.32 : isConnectedComponent ? 0.25 : 0.18}
         />
       ) : (
         <AnamorphicStarGlint
@@ -543,8 +543,8 @@ const KnowledgeNode = React.memo(({ node, isConnectedComponent }: { node: TopicN
           color={nodeColor}
           emissive={nodeColor}
           emissiveIntensity={emissiveVal}
-          roughness={isLight ? 0.95 : 0.2}
-          metalness={isLight ? 0.0 : 0.8}
+          roughness={isLight ? 0.95 : 0.3}
+          metalness={isLight ? 0.0 : 0.35}
           transparent={!isCategoryMatched || !isSearchMatched}
           opacity={!isCategoryMatched || !isSearchMatched ? 0.2 : 1.0}
         />
@@ -553,7 +553,7 @@ const KnowledgeNode = React.memo(({ node, isConnectedComponent }: { node: TopicN
       {/* Orbital ring for hovered or selected node */}
       {(isSelected || isHovered) && (
         <mesh ref={ringRef} geometry={isLight ? sharedLightRingGeometry : sharedRingGeometry} frustumCulled={false}>
-          <meshBasicMaterial color={nodeColor} side={THREE.DoubleSide} transparent opacity={0.85} />
+          <meshBasicMaterial color={nodeColor} side={THREE.DoubleSide} transparent opacity={0.65} />
         </mesh>
       )}
 
@@ -571,7 +571,7 @@ const KnowledgeNode = React.memo(({ node, isConnectedComponent }: { node: TopicN
             style={{
               backgroundColor: isSelected || isHovered ? nodeColor : undefined,
               borderColor: nodeColor,
-              boxShadow: isSelected || isHovered ? `0 0 16px ${nodeColor}80` : undefined
+              boxShadow: isSelected || isHovered ? `0 0 10px ${nodeColor}40` : undefined
             }}
             className={`px-2 py-0.5 rounded font-sans font-bold transition-all whitespace-nowrap overflow-hidden text-ellipsis shadow-lg flex items-center gap-1.5 ${getSingleLineFontSize(
               node.name.length

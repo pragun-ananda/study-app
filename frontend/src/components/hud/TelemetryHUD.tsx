@@ -1180,7 +1180,11 @@ export default function TelemetryHUD() {
                     <button
                       type="button"
                       onClick={handleDeleteTopic}
-                      className="px-2 py-1.5 rounded border border-red-500/30 bg-red-950/40 text-red-400 hover:text-red-300 hover:bg-red-900/50 text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer"
+                      className={`px-2 py-1.5 rounded border text-[11px] font-mono font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                        isLight
+                          ? 'border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 hover:border-rose-300 hover:text-rose-700'
+                          : 'border-red-500/30 bg-red-950/40 text-red-400 hover:text-red-300 hover:bg-red-900/50'
+                      }`}
                       title="Delete topic from graph"
                       data-testid="inspector-delete-topic-btn"
                     >

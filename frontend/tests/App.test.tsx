@@ -50,6 +50,7 @@ describe('App Component', () => {
   });
 
   it('handles KeyT shortcut to toggle theme', () => {
+    useStore.getState().setTheme('dark');
     render(<App />);
     expect(useStore.getState().theme).toBe('dark');
 

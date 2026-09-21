@@ -493,6 +493,7 @@ describe('TelemetryHUD Component', () => {
 
   describe('Theme Toggle Button', () => {
     it('renders theme toggle button with correct title and switches theme on click', () => {
+      useStore.getState().setTheme('dark');
       render(<TelemetryHUD />);
 
       const toggleBtn = screen.getByTestId('theme-toggle-btn');
