@@ -36,6 +36,8 @@ export function toTopicDTO(
 export function toNoteDTO(row: NoteRow): NoteDTO {
   const dto: NoteDTO = {
     id: row.id,
+    topicId: row.topic_id || undefined,
+    sourceId: row.source_id || undefined,
     title: row.title,
     filename: row.filename || undefined,
     content: row.content || ''

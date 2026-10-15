@@ -230,6 +230,14 @@ const mockFetch: typeof fetch = async (input: RequestInfo | URL, init?: RequestI
     return new Response(null, { status: 204 });
   }
 
+  // GET /api/problems
+  if (url.startsWith('/api/problems') && method === 'GET') {
+    return new Response(JSON.stringify(useStore.getState().problems || []), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
   return new Response(JSON.stringify({}), { status: 200 });
 };
 

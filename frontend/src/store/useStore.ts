@@ -9,7 +9,8 @@ import {
   LineReviewComment,
   GraphUpdate,
   QuizItem,
-  ApplicationItem
+  ApplicationItem,
+  ProblemItem
 } from '../types/telemetry';
 import { DOMAIN_DATA, INITIAL_TODOS, SEED_APPLICATIONS } from '../data/test';
 import { INITIAL_UPDATES, INITIAL_QUEUE_ITEMS } from '../data/test/updates';
@@ -259,6 +260,10 @@ export const INITIAL_STATE: TelemetryState = {
   applications: INITIAL_APPLICATIONS,
   activeApplication: null,
 
+  // Problem Bank (BAC-38)
+  problems: [],
+  activeProblem: null,
+
   // Review & Diff Updates (FRO-11)
   graphUpdates: INITIAL_UPDATES,
   queueItems: INITIAL_QUEUE_ITEMS,
@@ -317,10 +322,11 @@ export const useStore = create<TelemetryStore>((set, get) => ({
   loadInitialData: async () => {
     set({ isLoading: true, error: null });
     try {
-      const [topics, todos, queueData] = await Promise.all([
+      const [topics, todos, queueData, problemsData] = await Promise.all([
         api.fetchTopics(),
         api.fetchTodos(),
-        api.fetchReviewQueue().catch(() => null)
+        api.fetchReviewQueue().catch(() => null),
+        api.fetchProblems().catch(() => [])
       ]);
       const updates = queueData?.updates && queueData.updates.length > 0
         ? queueData.updates
@@ -335,6 +341,7 @@ export const useStore = create<TelemetryStore>((set, get) => ({
         graphUpdates: updates,
         queueItems,
         applications: resolvedApps,
+        problems: problemsData || [],
         isLoading: false,
         error: null
       });
@@ -386,6 +393,61 @@ export const useStore = create<TelemetryStore>((set, get) => ({
     set({ activeApplication }),
   setApplications: (applications: ApplicationItem[]) =>
     set({ applications }),
+
+  // Problem Bank Actions (BAC-38)
+  setActiveProblem: (activeProblem: ProblemItem | null) =>
+    set({ activeProblem }),
+  setProblems: (problems: ProblemItem[]) =>
+    set({ problems }),
+  fetchProblems: async (filter?: any) => {
+    try {
+      const problems = await api.fetchProblems(filter);
+      set({ problems, error: null });
+    } catch (err: any) {
+      set({ error: err.message || 'Failed to fetch interview problems' });
+    }
+  },
+  updateProblem: async (id: string, updates: Partial<ProblemItem>) => {
+    try {
+      const updated = await api.updateProblem(id, updates);
+      set((state) => ({
+        problems: state.problems.map((p) => (p.id === id ? updated : p)),
+        activeProblem: state.activeProblem?.id === id ? updated : state.activeProblem,
+        error: null
+      }));
+      return updated;
+    } catch (err: any) {
+      set({ error: err.message || 'Failed to update problem' });
+      throw err;
+    }
+  },
+  createProblem: async (payload: Partial<ProblemItem>) => {
+    try {
+      const created = await api.createProblem(payload);
+      set((state) => ({
+        problems: [created, ...state.problems],
+        activeProblem: created,
+        error: null
+      }));
+      return created;
+    } catch (err: any) {
+      set({ error: err.message || 'Failed to create problem' });
+      throw err;
+    }
+  },
+  deleteProblem: async (id: string) => {
+    try {
+      await api.deleteProblem(id);
+      set((state) => ({
+        problems: state.problems.filter((p) => p.id !== id),
+        activeProblem: state.activeProblem?.id === id ? null : state.activeProblem,
+        error: null
+      }));
+    } catch (err: any) {
+      set({ error: err.message || 'Failed to delete problem' });
+      throw err;
+    }
+  },
 
   addNoteToTopic: async (topicId: string, noteData: Omit<NoteItem, 'id'>) => {
     try {

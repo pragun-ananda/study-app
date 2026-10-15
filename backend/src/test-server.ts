@@ -5,6 +5,8 @@ import { fileURLToPath } from 'url';
 import { newDb } from 'pg-mem';
 import { app } from './app.js';
 import { setPool, closePool } from './db.js';
+import { SEED_INTERVIEW_PROBLEMS } from './data/seedProblems.js';
+import { createProblem } from './services/problemService.js';
 
 dotenv.config();
 
@@ -196,6 +198,11 @@ db.public.none(`
 const pgAdapter = db.adapters.createPg();
 const pool = new pgAdapter.Pool();
 setPool(pool as any);
+
+// Seed interview problem bank
+for (const p of SEED_INTERVIEW_PROBLEMS) {
+  await createProblem(p);
+}
 
 const PORT = process.env.PORT || 4000;
 const server = app.listen(PORT, () => {

@@ -129,13 +129,14 @@ export async function applyGraphUpdateToDatabase(
       const topicId = update.payload?.topicId || update.targetId;
       const title = update.title || update.targetName || 'Study Note';
       const content = update.newContent;
+      const sourceId = update.sourceId || update.payload?.sourceId || null;
 
       if (update.payload?.noteId) {
         const existing = await queryFn(`SELECT id FROM notes WHERE id = $1`, [update.payload.noteId]);
         if (existing.rows && existing.rows.length > 0) {
           await queryFn(
-            `UPDATE notes SET content = $1, title = COALESCE($2, title), updated_at = NOW() WHERE id = $3`,
-            [content, title, update.payload.noteId]
+            `UPDATE notes SET content = $1, title = COALESCE($2, title), source_id = COALESCE($3, source_id), updated_at = NOW() WHERE id = $4`,
+            [content, title, sourceId, update.payload.noteId]
           );
           break;
         }
@@ -145,15 +146,15 @@ export async function applyGraphUpdateToDatabase(
       const existingByTopic = await queryFn(`SELECT id FROM notes WHERE topic_id = $1`, [topicId]);
       if (existingByTopic.rows && existingByTopic.rows.length > 0) {
         await queryFn(
-          `UPDATE notes SET content = $1, title = COALESCE($2, title), updated_at = NOW() WHERE id = $3`,
-          [content, title, existingByTopic.rows[0].id]
+          `UPDATE notes SET content = $1, title = COALESCE($2, title), source_id = COALESCE($3, source_id), updated_at = NOW() WHERE id = $4`,
+          [content, title, sourceId, existingByTopic.rows[0].id]
         );
       } else {
         const noteId = update.payload?.noteId || generateEntityId('NOTE');
         await queryFn(
-          `INSERT INTO notes (id, topic_id, title, content, created_at, updated_at)
-           VALUES ($1, $2, $3, $4, NOW(), NOW())`,
-          [noteId, topicId, title, content]
+          `INSERT INTO notes (id, topic_id, source_id, title, content, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, NOW(), NOW())`,
+          [noteId, topicId, sourceId, title, content]
         );
       }
       break;
@@ -188,18 +189,19 @@ export async function applyGraphUpdateToDatabase(
       const topicId = update.payload?.topicId || update.targetId;
       const title = update.title || `${update.targetName} Quiz`;
       const description = update.description || '';
+      const sourceId = update.sourceId || update.payload?.sourceId || null;
 
       let quizId = update.payload?.quizId;
       const existingQuiz = await queryFn(`SELECT id FROM quizzes WHERE topic_id = $1`, [topicId]);
       if (existingQuiz.rows && existingQuiz.rows.length > 0) {
         quizId = existingQuiz.rows[0].id;
-        await queryFn(`UPDATE quizzes SET title = $1, updated_at = NOW() WHERE id = $2`, [title, quizId]);
+        await queryFn(`UPDATE quizzes SET title = $1, source_id = COALESCE($2, source_id), updated_at = NOW() WHERE id = $3`, [title, sourceId, quizId]);
       } else {
         if (!quizId) quizId = generateEntityId('QUIZ');
         await queryFn(
-          `INSERT INTO quizzes (id, topic_id, title, description, created_at, updated_at)
-           VALUES ($1, $2, $3, $4, NOW(), NOW())`,
-          [quizId, topicId, title, description]
+          `INSERT INTO quizzes (id, topic_id, source_id, title, description, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, NOW(), NOW())`,
+          [quizId, topicId, sourceId, title, description]
         );
       }
 

@@ -37,9 +37,22 @@ export interface TopicPrerequisiteRow {
   prerequisite_id: string;
 }
 
+export interface SourceRow {
+  id: string;
+  url: string;
+  title: string;
+  author_or_org: string | null;
+  raw_markdown: string;
+  cleaned_markdown: string;
+  content_hash: string;
+  metadata: any;
+  created_at: string | Date;
+}
+
 export interface NoteRow {
   id: string;
   topic_id: string;
+  source_id?: string | null;
   title: string;
   filename: string | null;
   content: string;
@@ -50,6 +63,7 @@ export interface NoteRow {
 export interface QuizRow {
   id: string;
   topic_id: string;
+  source_id?: string | null;
   title: string;
   description: string | null;
   created_at: string | Date;
@@ -70,6 +84,47 @@ export interface QuizQuestionRow {
   explanation: string;
   difficulty: QuizQuestionDifficulty;
   created_at: string | Date;
+}
+
+export interface QuizAttemptRow {
+  id: string;
+  topic_id: string;
+  quiz_id: string;
+  score: number | string;
+  ease_factor: number | string;
+  interval_days: number;
+  repetition_count: number;
+  reviewed_at: string | Date;
+  next_due_at: string | Date;
+}
+
+export interface QuizAttemptDTO {
+  id: string;
+  topicId: string;
+  quizId: string;
+  score: number;
+  easeFactor: number;
+  intervalDays: number;
+  repetitionCount: number;
+  reviewedAt: string;
+  nextDueAt: string;
+}
+
+export interface SM2Input {
+  score: number;
+  previousEaseFactor?: number;
+  previousIntervalDays?: number;
+  previousRepetitionCount?: number;
+  previousMastery?: number;
+}
+
+export interface SM2Result {
+  easeFactor: number;
+  intervalDays: number;
+  repetitionCount: number;
+  nextDueAt: Date;
+  mastery: number;
+  status: TopicStatus;
 }
 
 export interface IngestReviewQueueRow {
@@ -93,6 +148,80 @@ export interface StudyTodoRow {
   created_at: string | Date;
 }
 
+// Problem Bank Entities (BAC-38)
+export type ProblemType = 'CODING' | 'SYSTEM_DESIGN' | 'ML_SYSTEM_DESIGN' | 'OBJECT_ORIENTED_DESIGN';
+export type ProblemDifficulty = 'EASY' | 'MEDIUM' | 'HARD';
+
+export interface ProblemRow {
+  id: string;
+  title: string;
+  type: ProblemType;
+  difficulty: ProblemDifficulty;
+  domain: string;
+  summary: string;
+  prompt: string;
+  solution: string;
+  hints: any;
+  starter_code: any;
+  test_cases: any;
+  rubric: any;
+  target_companies: string[];
+  time_limit_minutes: number;
+  created_at: string | Date;
+  updated_at: string | Date;
+}
+
+export interface ProblemPrerequisiteRow {
+  problem_id: string;
+  topic_id: string;
+}
+
+export interface ProblemQuizRow {
+  problem_id: string;
+  quiz_id: string;
+}
+
+export interface ProblemDTO {
+  id: string;
+  title: string;
+  type: ProblemType;
+  difficulty: ProblemDifficulty;
+  domain: string;
+  summary: string;
+  prompt: string;
+  solution: string;
+  hints: string[];
+  starterCode: Record<string, string>;
+  testCases: Array<{ input: any; expected: any; explanation?: string }>;
+  rubric?: Record<string, any>;
+  targetCompanies: string[];
+  timeLimitMinutes: number;
+  prerequisiteTopicIds?: string[];
+  prerequisiteTopics?: TopicDTO[];
+  quizzes?: QuizDTO[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreateProblemPayload {
+  id?: string;
+  title: string;
+  type: ProblemType;
+  difficulty: ProblemDifficulty;
+  domain: string;
+  summary: string;
+  prompt: string;
+  solution: string;
+  hints?: string[];
+  starterCode?: Record<string, string>;
+  testCases?: Array<{ input: any; expected: any; explanation?: string }>;
+  rubric?: Record<string, any>;
+  targetCompanies?: string[];
+  timeLimitMinutes?: number;
+  prerequisiteTopicIds?: string[];
+  quizIds?: string[];
+}
+
 // API DTOs (Data Transfer Objects) matching Frontend Types
 export interface TopicDTO {
   id: string;
@@ -108,8 +237,22 @@ export interface TopicDTO {
   notes?: NoteDTO[];
 }
 
+export interface SourceDTO {
+  id: string;
+  url: string;
+  title: string;
+  authorOrOrg?: string | null;
+  rawMarkdown: string;
+  cleanedMarkdown: string;
+  contentHash: string;
+  metadata?: any;
+  createdAt?: string;
+}
+
 export interface NoteDTO {
   id: string;
+  topicId?: string;
+  sourceId?: string | null;
   title: string;
   filename?: string;
   content?: string;
@@ -133,6 +276,7 @@ export interface QuizQuestionDTO {
 export interface QuizDTO {
   id: string;
   topicId: string;
+  sourceId?: string | null;
   title: string;
   description?: string;
   questions?: QuizQuestionDTO[];
@@ -222,6 +366,7 @@ export interface GeneratedNote {
   title: string;
   topicName: string;
   content: string;
+  sourceId?: string;
   keyFormulas?: string[];
   codeSnippetsCount?: number;
 }
@@ -291,6 +436,7 @@ export interface GeneratedQuizQuestion {
 export interface GeneratedQuiz {
   topicName: string;
   title: string;
+  sourceId?: string;
   description?: string;
   questions: GeneratedQuizQuestion[];
 }
@@ -365,6 +511,7 @@ export interface GraphUpdate {
   newContent: string; // The resulting content
   sourceUrl?: string; // Source article/document URL
   sourceTitle?: string; // Title of source article/document
+  sourceId?: string; // ID of the persisted source entity
   queueId?: string; // Associated parent review queue item ID
   createdAt: string;
   comments?: LineReviewComment[];
@@ -373,6 +520,7 @@ export interface GraphUpdate {
     topicId?: string;
     noteId?: string;
     quizId?: string;
+    sourceId?: string;
     summary?: string;
     coord_x?: number;
     coord_y?: number;
@@ -470,6 +618,8 @@ export interface IngestPipelineResult {
     reviewPassed?: boolean;
     overallScore?: number;
     queueId?: string | null;
+    sourceId?: string;
+    contentHash?: string;
     noteAudits?: NoteAuditReport[];
     quizAudits?: QuizAuditReport[];
     mergeAudits?: MergeAuditReport[];

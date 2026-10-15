@@ -1,8 +1,10 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import http from "http";
+import { setupTestDatabase } from "../helpers.js";
 import {
   fetchUrlStep,
   cleanFetchedContentStep,
+  persistSourceStep,
   extractTopicsStep,
   generateContentStep,
   reviewGeneratedContentStep,
@@ -18,6 +20,7 @@ describe("Unit: Ingestion Pipeline Service (src/services/ingestPipeline.ts)", ()
   let lastReceivedHeaders: http.IncomingHttpHeaders = {};
 
   beforeAll(async () => {
+    setupTestDatabase();
     mockServer = http.createServer((req, res) => {
       lastReceivedHeaders = req.headers;
 
@@ -241,6 +244,30 @@ describe("Unit: Ingestion Pipeline Service (src/services/ingestPipeline.ts)", ()
       expect(multiByteResult.cleanedLength).toBeGreaterThan(multiByteResult.cleanedContent.length);
     });
 
+    it("persistSourceStep stores raw and cleaned markdown with SHA-256 hash and handles updates idempotently (BAC-31)", async () => {
+      const source = {
+        url: "https://example.com/system-design-primer",
+        title: "The System Design Primer",
+        rawContent: "<h1>System Design</h1><p>Learn large scale systems.</p>",
+        cleanedContent: "# System Design\n\nLearn large scale systems.",
+        authorOrOrg: "donnemartin",
+        metadata: { category: "System Design", stars: 250000 }
+      };
+
+      const result = await persistSourceStep(source);
+      expect(result.sourceId).toMatch(/^SOURCE-/);
+      expect(result.contentHash).toHaveLength(64);
+
+      // Verify idempotency on identical/updated URL
+      const updateResult = await persistSourceStep({
+        ...source,
+        title: "The System Design Primer (Updated)",
+        cleanedContent: "# System Design Updated\n\nLearn large scale systems."
+      });
+      expect(updateResult.sourceId).toBe(result.sourceId);
+      expect(updateResult.contentHash).not.toBe(result.contentHash);
+    });
+
     it("extractTopicsStep returns empty topics list for short content (< 100 chars)", async () => {
       const result = await extractTopicsStep("Sample content");
       expect(result.topics).toEqual([]);
@@ -353,6 +380,8 @@ describe("Unit: Ingestion Pipeline Service (src/services/ingestPipeline.ts)", ()
       expect(result.details.generatedNotesCount).toBe(0);
       expect(result.details.reviewPassed).toBe(true);
       expect(result.details.queueId).toMatch(/^QUEUE-/);
+      expect(result.details.sourceId).toMatch(/^SOURCE-/);
+      expect(result.details.contentHash).toBeDefined();
     });
 
     it("populates extracted topics, notes, quizzes, and audit metrics when ingesting rich article content (BAC-19 & BAC-20)", async () => {
@@ -364,6 +393,7 @@ describe("Unit: Ingestion Pipeline Service (src/services/ingestPipeline.ts)", ()
       expect(result.executedSteps).toContain("generate_content");
       expect(result.executedSteps).toContain("review_content");
       expect(result.executedSteps).toContain("add_to_review_queue");
+      expect(result.details.sourceId).toMatch(/^SOURCE-/);
       expect(result.details.extractedTopicsCount).toBeGreaterThan(0);
       expect(result.details.generatedNotesCount).toBeGreaterThan(0);
       expect(result.details.generatedQuizzesCount).toBeGreaterThan(0);
@@ -372,7 +402,7 @@ describe("Unit: Ingestion Pipeline Service (src/services/ingestPipeline.ts)", ()
       expect(result.details.overallScore).toBeGreaterThanOrEqual(90);
       expect(result.details.graphUpdates).toBeDefined();
       expect(result.details.graphUpdates!.length).toBeGreaterThan(0);
-      expect(result.details.graphUpdates!.some((u) => u.type === 'NOTE_UPDATE')).toBe(true);
+      expect(result.details.graphUpdates!.some((u) => u.type === 'NOTE_UPDATE' && u.sourceId === result.details.sourceId)).toBe(true);
     });
 
     it("synthesizes NOTE_UPDATE and QUIZ_UPDATE graph updates for existing topics (BAC-27)", async () => {

@@ -67,6 +67,31 @@ export interface ApplicationItem {
   quizzes?: QuizItem[];
 }
 
+export type ProblemType = 'CODING' | 'SYSTEM_DESIGN' | 'ML_SYSTEM_DESIGN' | 'OBJECT_ORIENTED_DESIGN';
+export type ProblemDifficulty = 'EASY' | 'MEDIUM' | 'HARD';
+
+export interface ProblemItem {
+  id: string;
+  title: string;
+  type: ProblemType;
+  difficulty: ProblemDifficulty;
+  domain: DomainCategory;
+  summary: string;
+  prompt: string;
+  solution: string;
+  hints: string[];
+  starterCode?: Record<string, string>;
+  testCases?: Array<{ input: any; expected: any; explanation?: string }>;
+  rubric?: Record<string, any>;
+  targetCompanies: string[];
+  timeLimitMinutes: number;
+  prerequisiteTopicIds?: string[];
+  prerequisiteTopics?: TopicNode[];
+  quizzes?: QuizItem[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface TopicNode {
   id: string;
   name: string;
@@ -235,9 +260,13 @@ export interface TelemetryState {
   isNoteEditing: boolean;
   todos: StudyTodo[];
 
-  // Applied Content (Case Studies, Interviews, Project Blueprints)
+  // Applied Content (Case Studies, Engineering Teardowns)
   applications: ApplicationItem[];
   activeApplication: ApplicationItem | null;
+
+  // Interview Problem Bank (Coding & System Design - BAC-38)
+  problems: ProblemItem[];
+  activeProblem: ProblemItem | null;
 
   // Review & Diff Updates (FRO-11)
   graphUpdates: GraphUpdate[];
@@ -312,6 +341,14 @@ export interface TelemetryActions {
   // Applied Content Actions
   setActiveApplication: (app: ApplicationItem | null) => void;
   setApplications: (apps: ApplicationItem[]) => void;
+
+  // Problem Bank Actions (BAC-38)
+  setActiveProblem: (problem: ProblemItem | null) => void;
+  setProblems: (problems: ProblemItem[]) => void;
+  fetchProblems: (filter?: any) => Promise<void>;
+  updateProblem: (id: string, updates: Partial<ProblemItem>) => Promise<ProblemItem | void>;
+  createProblem: (payload: Partial<ProblemItem>) => Promise<ProblemItem | void>;
+  deleteProblem: (id: string) => Promise<void>;
 
   // Diff Review Actions (FRO-11)
   setIsNotificationsOpen: (open: boolean) => void;

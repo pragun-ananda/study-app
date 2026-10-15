@@ -11,6 +11,7 @@ import {
 } from '../utils/validation.js';
 import { generateEntityId } from '../utils/id.js';
 import { handleDatabaseError } from '../utils/errors.js';
+import { getDueTopics } from '../services/spacedRepetition.js';
 
 const router = Router();
 
@@ -77,6 +78,16 @@ router.get('/', async (req: Request, res: Response) => {
     return res.json(dtos);
   } catch (error) {
     return handleDatabaseError(res, error, 'Failed to fetch topics');
+  }
+});
+
+// GET /api/topics/due - Retrieve topics due for review based on SM-2 scheduling
+router.get('/due', async (_req: Request, res: Response) => {
+  try {
+    const dueTopics = await getDueTopics();
+    return res.json(dueTopics);
+  } catch (error) {
+    return handleDatabaseError(res, error, 'Failed to retrieve due topics');
   }
 });
 
