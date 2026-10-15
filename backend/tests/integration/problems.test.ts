@@ -1,0 +1,195 @@
+import { describe, it, expect, beforeEach } from 'vitest';
+import request from 'supertest';
+import { app } from '../../src/app.js';
+import { setupTestDatabase, seedBasicTestData } from '../helpers.js';
+
+describe('Integration: Problem Bank REST API (/api/problems - BAC-38)', () => {
+  let db: any;
+
+  beforeEach(() => {
+    db = setupTestDatabase();
+    seedBasicTestData(db);
+
+    db.public.none(`
+      INSERT INTO problems (
+        id, title, type, difficulty, domain, summary, prompt, solution,
+        hints, starter_code, test_cases, rubric, target_companies, time_limit_minutes
+      ) VALUES (
+        'PROB-TEST-1',
+        'Design a High-Throughput Distributed Rate Limiter',
+        'SYSTEM_DESIGN',
+        'HARD',
+        'SYSTEMS',
+        'Multi-region token bucket and sliding window rate limiter.',
+        '### Requirements\nDesign a rate limiter for 500k RPS.',
+        '### Solution\nUse Redis sliding window log with Lua scripts.',
+        '["Use Redis Cluster", "Fail open under partitions"]'::jsonb,
+        '{"python": "class RateLimiter:\\n    pass"}'::jsonb,
+        '[{"input": "client_1", "expected": true}]'::jsonb,
+        '{"architecture": 50, "concurrency": 50}'::jsonb,
+        ARRAY['Stripe', 'Netflix'],
+        45
+      );
+
+      INSERT INTO problem_prerequisites (problem_id, topic_id)
+      VALUES ('PROB-TEST-1', 'TOPIC-001');
+    `);
+  });
+
+  describe('GET /api/problems', () => {
+    it('returns list of interview problems with attached prerequisite topic IDs', async () => {
+      const res = await request(app).get('/api/problems');
+
+      expect(res.status).toBe(200);
+      expect(Array.isArray(res.body)).toBe(true);
+      expect(res.body.length).toBeGreaterThanOrEqual(1);
+
+      const prob = res.body.find((p: any) => p.id === 'PROB-TEST-1');
+      expect(prob).toBeDefined();
+      expect(prob.title).toBe('Design a High-Throughput Distributed Rate Limiter');
+      expect(prob.type).toBe('SYSTEM_DESIGN');
+      expect(prob.difficulty).toBe('HARD');
+      expect(prob.domain).toBe('SYSTEMS');
+      expect(prob.targetCompanies).toEqual(['Stripe', 'Netflix']);
+      expect(prob.prerequisiteTopicIds).toContain('TOPIC-001');
+    });
+
+    it('filters problems by type, difficulty, and company', async () => {
+      const resType = await request(app).get('/api/problems?type=SYSTEM_DESIGN');
+      expect(resType.status).toBe(200);
+      expect(resType.body.length).toBe(1);
+
+      const resDiff = await request(app).get('/api/problems?difficulty=HARD');
+      expect(resDiff.status).toBe(200);
+      expect(resDiff.body.length).toBe(1);
+
+      const resComp = await request(app).get('/api/problems?company=Stripe');
+      expect(resComp.status).toBe(200);
+      expect(resComp.body.length).toBe(1);
+
+      const resNone = await request(app).get('/api/problems?type=CODING');
+      expect(resNone.status).toBe(200);
+      expect(resNone.body.length).toBe(0);
+    });
+
+    it('filters problems by topicId prerequisite', async () => {
+      const res = await request(app).get('/api/problems?topicId=TOPIC-001');
+      expect(res.status).toBe(200);
+      expect(res.body.length).toBe(1);
+
+      const resEmpty = await request(app).get('/api/problems?topicId=TOPIC-003');
+      expect(resEmpty.status).toBe(200);
+      expect(resEmpty.body.length).toBe(0);
+    });
+  });
+
+  describe('GET /api/problems/:id', () => {
+    it('returns full problem details with hydrated prerequisite topics and mastery stats', async () => {
+      const res = await request(app).get('/api/problems/PROB-TEST-1');
+
+      expect(res.status).toBe(200);
+      expect(res.body.id).toBe('PROB-TEST-1');
+      expect(res.body.prompt).toContain('500k RPS');
+      expect(res.body.solution).toContain('Redis sliding window');
+      expect(res.body.hints).toContain('Use Redis Cluster');
+      expect(res.body.timeLimitMinutes).toBe(45);
+
+      // Hydrated prerequisite topics from graph
+      expect(Array.isArray(res.body.prerequisiteTopics)).toBe(true);
+      expect(res.body.prerequisiteTopics.length).toBe(1);
+      const topic = res.body.prerequisiteTopics[0];
+      expect(topic.id).toBe('TOPIC-001');
+      expect(topic.name).toBe('Neural Network Backpropagation');
+      expect(topic.mastery).toBe(80);
+      expect(topic.status).toBe('MASTERED');
+    });
+
+    it('returns 404 for non-existent problem ID', async () => {
+      const res = await request(app).get('/api/problems/PROB-NONEXISTENT');
+      expect(res.status).toBe(404);
+      expect(res.body.error).toContain('not found');
+    });
+  });
+
+  describe('POST /api/problems', () => {
+    it('creates a new coding problem with prerequisites and test cases', async () => {
+      const payload = {
+        title: 'Trapping Rain Water',
+        type: 'CODING',
+        difficulty: 'HARD',
+        domain: 'CS',
+        summary: 'Compute trapped rainwater volume using two pointers.',
+        prompt: 'Given n non-negative integers representing an elevation map...',
+        solution: 'Use two pointers converging from left and right.',
+        hints: ['Consider min(left_max, right_max)'],
+        starterCode: { python: 'def trap(height): pass' },
+        testCases: [{ input: [0, 1, 0, 2], expected: 1 }],
+        targetCompanies: ['Google', 'Meta'],
+        timeLimitMinutes: 30,
+        prerequisiteTopicIds: ['TOPIC-003']
+      };
+
+      const res = await request(app).post('/api/problems').send(payload);
+
+      expect(res.status).toBe(201);
+      expect(res.body.id).toMatch(/^PROB-/);
+      expect(res.body.title).toBe('Trapping Rain Water');
+      expect(res.body.type).toBe('CODING');
+      expect(res.body.prerequisiteTopicIds).toContain('TOPIC-003');
+      expect(res.body.targetCompanies).toEqual(['Google', 'Meta']);
+    });
+
+    it('rejects creation when required fields are missing', async () => {
+      const res = await request(app).post('/api/problems').send({ title: 'Incomplete' });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toContain('Missing required fields');
+    });
+  });
+
+  describe('PUT /api/problems/:id', () => {
+    it('updates problem details and prerequisite associations', async () => {
+      const res = await request(app)
+        .put('/api/problems/PROB-TEST-1')
+        .send({
+          title: 'Design a High-Throughput Distributed Rate Limiter (Updated)',
+          difficulty: 'MEDIUM',
+          prerequisiteTopicIds: ['TOPIC-002']
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.title).toContain('(Updated)');
+      expect(res.body.difficulty).toBe('MEDIUM');
+      expect(res.body.prerequisiteTopicIds).toEqual(['TOPIC-002']);
+    });
+
+    it('returns 404 when updating non-existent problem', async () => {
+      const res = await request(app).put('/api/problems/PROB-GHOST').send({ title: 'New' });
+      expect(res.status).toBe(404);
+    });
+  });
+
+  describe('DELETE /api/problems/:id', () => {
+    it('deletes problem and cascades to prerequisites', async () => {
+      const res = await request(app).delete('/api/problems/PROB-TEST-1');
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe('success');
+
+      const check = await request(app).get('/api/problems/PROB-TEST-1');
+      expect(check.status).toBe(404);
+    });
+
+    it('returns 404 when deleting non-existent problem', async () => {
+      const res = await request(app).delete('/api/problems/PROB-GHOST');
+      expect(res.status).toBe(404);
+    });
+  });
+
+  describe('POST /api/problems/seed', () => {
+    it('seeds curated interview problems successfully', async () => {
+      const res = await request(app).post('/api/problems/seed');
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe('success');
+      expect(res.body.seededCount).toBeGreaterThan(0);
+    });
+  });
+});

@@ -111,10 +111,15 @@ describe('TelemetryHUD Component', () => {
     expect(conceptsTab).toBeInTheDocument();
     expect(conceptsTab).toHaveTextContent(/CONCEPTS/i);
 
-    // Verify APPLICATIONS tab exists
+    // Verify CASE STUDIES tab exists
     const appliedTab = screen.getByTestId('sidebar-tab-applications');
     expect(appliedTab).toBeInTheDocument();
-    expect(appliedTab).toHaveTextContent(/APPLICATIONS/i);
+    expect(appliedTab).toHaveTextContent(/CASE STUDIES/i);
+
+    // Verify PROBLEMS tab exists
+    const problemsTab = screen.getByTestId('sidebar-tab-problems');
+    expect(problemsTab).toBeInTheDocument();
+    expect(problemsTab).toHaveTextContent(/PROBLEMS/i);
 
     // Verify TASKS tab does NOT exist
     expect(screen.queryByRole('button', { name: /TASKS/i })).not.toBeInTheDocument();
@@ -550,6 +555,85 @@ describe('TelemetryHUD Component', () => {
 
       fireEvent.click(appItems[0]);
       expect(useStore.getState().activeApplication).toBe(appWithTopic);
+      expect(useStore.getState().isInspectorOpen).toBe(false);
+      expect(useStore.getState().isSidebarOpen).toBe(false);
+    });
+  });
+
+  describe('Problem Bank Integration', () => {
+    it('switches to PROBLEMS tab in sidebar and opens a problem card', async () => {
+      useStore.getState().setIsSidebarOpen(true);
+      useStore.getState().setProblems([
+        {
+          id: 'PROB-TEST-1',
+          title: 'Distributed Rate Limiter',
+          type: 'SYSTEM_DESIGN',
+          difficulty: 'HARD',
+          domain: 'SYSTEMS',
+          summary: 'Design a distributed rate limiter',
+          targetCompanies: ['Stripe', 'Google'],
+          timeLimitMinutes: 45,
+          prompt: '### Prompt\nDesign a rate limiter.',
+          hints: ['Token bucket algorithm'],
+          solution: '### Solution\nUse Redis with token bucket.',
+          starterCode: {},
+          prerequisiteTopics: [],
+          quizzes: []
+        }
+      ]);
+
+      render(<TelemetryHUD />);
+
+      const problemsTabBtn = screen.getByTestId('sidebar-tab-problems');
+      expect(problemsTabBtn).toBeInTheDocument();
+      fireEvent.click(problemsTabBtn);
+
+      await waitFor(() => {
+        expect(screen.getByText('PRACTICE PROBLEMS')).toBeInTheDocument();
+      });
+
+      const problemCards = screen.getAllByTestId('sidebar-problem-card');
+      expect(problemCards.length).toBe(1);
+
+      fireEvent.click(problemCards[0]);
+      expect(useStore.getState().activeProblem?.id).toBe('PROB-TEST-1');
+    });
+
+    it('displays PRACTICE PROBLEMS in inspector when a topic linked to a problem is selected', async () => {
+      const topic = useStore.getState().topicNodes[0];
+      useStore.getState().setProblems([
+        {
+          id: 'PROB-TEST-2',
+          title: 'Trapping Rain Water',
+          type: 'CODING',
+          difficulty: 'HARD',
+          domain: 'CS',
+          summary: 'Two-pointer water trapping',
+          targetCompanies: ['Google', 'Meta'],
+          timeLimitMinutes: 45,
+          prompt: '### Prompt\nTrapping rain water.',
+          hints: ['Two pointers'],
+          solution: '### Solution\nTwo pointers technique.',
+          starterCode: {},
+          prerequisiteTopics: [topic],
+          quizzes: []
+        }
+      ]);
+
+      useStore.getState().setSelectedTopicId(topic.id);
+      useStore.getState().setIsInspectorOpen(true);
+
+      render(<TelemetryHUD />);
+
+      await waitFor(() => {
+        expect(screen.getByText('PRACTICE PROBLEMS')).toBeInTheDocument();
+      });
+
+      const problemItems = screen.getAllByTestId('inspector-problem-item');
+      expect(problemItems.length).toBeGreaterThan(0);
+
+      fireEvent.click(problemItems[0]);
+      expect(useStore.getState().activeProblem?.id).toBe('PROB-TEST-2');
       expect(useStore.getState().isInspectorOpen).toBe(false);
       expect(useStore.getState().isSidebarOpen).toBe(false);
     });

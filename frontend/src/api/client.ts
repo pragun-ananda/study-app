@@ -6,7 +6,8 @@ import {
   IngestRequestOptions,
   ReviewQueueResponseDTO,
   GraphUpdate,
-  LineReviewComment
+  LineReviewComment,
+  ProblemItem
 } from '../types/telemetry';
 
 export class ApiError extends Error {
@@ -285,5 +286,54 @@ export async function rejectEntireQueueItem(queueId: string): Promise<{ success:
     { method: 'POST' }
   );
 }
+
+export interface FetchProblemsFilter {
+  type?: string;
+  difficulty?: string;
+  domain?: string;
+  company?: string;
+  topicId?: string;
+  search?: string;
+}
+
+export async function fetchProblems(filter?: FetchProblemsFilter): Promise<ProblemItem[]> {
+  const queryParams = new URLSearchParams();
+  if (filter?.type) queryParams.set('type', filter.type);
+  if (filter?.difficulty) queryParams.set('difficulty', filter.difficulty);
+  if (filter?.domain) queryParams.set('domain', filter.domain);
+  if (filter?.company) queryParams.set('company', filter.company);
+  if (filter?.topicId) queryParams.set('topicId', filter.topicId);
+  if (filter?.search) queryParams.set('search', filter.search);
+  const qs = queryParams.toString();
+  return request<ProblemItem[]>(`/api/problems${qs ? `?${qs}` : ''}`);
+}
+
+export async function fetchProblemById(id: string): Promise<ProblemItem> {
+  return request<ProblemItem>(`/api/problems/${encodeURIComponent(id)}`);
+}
+
+export async function updateProblem(id: string, payload: Partial<ProblemItem>): Promise<ProblemItem> {
+  return request<ProblemItem>(`/api/problems/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function createProblem(payload: Partial<ProblemItem>): Promise<ProblemItem> {
+  return request<ProblemItem>('/api/problems', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function deleteProblem(id: string): Promise<boolean> {
+  await request<{ status?: string }>(`/api/problems/${encodeURIComponent(id)}`, {
+    method: 'DELETE'
+  });
+  return true;
+}
+
 
 

@@ -28,10 +28,12 @@ import {
   PlusCircle,
   AlertTriangle,
   Layers,
-  Sparkles
+  Sparkles,
+  Code
 } from 'lucide-react';
 import NoteViewerModal from './NoteViewerModal';
 import ApplicationViewerModal from './ApplicationViewerModal';
+import ProblemViewerModal from './ProblemViewerModal';
 import NotificationsDropdown from './NotificationsDropdown';
 import DiffViewerModal from './DiffViewerModal';
 import IngestionWalkthroughModal from './IngestionWalkthroughModal';
@@ -68,13 +70,15 @@ export default function TelemetryHUD() {
   const updateTopicMastery = useStore((state) => state.updateTopicMastery);
   const applications = useStore((state) => state.applications);
   const setActiveApplication = useStore((state) => state.setActiveApplication);
+  const problems = useStore((state) => state.problems);
+  const setActiveProblem = useStore((state) => state.setActiveProblem);
 
   // Ingestion State & Actions
   const ingestUrl = useStore((state) => state.ingestUrl);
   const isIngesting = useStore((state) => state.isIngesting);
   const ingestError = useStore((state) => state.ingestError);
 
-  const [activeTab, setActiveTab] = useState<'TOPICS' | 'APPLICATIONS'>('TOPICS');
+  const [activeTab, setActiveTab] = useState<'TOPICS' | 'APPLICATIONS' | 'PROBLEMS'>('TOPICS');
   const [isSubgraphsOpen, setIsSubgraphsOpen] = useState(false);
 
   // URL Ingest Plus-Icon Textbox State
@@ -265,6 +269,25 @@ export default function TelemetryHUD() {
     if (!selectedNode) return [];
     return applications.filter((app) => app.topicIds.includes(selectedNode.id));
   }, [selectedNode, applications]);
+
+  const filteredProblems = useMemo(() => {
+    return (problems || []).filter((prob) => {
+      const categoryMatch = !selectedCategory || selectedCategory === 'ALL' || prob.domain === selectedCategory;
+      const searchMatch =
+        !searchQuery ||
+        prob.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        prob.summary.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (prob.targetCompanies && prob.targetCompanies.some((c) => c.toLowerCase().includes(searchQuery.toLowerCase())));
+      return categoryMatch && searchMatch;
+    });
+  }, [problems, selectedCategory, searchQuery]);
+
+  const topicProblems = useMemo(() => {
+    if (!selectedNode) return [];
+    return (problems || []).filter((prob) =>
+      prob.prerequisiteTopics?.some((pt) => pt.id === selectedNode.id)
+    );
+  }, [selectedNode, problems]);
 
   // Dynamic Mastery Score calculated per active Subgraph
   const activeSubgraphNodes = selectedCategory && selectedCategory !== 'ALL'
@@ -685,24 +708,35 @@ export default function TelemetryHUD() {
                   <button
                     onClick={() => setActiveTab('TOPICS')}
                     data-testid="sidebar-tab-concepts"
-                    className={`flex-1 px-2.5 py-1 rounded text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                    className={`flex-1 px-1.5 py-1 rounded text-[11px] font-bold transition-all flex items-center justify-center gap-1 ${
                       activeTab === 'TOPICS'
                         ? (isLight ? 'bg-sky-600 text-white shadow-sm' : 'bg-[#00f0ff] text-slate-950 shadow-[0_0_10px_rgba(0,240,255,0.3)]')
                         : (isLight ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-slate-200')
                     }`}
                   >
-                    <BookOpen size={12} /> CONCEPTS ({filteredTopics.length})
+                    <BookOpen size={11} /> CONCEPTS ({filteredTopics.length})
                   </button>
                   <button
                     onClick={() => setActiveTab('APPLICATIONS')}
                     data-testid="sidebar-tab-applications"
-                    className={`flex-1 px-2.5 py-1 rounded text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                    className={`flex-1 px-1.5 py-1 rounded text-[11px] font-bold transition-all flex items-center justify-center gap-1 ${
                       activeTab === 'APPLICATIONS'
                         ? (isLight ? 'bg-sky-600 text-white shadow-sm' : 'bg-[#00f0ff] text-slate-950 shadow-[0_0_10px_rgba(0,240,255,0.3)]')
                         : (isLight ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-slate-200')
                     }`}
                   >
-                    <Layers size={12} /> APPLICATIONS ({applications.length})
+                    <Layers size={11} /> CASE STUDIES ({filteredApplications.length})
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('PROBLEMS')}
+                    data-testid="sidebar-tab-problems"
+                    className={`flex-1 px-1.5 py-1 rounded text-[11px] font-bold transition-all flex items-center justify-center gap-1 ${
+                      activeTab === 'PROBLEMS'
+                        ? (isLight ? 'bg-sky-600 text-white shadow-sm' : 'bg-[#00f0ff] text-slate-950 shadow-[0_0_10px_rgba(0,240,255,0.3)]')
+                        : (isLight ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-slate-200')
+                    }`}
+                  >
+                    <Code size={11} /> PROBLEMS ({filteredProblems.length})
                   </button>
                 </div>
               </div>
@@ -850,12 +884,112 @@ export default function TelemetryHUD() {
                 </div>
               )}
 
+              {/* TAB 3: INTERVIEW PROBLEMS & CODING CHALLENGES */}
+              {activeTab === 'PROBLEMS' && (
+                <div className="flex-1 flex flex-col space-y-3 overflow-hidden">
+                  <div className={`flex justify-between items-center text-[11px] ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
+                    <span className="font-bold uppercase tracking-wider flex items-center gap-1.5">
+                      <Code size={12} className={isLight ? 'text-sky-600' : 'text-[#00f0ff]'} />
+                      <span>PRACTICE PROBLEMS</span>
+                    </span>
+                    <span className={`font-bold ${isLight ? 'text-sky-600' : 'text-[#00f0ff]'}`}>
+                      {filteredProblems.length} Items
+                    </span>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto space-y-2.5 pr-1.5 pb-6 overscroll-contain" onWheel={(e) => e.stopPropagation()}>
+                    {filteredProblems.length > 0 ? (
+                      filteredProblems.map((prob) => (
+                        <div
+                          key={prob.id}
+                          data-testid="sidebar-problem-card"
+                          onClick={() => {
+                            setActiveProblem(prob);
+                            setIsSidebarOpen(false);
+                          }}
+                          className={`p-3 rounded-xl border text-xs cursor-pointer transition-all ${
+                            isLight
+                              ? 'border-slate-200 bg-white/95 hover:border-sky-400 hover:shadow-md shadow-sm'
+                              : 'border-white/10 bg-slate-950/70 hover:border-[#00f0ff]/50 hover:bg-slate-900/80'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-1.5 mb-1.5">
+                            <span
+                              className={`text-[9px] font-mono px-1.5 py-0.5 rounded font-bold uppercase tracking-wider ${
+                                isLight
+                                  ? 'bg-sky-100 text-sky-700'
+                                  : 'bg-cyan-950/60 text-cyan-300 border border-cyan-500/20'
+                              }`}
+                            >
+                              {prob.type.replace(/_/g, ' ')}
+                            </span>
+                            <span
+                              className={`text-[9px] font-mono px-1.5 py-0.5 rounded font-bold uppercase ${
+                                prob.difficulty === 'HARD'
+                                  ? isLight ? 'bg-rose-100 text-rose-700' : 'bg-rose-950/50 text-rose-400'
+                                  : prob.difficulty === 'MEDIUM'
+                                  ? isLight ? 'bg-amber-100 text-amber-700' : 'bg-amber-950/50 text-amber-400'
+                                  : isLight ? 'bg-emerald-100 text-emerald-700' : 'bg-emerald-950/50 text-emerald-400'
+                              }`}
+                            >
+                              {prob.difficulty}
+                            </span>
+                          </div>
+
+                          <h4 className={`font-sans font-bold text-xs leading-snug mb-1 ${isLight ? 'text-slate-900' : 'text-slate-100'}`}>
+                            {prob.title}
+                          </h4>
+
+                          <p className={`text-[10.5px] line-clamp-2 leading-relaxed mb-2 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                            {prob.summary}
+                          </p>
+
+                          {prob.targetCompanies && prob.targetCompanies.length > 0 && (
+                            <div className="flex items-center gap-1 flex-wrap mb-2">
+                              {prob.targetCompanies.slice(0, 3).map((comp) => (
+                                <span
+                                  key={comp}
+                                  className={`text-[9px] px-1.5 py-0.2 rounded font-mono ${
+                                    isLight ? 'bg-slate-100 text-slate-600' : 'bg-slate-900 text-slate-400 border border-white/5'
+                                  }`}
+                                >
+                                  {comp}
+                                </span>
+                              ))}
+                              {prob.targetCompanies.length > 3 && (
+                                <span className="text-[9px] text-slate-400 font-mono">
+                                  +{prob.targetCompanies.length - 3}
+                                </span>
+                              )}
+                            </div>
+                          )}
+
+                          <div className="flex items-center justify-between text-[10px] font-mono pt-1.5 border-t border-slate-100 dark:border-white/5">
+                            <span className="text-slate-400">{prob.domain} • {prob.timeLimitMinutes} min</span>
+                            <span className={`font-bold flex items-center gap-1 ${isLight ? 'text-sky-600' : 'text-[#00f0ff]'}`}>
+                              <BookOpen size={10} />
+                              {prob.prerequisiteTopics?.length || 0} Prerequisites
+                            </span>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className={`p-4 text-center text-xs italic ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
+                        No interview problems found matching criteria.
+                      </div>
+                    )}
+                    <div className="h-10 w-full flex-shrink-0 pointer-events-none" />
+                  </div>
+                </div>
+              )}
+
               {/* End Sidebar Tab Content */}
             </div>
           ) : (
             <div className="flex flex-col items-center gap-4 py-4 text-slate-400">
               <BookOpen size={18} />
               <Layers size={18} />
+              <Code size={18} />
             </div>
           )}
         </motion.div>
@@ -1546,6 +1680,78 @@ export default function TelemetryHUD() {
                     </div>
                   )}
 
+                  {/* 5. INTERVIEW PROBLEMS */}
+                  {topicProblems.length > 0 && (
+                    <div className={`pt-2.5 border-t space-y-2 ${isLight ? 'border-slate-200' : 'border-white/10'}`}>
+                      <div className="flex items-center justify-between text-[11px] font-bold">
+                        <div className="flex items-center gap-1.5" style={{ color: selectedNodeColor }}>
+                          <Code size={13} />
+                          <span>PRACTICE PROBLEMS</span>
+                        </div>
+                        <span className="text-[10px] font-mono opacity-80" style={{ color: selectedNodeColor }}>
+                          {topicProblems.length} PROBLEM{topicProblems.length > 1 ? 'S' : ''}
+                        </span>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        {topicProblems.map((prob) => (
+                          <div
+                            key={prob.id}
+                            data-testid="inspector-problem-item"
+                            onClick={() => {
+                              setActiveProblem(prob);
+                              setIsInspectorOpen(false);
+                              setIsSidebarOpen(false);
+                            }}
+                            style={{
+                              borderColor: `${selectedNodeColor}40`
+                            }}
+                            className={`p-2.5 rounded-lg border text-[11px] cursor-pointer transition-all flex items-center justify-between group shadow-sm hover:scale-[1.02] ${
+                              isLight
+                                ? 'bg-white/95 hover:bg-slate-50 text-slate-800 hover:border-sky-400'
+                                : 'bg-slate-950/80 hover:bg-slate-900 text-slate-200 hover:border-[#00f0ff]/60'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5 truncate">
+                              <Code
+                                size={14}
+                                className="flex-shrink-0 group-hover:scale-110 transition-transform"
+                                style={{ color: selectedNodeColor }}
+                              />
+                              <div className="truncate min-w-0">
+                                <span className="truncate font-semibold block group-hover:text-sky-500 dark:group-hover:text-[#00f0ff] transition-colors">
+                                  {prob.title}
+                                </span>
+                                <span className="text-[9.5px] font-mono text-slate-400">
+                                  {prob.type.replace('_', ' ')} • {prob.timeLimitMinutes} min
+                                </span>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1.5 ml-2 flex-shrink-0">
+                              <span
+                                className={`text-[9px] font-mono px-1.5 py-0.5 rounded font-bold uppercase ${
+                                  prob.difficulty === 'HARD'
+                                    ? 'text-rose-500 bg-rose-500/10'
+                                    : prob.difficulty === 'MEDIUM'
+                                    ? 'text-amber-500 bg-amber-500/10'
+                                    : 'text-emerald-500 bg-emerald-500/10'
+                                }`}
+                              >
+                                {prob.difficulty}
+                              </span>
+                              <span
+                                className="text-xs font-bold opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all"
+                                style={{ color: selectedNodeColor }}
+                              >
+                                →
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   <div className="h-4 w-full flex-shrink-0 pointer-events-none" />
                 </div>
               )}
@@ -1571,6 +1777,9 @@ export default function TelemetryHUD() {
 
       {/* Applied Content Viewing Modal */}
       <ApplicationViewerModal />
+
+      {/* Problem Bank Viewing Modal */}
+      <ProblemViewerModal />
 
       {/* Review Diff Modal (FRO-11) */}
       <DiffViewerModal />

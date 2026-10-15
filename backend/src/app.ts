@@ -6,6 +6,8 @@ import notesRouter from './routes/notes.js';
 import todosRouter from './routes/todos.js';
 import ingestRouter from './routes/ingest.js';
 import reviewQueueRouter from './routes/reviewQueue.js';
+import quizzesRouter from './routes/quizzes.js';
+import problemsRouter from './routes/problems.js';
 
 export function createApp(): Express {
   const app = express();
@@ -29,6 +31,8 @@ export function createApp(): Express {
   app.use('/api/topics', prerequisitesRouter);
   app.use('/api', notesRouter);
   app.use('/api/todos', todosRouter);
+  app.use('/api/quizzes', quizzesRouter);
+  app.use('/api/problems', problemsRouter);
   app.use('/api/ingest', ingestRouter);
   app.use('/ingest', ingestRouter);
   app.use('/api/review-queue', reviewQueueRouter);
