@@ -11,6 +11,7 @@ class ResizeObserverMock {
   disconnect = vi.fn();
 }
 window.ResizeObserver = ResizeObserverMock as unknown as typeof ResizeObserver;
+window.HTMLElement.prototype.scrollIntoView = vi.fn();
 
 // 2. Polyfill window.matchMedia
 Object.defineProperty(window, 'matchMedia', {
