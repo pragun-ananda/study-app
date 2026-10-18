@@ -231,6 +231,48 @@ const mockFetch: typeof fetch = async (input: RequestInfo | URL, init?: RequestI
     return new Response(null, { status: 204 });
   }
 
+  // GET /api/problems/:id/follow-ups/responses
+  if (url.match(/\/api\/problems\/[^/]+\/follow-ups\/responses$/) && method === 'GET') {
+    const parts = url.split('/');
+    const problemId = parts[3];
+    const responses = (useStore.getState().followUpResponses || {})[problemId] || [];
+    return new Response(JSON.stringify(responses), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
+  // GET /api/problems/:id/follow-ups
+  if (url.match(/\/api\/problems\/[^/]+\/follow-ups$/) && method === 'GET') {
+    const followUps = useStore.getState().activeProblem?.followUps || [];
+    return new Response(JSON.stringify(followUps), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
+  // POST /api/problems/:id/follow-ups/:followUpId/response
+  if (url.match(/\/api\/problems\/[^/]+\/follow-ups\/[^/]+\/response$/) && method === 'POST') {
+    const parts = url.split('/');
+    const problemId = parts[3];
+    const followUpId = parts[5];
+    const responseDto = {
+      id: `RESP-${Date.now()}`,
+      problemId,
+      followUpId,
+      responseText: body.responseText || '',
+      diagramData: body.diagramData || null,
+      score: body.score || null,
+      feedback: body.feedback || null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    return new Response(JSON.stringify(responseDto), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
   // GET /api/problems
   if (url.startsWith('/api/problems') && method === 'GET') {
     return new Response(JSON.stringify(useStore.getState().problems || []), {

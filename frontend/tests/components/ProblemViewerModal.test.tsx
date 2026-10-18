@@ -494,6 +494,139 @@ Design a high-throughput, low-latency rate limiter service across multiple regio
       expect(screen.getByText('python')).toBeInTheDocument();
     });
   });
+
+  describe('System Design Follow-ups Drawer & Workbench', () => {
+    const mockProblemWithFollowUps: ProblemItem = {
+      ...mockProblem,
+      id: 'PROB-TRAPPING-WATER-FU',
+      title: 'Trapping Rain Water',
+      followUps: [
+        {
+          id: 'FU-STREAM-1',
+          title: 'Distributed Stream Aggregation & Flood Early Warning',
+          prompt: 'How to scale hydrological stream ingestion to 1M events/sec across Kafka partitions?',
+          rubric: {
+            stream_partitioning: 30,
+            stateful_windows: 40,
+            fault_tolerance: 30
+          },
+          hints: [
+            'Partition by geospatial watershed ID',
+            'Use Apache Flink with RocksDB checkpointing'
+          ],
+          sampleArchitecture: 'Sensors -> Kafka -> Flink -> TimescaleDB'
+        },
+        {
+          id: 'FU-ARCHIVE-2',
+          title: 'Historical Hydrological Analytics Archive',
+          prompt: 'Archive 10 years of sensor records with sub-second temporal rollups.',
+          rubric: {
+            columnar_storage: 50,
+            materialized_views: 50
+          }
+        }
+      ]
+    };
+
+    it('renders SYSTEM DESIGN tab with badge count and allows switching to follow-ups drawer', async () => {
+      useStore.getState().setActiveProblem(mockProblemWithFollowUps);
+      render(<ProblemViewerModal />);
+
+      // Tab button and count badge
+      const systemDesignTab = screen.getByTestId('problem-tab-system-design');
+      expect(systemDesignTab).toBeInTheDocument();
+      expect(screen.getByTestId('system-design-count-badge')).toHaveTextContent('2');
+
+      // Click to switch tab
+      fireEvent.click(systemDesignTab);
+
+      // Section is visible
+      expect(screen.getByTestId('problem-system-design-section')).toBeInTheDocument();
+      expect(screen.getByText('System Design Architectural Follow-Ups')).toBeInTheDocument();
+
+      // Challenge selector pills
+      expect(screen.getByTestId('followup-pill-0')).toHaveTextContent('Distributed Stream Aggregation & Flood Early Warning');
+      expect(screen.getByTestId('followup-pill-1')).toHaveTextContent('Historical Hydrological Analytics Archive');
+
+      // Prompt and Rubric cards
+      expect(screen.getByTestId('followup-prompt-card')).toHaveTextContent(/How to scale hydrological stream ingestion/i);
+      expect(screen.getByTestId('followup-rubric-card')).toHaveTextContent('stream partitioning');
+      expect(screen.getByTestId('followup-rubric-card')).toHaveTextContent('30%');
+
+      // Hints card and toggling
+      expect(screen.getByTestId('followup-hints-card')).toBeInTheDocument();
+      const hintToggle0 = screen.getByTestId('followup-hint-toggle-0');
+      fireEvent.click(hintToggle0);
+      expect(screen.getByTestId('followup-hint-content-0')).toHaveTextContent('Partition by geospatial watershed ID');
+    });
+
+    it('switches challenges when clicking pills', async () => {
+      useStore.getState().setActiveProblem(mockProblemWithFollowUps);
+      render(<ProblemViewerModal />);
+
+      fireEvent.click(screen.getByTestId('problem-tab-system-design'));
+
+      // Switch to challenge #2
+      fireEvent.click(screen.getByTestId('followup-pill-1'));
+
+      expect(screen.getByTestId('followup-prompt-card')).toHaveTextContent(/Archive 10 years of sensor records/i);
+      expect(screen.getByTestId('followup-rubric-card')).toHaveTextContent('columnar storage');
+    });
+
+    it('allows typing architectural response and saves draft', async () => {
+      const saveSpy = vi.fn().mockResolvedValue({
+        id: 'RESP-123',
+        problemId: mockProblemWithFollowUps.id,
+        followUpId: 'FU-STREAM-1',
+        responseText: 'We partition Kafka topics by watershed cell ID.',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      });
+
+      useStore.setState({
+        saveFollowUpResponse: saveSpy as any,
+        followUpResponses: {}
+      });
+
+      useStore.getState().setActiveProblem(mockProblemWithFollowUps);
+      render(<ProblemViewerModal />);
+
+      fireEvent.click(screen.getByTestId('problem-tab-system-design'));
+
+      // Find response editor textarea
+      const textarea = screen.getByTestId('followup-response-textarea');
+      fireEvent.change(textarea, { target: { value: 'We partition Kafka topics by watershed cell ID.' } });
+      expect(textarea).toHaveValue('We partition Kafka topics by watershed cell ID.');
+
+      // Click Save Architecture Draft
+      const saveBtn = screen.getByTestId('save-followup-response-btn');
+      fireEvent.click(saveBtn);
+
+      await waitFor(() => {
+        expect(saveSpy).toHaveBeenCalledWith(
+          mockProblemWithFollowUps.id,
+          'FU-STREAM-1',
+          { responseText: 'We partition Kafka topics by watershed cell ID.' }
+        );
+        expect(screen.getByText('Saved')).toBeInTheDocument();
+      });
+    });
+
+    it('renders empty state when problem has no follow-ups', () => {
+      const problemWithoutFollowUps: ProblemItem = {
+        ...mockProblem,
+        id: 'PROB-NO-FU',
+        followUps: []
+      };
+
+      useStore.getState().setActiveProblem(problemWithoutFollowUps);
+      render(<ProblemViewerModal />);
+
+      fireEvent.click(screen.getByTestId('problem-tab-system-design'));
+      expect(screen.getByTestId('no-followups-message')).toBeInTheDocument();
+      expect(screen.getByText('No System Design Follow-Ups')).toBeInTheDocument();
+    });
+  });
 });
 
 

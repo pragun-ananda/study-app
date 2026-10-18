@@ -147,7 +147,21 @@ export default function ProblemViewerModal() {
   const problemSubmissions = useStore((state) => state.problemSubmissions);
   const submissions = activeProblem ? problemSubmissions[activeProblem.id] || [] : [];
 
-  const [activeTab, setActiveTab] = useState<'PROMPT' | 'SOLUTION' | 'QUIZ' | 'SUBMISSIONS'>('PROMPT');
+  // Stage 5 System Design Follow-Ups Store Hooks & State
+  const fetchFollowUpResponses = useStore((state) => state.fetchFollowUpResponses);
+  const saveFollowUpResponse = useStore((state) => state.saveFollowUpResponse);
+  const followUpResponsesMap = useStore((state) => state.followUpResponses);
+  const isSavingFollowUp = useStore((state) => state.isSavingFollowUp);
+  const followUpResponses = activeProblem ? followUpResponsesMap[activeProblem.id] || [] : [];
+  const followUps = activeProblem?.followUps || [];
+
+  const [activeTab, setActiveTab] = useState<'PROMPT' | 'SOLUTION' | 'QUIZ' | 'SUBMISSIONS' | 'SYSTEM_DESIGN'>('PROMPT');
+  const [selectedFollowUpIndex, setSelectedFollowUpIndex] = useState<number>(0);
+  const [followUpResponseText, setFollowUpResponseText] = useState<string>('');
+  const [revealedFollowUpHints, setRevealedFollowUpHints] = useState<number[]>([]);
+  const [showSampleArchitecture, setShowSampleArchitecture] = useState<boolean>(false);
+  const [followUpSavedSuccess, setFollowUpSavedSuccess] = useState<boolean>(false);
+
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [submissionResult, setSubmissionResult] = useState<ProblemSubmission | null>(null);
   const [isSubmissionModalOpen, setIsSubmissionModalOpen] = useState<boolean>(false);
@@ -259,6 +273,42 @@ export default function ProblemViewerModal() {
       bodyRef.current.scrollTop = 0;
     }
   }, [activeTab, activeProblem?.id]);
+
+  const activeFollowUp = followUps[selectedFollowUpIndex] || null;
+
+  useEffect(() => {
+    if (activeProblem?.id) {
+      fetchFollowUpResponses(activeProblem.id);
+    }
+    setSelectedFollowUpIndex(0);
+    setRevealedFollowUpHints([]);
+    setShowSampleArchitecture(false);
+  }, [activeProblem?.id]);
+
+  useEffect(() => {
+    if (activeFollowUp && activeProblem?.id) {
+      const existing = followUpResponses.find((r) => r.followUpId === activeFollowUp.id);
+      setFollowUpResponseText(existing?.responseText || '');
+      setRevealedFollowUpHints([]);
+      setShowSampleArchitecture(false);
+      setFollowUpSavedSuccess(false);
+    } else {
+      setFollowUpResponseText('');
+    }
+  }, [selectedFollowUpIndex, activeProblem?.id, followUpResponses.length]);
+
+  const handleSaveFollowUpResponse = async () => {
+    if (!activeProblem?.id || !activeFollowUp) return;
+    try {
+      await saveFollowUpResponse(activeProblem.id, activeFollowUp.id, {
+        responseText: followUpResponseText
+      });
+      setFollowUpSavedSuccess(true);
+      setTimeout(() => setFollowUpSavedSuccess(false), 3000);
+    } catch (err) {
+      console.error('Failed to save follow-up response', err);
+    }
+  };
 
   const handleStartEdit = () => {
     if (activeProblem) {
@@ -982,6 +1032,32 @@ export default function ProblemViewerModal() {
                 {submissions.length > 0 && (
                   <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] bg-emerald-500/20 text-emerald-400 font-mono">
                     {submissions.length}
+                  </span>
+                )}
+              </button>
+
+              <button
+                onClick={() => {
+                  setActiveTab('SYSTEM_DESIGN');
+                  if (activeProblem?.id) {
+                    fetchFollowUpResponses(activeProblem.id);
+                  }
+                }}
+                data-testid="problem-tab-system-design"
+                className={`px-3 py-2 border-b-2 transition-colors flex items-center gap-1.5 ${
+                  activeTab === 'SYSTEM_DESIGN'
+                    ? isLight
+                      ? 'border-sky-600 text-sky-600'
+                      : 'border-[#00f0ff] text-[#00f0ff]'
+                    : isLight
+                    ? 'border-transparent text-slate-500 hover:text-slate-800'
+                    : 'border-transparent text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Layers size={13} /> SYSTEM DESIGN
+                {followUps.length > 0 && (
+                  <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] bg-purple-500/20 text-purple-400 font-mono" data-testid="system-design-count-badge">
+                    {followUps.length}
                   </span>
                 )}
               </button>
@@ -2419,6 +2495,334 @@ export default function ProblemViewerModal() {
                         ))}
                       </tbody>
                     </table>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* TAB 5: SYSTEM DESIGN FOLLOW-UPS */}
+            {activeTab === 'SYSTEM_DESIGN' && (
+              <div className="space-y-6" data-testid="problem-system-design-section">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-base font-bold flex items-center gap-2">
+                      <Layers size={16} className="text-purple-400" />
+                      System Design Architectural Follow-Ups
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Scale algorithmic solutions to real-world distributed architectures, streaming pipelines, and fault-tolerant cloud services.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('PROMPT')}
+                    data-testid="return-to-code-btn"
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase transition-all border flex items-center gap-1.5 cursor-pointer ${
+                      isLight
+                        ? 'bg-white hover:bg-slate-100 text-slate-800 border-slate-300'
+                        : 'bg-slate-900 hover:bg-slate-800 text-slate-200 border-slate-700'
+                    }`}
+                  >
+                    <Code size={13} />
+                    <span>Back to Code</span>
+                  </button>
+                </div>
+
+                {followUps.length === 0 ? (
+                  <div
+                    className={`p-10 text-center rounded-xl border flex flex-col items-center justify-center gap-3 ${
+                      isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-900/40 border-slate-800'
+                    }`}
+                    data-testid="no-followups-message"
+                  >
+                    <div className="w-12 h-12 rounded-full bg-purple-500/10 flex items-center justify-center text-purple-400">
+                      <Layers size={24} />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold">No System Design Follow-Ups</h4>
+                      <p className="text-xs text-slate-400 mt-1 max-w-sm">
+                        This problem currently has no registered system design follow-up challenges.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {/* Challenge Selector Pills */}
+                    <div className="flex items-center gap-2 flex-wrap" data-testid="followup-challenge-selector">
+                      {followUps.map((fu, idx) => {
+                        const hasResponse = followUpResponses.some(
+                          (r) => r.followUpId === fu.id && r.responseText && r.responseText.trim().length > 0
+                        );
+                        const isSelected = selectedFollowUpIndex === idx;
+                        return (
+                          <button
+                            key={fu.id || idx}
+                            type="button"
+                            onClick={() => setSelectedFollowUpIndex(idx)}
+                            data-testid={`followup-pill-${idx}`}
+                            className={`px-3 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 cursor-pointer border ${
+                              isSelected
+                                ? isLight
+                                  ? 'bg-purple-50 text-purple-700 border-purple-400 shadow-sm'
+                                  : 'bg-purple-950/60 text-purple-300 border-purple-500 shadow-[0_0_15px_rgba(168,85,247,0.2)]'
+                                : isLight
+                                ? 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                                : 'bg-slate-900/70 text-slate-400 border-slate-800 hover:bg-slate-800/80 hover:text-slate-200'
+                            }`}
+                          >
+                            <span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-mono bg-purple-500/20 text-purple-400 font-bold">
+                              {idx + 1}
+                            </span>
+                            <span className="truncate max-w-[220px]">{fu.title}</span>
+                            {hasResponse && (
+                              <span
+                                title="Draft response saved"
+                                className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]"
+                              />
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {activeFollowUp && (
+                      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                        {/* LEFT COLUMN: PROMPT, RUBRIC & HINTS */}
+                        <div className="lg:col-span-7 space-y-6">
+                          {/* Prompt & Requirements Card */}
+                          <div
+                            className={`p-5 rounded-xl border ${
+                              isLight ? 'bg-white border-slate-200 shadow-sm' : 'bg-slate-900/60 border-slate-800'
+                            }`}
+                            data-testid="followup-prompt-card"
+                          >
+                            <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-800/50">
+                              <h4 className="text-sm font-bold flex items-center gap-2 text-purple-400 font-mono">
+                                <Award size={14} />
+                                Challenge #{selectedFollowUpIndex + 1}: {activeFollowUp.title}
+                              </h4>
+                              <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-purple-500/10 text-purple-300 border border-purple-500/20">
+                                Scalability & Architecture
+                              </span>
+                            </div>
+
+                            <div className="prose prose-invert prose-xs max-w-none text-slate-300">
+                              <MarkdownContent content={activeFollowUp.prompt} />
+                            </div>
+                          </div>
+
+                          {/* Architectural Rubric Breakdown */}
+                          {activeFollowUp.rubric && Object.keys(activeFollowUp.rubric).length > 0 && (
+                            <div
+                              className={`p-5 rounded-xl border ${
+                                isLight ? 'bg-white border-slate-200 shadow-sm' : 'bg-slate-900/60 border-slate-800'
+                              }`}
+                              data-testid="followup-rubric-card"
+                            >
+                              <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-1.5">
+                                <Award size={14} className="text-amber-400" />
+                                Architectural Evaluation Rubric
+                              </h4>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                {Object.entries(activeFollowUp.rubric).map(([criteria, weight]) => (
+                                  <div
+                                    key={criteria}
+                                    className={`p-3 rounded-lg border flex flex-col justify-between ${
+                                      isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-950/60 border-slate-800/80'
+                                    }`}
+                                  >
+                                    <div className="flex items-center justify-between text-xs mb-1.5">
+                                      <span className="font-medium capitalize text-slate-300">
+                                        {criteria.replace(/_/g, ' ')}
+                                      </span>
+                                      <span className="font-mono font-bold text-amber-400">
+                                        {weight}%
+                                      </span>
+                                    </div>
+                                    <div className="w-full h-1.5 rounded-full bg-slate-800 overflow-hidden">
+                                      <div
+                                        className="h-full bg-gradient-to-r from-purple-500 to-amber-400 rounded-full"
+                                        style={{ width: `${weight}%` }}
+                                      />
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Progressive Hints Accordion */}
+                          {activeFollowUp.hints && activeFollowUp.hints.length > 0 && (
+                            <div
+                              className={`p-5 rounded-xl border ${
+                                isLight ? 'bg-white border-slate-200 shadow-sm' : 'bg-slate-900/60 border-slate-800'
+                              }`}
+                              data-testid="followup-hints-card"
+                            >
+                              <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-1.5">
+                                <HelpCircle size={14} className="text-sky-400" />
+                                Progressive Interview Hints ({activeFollowUp.hints.length})
+                              </h4>
+                              <div className="space-y-2">
+                                {activeFollowUp.hints.map((hint, hintIdx) => {
+                                  const isRevealed = revealedFollowUpHints.includes(hintIdx);
+                                  return (
+                                    <div
+                                      key={hintIdx}
+                                      className={`rounded-lg border transition-all ${
+                                        isLight ? 'border-slate-200' : 'border-slate-800/80'
+                                      }`}
+                                    >
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          if (isRevealed) {
+                                            setRevealedFollowUpHints(revealedFollowUpHints.filter((h) => h !== hintIdx));
+                                          } else {
+                                            setRevealedFollowUpHints([...revealedFollowUpHints, hintIdx]);
+                                          }
+                                        }}
+                                        className={`w-full px-4 py-2.5 text-left text-xs font-bold flex items-center justify-between cursor-pointer ${
+                                          isRevealed
+                                            ? isLight
+                                              ? 'bg-sky-50 text-sky-800'
+                                              : 'bg-sky-950/30 text-sky-300'
+                                            : isLight
+                                            ? 'bg-slate-50 text-slate-600 hover:bg-slate-100'
+                                            : 'bg-slate-900/40 text-slate-400 hover:text-slate-200'
+                                        }`}
+                                        data-testid={`followup-hint-toggle-${hintIdx}`}
+                                      >
+                                        <span className="flex items-center gap-2">
+                                          <Sparkles size={12} className="text-sky-400" />
+                                          Hint #{hintIdx + 1}
+                                        </span>
+                                        {isRevealed ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                                      </button>
+                                      {isRevealed && (
+                                        <div
+                                          className={`p-3.5 text-xs border-t ${
+                                            isLight ? 'bg-white border-slate-200 text-slate-700' : 'bg-slate-950 text-slate-300 border-slate-800/60'
+                                          }`}
+                                          data-testid={`followup-hint-content-${hintIdx}`}
+                                        >
+                                          <MarkdownContent content={hint} />
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Reference Architecture Peeking */}
+                          {activeFollowUp.sampleArchitecture && (
+                            <div
+                              className={`p-5 rounded-xl border ${
+                                isLight ? 'bg-white border-slate-200 shadow-sm' : 'bg-slate-900/60 border-slate-800'
+                              }`}
+                            >
+                              <button
+                                type="button"
+                                onClick={() => setShowSampleArchitecture(!showSampleArchitecture)}
+                                data-testid="toggle-sample-architecture-btn"
+                                className="w-full text-left text-xs font-mono font-bold text-slate-400 hover:text-slate-200 flex items-center justify-between cursor-pointer"
+                              >
+                                <span className="flex items-center gap-2 text-purple-400">
+                                  <BookOpen size={14} />
+                                  Reference Solution & Canonical Topology
+                                </span>
+                                {showSampleArchitecture ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                              </button>
+                              {showSampleArchitecture && (
+                                <div className="mt-3 pt-3 border-t border-slate-800/60 text-xs text-slate-300 leading-relaxed font-mono">
+                                  <MarkdownContent content={activeFollowUp.sampleArchitecture} />
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* RIGHT COLUMN: WRITTEN ARCHITECTURE RESPONSE WORKBENCH */}
+                        <div className="lg:col-span-5 space-y-4 flex flex-col">
+                          <div
+                            className={`p-5 rounded-xl border flex-1 flex flex-col ${
+                              isLight ? 'bg-white border-slate-200 shadow-sm' : 'bg-slate-900/60 border-slate-800'
+                            }`}
+                            data-testid="followup-response-editor-card"
+                          >
+                            <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-800/60">
+                              <div>
+                                <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                                  <Edit3 size={13} className="text-purple-400" />
+                                  Your Architecture Response
+                                </h4>
+                                <span className="text-[10px] text-slate-400">
+                                  Write your capacity math, partition keys, component breakdown, and trade-offs.
+                                </span>
+                              </div>
+
+                              {/* Status Indicator */}
+                              {followUpSavedSuccess ? (
+                                <span className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold font-mono bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 animate-pulse">
+                                  <Check size={11} /> Saved
+                                </span>
+                              ) : (
+                                <span className="text-[10px] font-mono text-slate-500">
+                                  {followUpResponseText.length} chars
+                                </span>
+                              )}
+                            </div>
+
+                            <textarea
+                              value={followUpResponseText}
+                              onChange={(e) => setFollowUpResponseText(e.target.value)}
+                              placeholder={`# High-Level Architecture\n\n### 1. Ingestion & Partitioning\n- Kafka partitions keyed by WatershedID...\n\n### 2. Stream Processing Topology\n- Apache Flink stateful tumbling windows...\n\n### 3. Fault Tolerance & Out-of-Order Events\n- RocksDB checkpoints + watermark heuristics...`}
+                              data-testid="followup-response-textarea"
+                              className={`w-full flex-1 min-h-[340px] p-4 rounded-lg font-mono text-xs leading-relaxed resize-y focus:outline-none focus:ring-1 ${
+                                isLight
+                                  ? 'bg-slate-50 border border-slate-200 text-slate-900 focus:ring-purple-500'
+                                  : 'bg-slate-950/80 border border-slate-800 text-slate-100 focus:ring-purple-400'
+                              }`}
+                            />
+
+                            <div className="mt-4 flex items-center justify-between pt-3 border-t border-slate-800/60">
+                              <span className="text-[10px] text-slate-400 font-mono">
+                                Markdown syntax supported
+                              </span>
+
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={handleSaveFollowUpResponse}
+                                  disabled={isSavingFollowUp}
+                                  data-testid="save-followup-response-btn"
+                                  className={`px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider flex items-center gap-2 cursor-pointer transition-all ${
+                                    isSavingFollowUp
+                                      ? 'bg-purple-800 text-slate-300 cursor-not-allowed'
+                                      : 'bg-purple-600 hover:bg-purple-500 text-white shadow-[0_0_15px_rgba(168,85,247,0.3)]'
+                                  }`}
+                                >
+                                  {isSavingFollowUp ? (
+                                    <>
+                                      <Loader2 size={13} className="animate-spin" />
+                                      <span>Saving...</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Save size={13} />
+                                      <span>Save Architecture Draft</span>
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

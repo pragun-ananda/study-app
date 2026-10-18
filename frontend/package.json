@@ -4,8 +4,8 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
+    "dev": "node scripts/start-dev.mjs",
+    "build": "tsc && node scripts/build-prod.mjs",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
