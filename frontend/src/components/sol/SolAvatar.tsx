@@ -275,6 +275,7 @@ interface SolAvatarProps {
 
 export default function SolAvatar({ className = '', isHovered = false, onClick }: SolAvatarProps) {
   const mood = useSolStore((state) => state.solMood);
+  const isOpen = useSolStore((state) => state.isOpen);
   const containerRef = useRef<HTMLDivElement>(null);
   const containerRectRef = useRef<DOMRect | null>(null);
 
@@ -296,6 +297,18 @@ export default function SolAvatar({ className = '', isHovered = false, onClick }
       window.removeEventListener('scroll', updateRect);
     };
   }, []);
+
+  // Recalculate avatar bounding rect when split drawer opens/closes
+  useEffect(() => {
+    const updateRect = () => {
+      if (containerRef.current) {
+        containerRectRef.current = containerRef.current.getBoundingClientRect();
+      }
+    };
+    updateRect();
+    const timer = setTimeout(updateRect, 320);
+    return () => clearTimeout(timer);
+  }, [isOpen]);
 
   return (
     <div

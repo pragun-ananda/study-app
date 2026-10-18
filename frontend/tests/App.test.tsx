@@ -3,6 +3,7 @@ import { render, fireEvent, screen, act } from '@testing-library/react';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import App from '../src/App';
 import { useStore } from '../src/store/useStore';
+import { useSolStore } from '../src/store/useSolStore';
 
 // Mock SceneCanvas to isolate App keyboard controls and DOM mounting
 vi.mock('../src/components/canvas/SceneCanvas', () => ({
@@ -194,6 +195,31 @@ describe('App Component', () => {
     expect(useStore.getState().isCreateNodeOpen).toBe(false);
 
     document.body.removeChild(select);
+  });
+
+  it('applies split-screen layout classes to main viewport and renders SolChatDrawer when Sol chat opens', () => {
+    useSolStore.getState().setIsOpen(false);
+    const { rerender } = render(<App />);
+
+    const viewport = screen.getByTestId('main-content-viewport');
+    expect(viewport.className).toContain('right-0');
+    expect(viewport.className).not.toContain('sm:right-[400px]');
+    expect(screen.queryByTestId('sol-chat-drawer')).not.toBeInTheDocument();
+
+    // Open Sol chat
+    act(() => {
+      useSolStore.getState().setIsOpen(true);
+    });
+    rerender(<App />);
+
+    expect(viewport.className).toContain('sm:right-[400px]');
+    expect(viewport.className).toContain('md:right-[440px]');
+    expect(viewport.className).toContain('lg:right-[460px]');
+    expect(screen.getByTestId('sol-chat-drawer')).toBeInTheDocument();
+
+    // Escape dismisses Sol chat drawer
+    fireEvent.keyDown(window, { key: 'Escape', code: 'Escape' });
+    expect(useSolStore.getState().isOpen).toBe(false);
   });
 });
 
