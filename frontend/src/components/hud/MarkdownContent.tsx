@@ -80,12 +80,19 @@ export function CodeBlock({ language, codeString, nodeColor, isLight = false }: 
         <SyntaxHighlighter
           language={language || 'text'}
           style={isLight ? oneLight : dracula}
+          showLineNumbers={true}
           customStyle={{
             margin: 0,
             padding: '1rem',
             background: 'transparent',
             fontSize: '11.5px',
             lineHeight: '1.6'
+          }}
+          lineNumberStyle={{
+            minWidth: '2.5em',
+            paddingRight: '1em',
+            color: isLight ? '#94a3b8' : '#475569',
+            userSelect: 'none'
           }}
           codeTagProps={{
             style: {

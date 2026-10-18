@@ -174,4 +174,64 @@ test.describe('Interview Problem Library & Content Editor E2E (BAC-38 / FRO-18)'
     await page.keyboard.press('Escape');
     await expect(modal).not.toBeVisible();
   });
+
+  test('interacts with Monaco code workbench in dual-pane split view, switches language, adjusts font size, and toggles layout', async ({ page }) => {
+    // Open sidebar and launch first coding problem
+    await page.getByLabel('Toggle study panel').click();
+    await page.getByTestId('sidebar-tab-problems').click();
+    const codingProblem = page.getByTestId('sidebar-problem-card').filter({ hasText: /Trapping Rain Water/i }).first();
+    if (await codingProblem.count() > 0) {
+      await codingProblem.click();
+    } else {
+      await page.getByTestId('sidebar-problem-card').first().click();
+    }
+
+    const modal = page.getByTestId('problem-viewer-modal');
+    await expect(modal).toBeVisible();
+
+    // Verify dual-pane layout: Left pane (prompt) + Right pane (code workbench)
+    const leftPane = page.getByTestId('problem-prompt-left-pane');
+    const workbench = page.getByTestId('problem-code-workbench');
+    await expect(leftPane).toBeVisible();
+    await expect(workbench).toBeVisible();
+
+    // Verify Monaco editor container inside workbench
+    const monacoContainer = page.getByTestId('monaco-editor-container');
+    await expect(monacoContainer).toBeVisible();
+
+    // Verify workbench language tabs and switch to typescript
+    const pythonTab = page.getByTestId('workbench-lang-tab-python');
+    await expect(pythonTab).toBeVisible();
+    const tsTab = page.getByTestId('workbench-lang-tab-typescript');
+    if (await tsTab.count() > 0) {
+      await tsTab.click();
+      await expect(tsTab).toHaveClass(/bg-sky-600|bg-\[#00f0ff\]/);
+    }
+
+    // Verify font size controls
+    const increaseFontBtn = page.getByTestId('increase-font-btn');
+    await expect(increaseFontBtn).toBeVisible();
+    await increaseFontBtn.click();
+    await expect(workbench.getByText('14px')).toBeVisible();
+
+    // Verify Run Code and Submit action buttons
+    const runBtn = page.getByTestId('run-code-btn');
+    const submitBtn = page.getByTestId('submit-solution-btn');
+    await expect(runBtn).toBeVisible();
+    await expect(submitBtn).toBeVisible();
+
+    // Verify Layout Toggle (Split View -> Full Prompt -> Split View)
+    const layoutToggleBtn = page.getByTestId('toggle-workbench-layout-btn');
+    await expect(layoutToggleBtn).toBeVisible();
+    await layoutToggleBtn.click();
+
+    // In Full Prompt mode, workbench is hidden and full prompt is displayed
+    await expect(workbench).not.toBeVisible();
+    await expect(page.getByTestId('problem-starter-code-box')).toBeVisible();
+
+    // Toggle back to split view
+    await layoutToggleBtn.click();
+    await expect(workbench).toBeVisible();
+  });
 });
+
