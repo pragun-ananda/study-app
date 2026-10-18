@@ -45,9 +45,9 @@ describe('TopologicalSubgraph Component', () => {
     expect(screen.getByTestId('topological-mode-list-btn')).toBeInTheDocument();
 
     // Check legend items
-    expect(screen.getByText(/Needs \(1\)/i)).toBeInTheDocument();
+    expect(screen.getByText(/Prerequisites \(1\)/i)).toBeInTheDocument();
     expect(screen.getByText('Current', { exact: true })).toBeInTheDocument();
-    expect(screen.getByText(/Parents \(1\)/i)).toBeInTheDocument();
+    expect(screen.getByText(/Learn Next \(1\)/i)).toBeInTheDocument();
 
     // SVG elements
     expect(screen.getByTestId('topo-node-A')).toBeInTheDocument();
@@ -88,9 +88,9 @@ describe('TopologicalSubgraph Component', () => {
     fireEvent.click(screen.getByTestId('topological-mode-list-btn'));
 
     expect(screen.getByTestId('topological-step-list')).toBeInTheDocument();
-    expect(screen.getByText(/1\. PREREQUISITES \/ NEEDS/i)).toBeInTheDocument();
+    expect(screen.getByText(/1\. PREREQUISITES/i)).toBeInTheDocument();
     expect(screen.getByText(/2\. CURRENT ACTIVE TOPIC/i)).toBeInTheDocument();
-    expect(screen.getByText(/3\. PARENT TOPICS \/ UNLOCKS/i)).toBeInTheDocument();
+    expect(screen.getByText(/3\. LEARN NEXT/i)).toBeInTheDocument();
 
     // Items present in list
     expect(screen.getByText('Foundations A')).toBeInTheDocument();
@@ -113,7 +113,7 @@ describe('TopologicalSubgraph Component', () => {
     );
 
     expect(screen.getByText(/Foundational topic \(No prior prerequisites required\)/i)).toBeInTheDocument();
-    expect(screen.getByText(/Needs \(0\)/i)).toBeInTheDocument();
+    expect(screen.getByText(/Prerequisites \(0\)/i)).toBeInTheDocument();
   });
 
   it('displays end of branch banner when topic has zero downstream unlocks', () => {
@@ -127,6 +127,6 @@ describe('TopologicalSubgraph Component', () => {
     );
 
     expect(screen.getByText(/End of branch \(No downstream topics currently unlock from this node\)/i)).toBeInTheDocument();
-    expect(screen.getByText(/Parents \(0\)/i)).toBeInTheDocument();
+    expect(screen.getByText(/Learn Next \(0\)/i)).toBeInTheDocument();
   });
 });

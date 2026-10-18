@@ -149,10 +149,10 @@ test.describe('Telemetry HUD & User Controls (FRO-9)', () => {
     await expect(topoContainer).toBeVisible();
     await expect(topoContainer.getByText('Topological Flow', { exact: true })).toBeVisible();
 
-    // 3. Verify legend with 3 groups: Needs, Current, Parents
-    await expect(topoContainer.getByText(/Needs/i).first()).toBeVisible();
+    // 3. Verify legend with 3 groups: Prerequisites, Current, Learn Next
+    await expect(topoContainer.getByText(/Prerequisites/i).first()).toBeVisible();
     await expect(topoContainer.getByText('Current', { exact: true })).toBeVisible();
-    await expect(topoContainer.getByText(/Parents/i).first()).toBeVisible();
+    await expect(topoContainer.getByText(/Learn Next/i).first()).toBeVisible();
 
     // 4. Verify 2D Flow SVG is rendered
     const topoCanvas = topoContainer.locator('svg[role="img"]');
@@ -164,9 +164,9 @@ test.describe('Telemetry HUD & User Controls (FRO-9)', () => {
 
     const stepList = inspector.getByTestId('topological-step-list');
     await expect(stepList).toBeVisible();
-    await expect(stepList.getByText(/1\. PREREQUISITES \/ NEEDS/i)).toBeVisible();
+    await expect(stepList.getByText(/1\. PREREQUISITES/i)).toBeVisible();
     await expect(stepList.getByText(/2\. CURRENT ACTIVE TOPIC/i)).toBeVisible();
-    await expect(stepList.getByText(/3\. PARENT TOPICS \/ UNLOCKS/i)).toBeVisible();
+    await expect(stepList.getByText(/3\. LEARN NEXT/i)).toBeVisible();
 
     // 6. Switch back to 2D Flow view
     const flowBtn = inspector.getByTestId('topological-mode-flow-btn');

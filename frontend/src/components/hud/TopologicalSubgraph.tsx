@@ -154,7 +154,7 @@ export function TopologicalSubgraph({
             <div className="flex items-center gap-1" title="Prerequisites needed before this node">
               <span className="w-2 h-2 rounded-full bg-amber-500" />
               <span className="font-semibold text-amber-600 dark:text-amber-400">
-                Needs ({layout.needsCount})
+                Prerequisites ({layout.needsCount})
               </span>
             </div>
             <div className="flex items-center gap-1" title="Currently selected topic">
@@ -163,10 +163,10 @@ export function TopologicalSubgraph({
                 Current
               </span>
             </div>
-            <div className="flex items-center gap-1" title="Downstream concepts that require this node">
+            <div className="flex items-center gap-1" title="Topics unlocked next by this node">
               <span className="w-2 h-2 rounded-full bg-emerald-500" />
               <span className="font-semibold text-emerald-600 dark:text-emerald-400">
-                Parents ({layout.parentsCount})
+                Learn Next ({layout.parentsCount})
               </span>
             </div>
           </div>
@@ -389,12 +389,12 @@ export function TopologicalSubgraph({
       ) : (
         /* Step-by-Step List Mode */
         <div className="p-2.5 space-y-3" data-testid="topological-step-list">
-          {/* 1. Needs Section */}
+          {/* 1. Prerequisites Section */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between text-[10px] font-bold text-amber-600">
               <span className="flex items-center gap-1">
                 <ShieldAlert size={12} />
-                <span>1. PREREQUISITES / NEEDS</span>
+                <span>1. PREREQUISITES</span>
               </span>
               <span>{layout.needsCount} STEPS</span>
             </div>
@@ -461,12 +461,12 @@ export function TopologicalSubgraph({
             </div>
           )}
 
-          {/* 3. Parent / Unlocks Section */}
+          {/* 3. Learn Next / Unlocks Section */}
           <div className="space-y-1.5 pt-1 border-t border-dashed border-white/10">
             <div className="flex items-center justify-between text-[10px] font-bold text-emerald-600 dark:text-[#00ff9d]">
               <span className="flex items-center gap-1">
                 <Zap size={12} />
-                <span>3. PARENT TOPICS / UNLOCKS</span>
+                <span>3. LEARN NEXT</span>
               </span>
               <span>{layout.parentsCount} TOPICS</span>
             </div>
