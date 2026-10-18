@@ -3,6 +3,7 @@ import { render, fireEvent, screen, act } from '@testing-library/react';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import App from '../src/App';
 import { useStore } from '../src/store/useStore';
+import { useSolStore } from '../src/store/useSolStore';
 
 // Mock SceneCanvas to isolate App keyboard controls and DOM mounting
 vi.mock('../src/components/canvas/SceneCanvas', () => ({
@@ -197,7 +198,6 @@ describe('App Component', () => {
   });
 
   it('applies split-screen layout classes to main viewport and renders SolChatDrawer when Sol chat opens', () => {
-    const { useSolStore } = require('../src/store/useSolStore');
     useSolStore.getState().setIsOpen(false);
     const { rerender } = render(<App />);
 
