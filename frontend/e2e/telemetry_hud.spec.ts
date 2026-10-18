@@ -39,7 +39,7 @@ test.describe('Telemetry HUD & User Controls (FRO-9)', () => {
     await expect(inspector).toBeVisible();
     // Verify prerequisites & learn next unlock chains are listed
     await expect(inspector.getByText(/PREREQUISITES/i).first()).toBeVisible();
-    await expect(inspector.getByText(/LEARN NEXT/i)).toBeVisible();
+    await expect(inspector.getByText(/LEARN NEXT/i).first()).toBeVisible();
     await expect(inspector.locator('span').filter({ hasText: 'Paxos Protocol' }).first()).toBeVisible();
 
     // Close Inspector

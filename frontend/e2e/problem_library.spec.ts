@@ -383,5 +383,90 @@ test.describe('Interview Problem Library & Content Editor E2E (BAC-38 / FRO-18)'
     await backBtn.click();
     await expect(submissionModal).not.toBeVisible();
   });
+
+  test('discovers system design follow-ups, switches challenges, and saves architectural draft', async ({ page }) => {
+    // Open left sidebar drawer
+    await page.getByLabel('Toggle study panel').click();
+    await page.getByTestId('sidebar-tab-problems').click();
+
+    // Select problem card with follow-ups (Trapping Rain Water or Rate Limiter)
+    const problemCards = page.getByTestId('sidebar-problem-card');
+    await expect(problemCards.first()).toBeVisible({ timeout: 10000 });
+    const targetCard = problemCards.filter({ hasText: /Trapping Rain Water|Rate Limiter|LRU Cache/i }).first();
+    if (await targetCard.count() > 0) {
+      await targetCard.click();
+    } else {
+      await problemCards.first().click();
+    }
+
+    const modal = page.getByTestId('problem-viewer-modal');
+    await expect(modal).toBeVisible();
+
+    // Verify SYSTEM DESIGN tab is present with badge count
+    const systemDesignTab = page.getByTestId('problem-tab-system-design');
+    await expect(systemDesignTab).toBeVisible();
+    const countBadge = page.getByTestId('system-design-count-badge');
+    await expect(countBadge).toBeVisible();
+    await expect(countBadge).toHaveText(/[1-9]/);
+
+    // Switch to SYSTEM DESIGN tab
+    await systemDesignTab.click();
+
+    // Verify system design section is visible
+    const systemDesignSection = page.getByTestId('problem-system-design-section');
+    await expect(systemDesignSection).toBeVisible();
+    await expect(page.getByText(/System Design Architectural Follow-Ups/i)).toBeVisible();
+
+    // Verify challenge selector pills
+    const firstPill = page.getByTestId('followup-pill-0');
+    await expect(firstPill).toBeVisible();
+
+    // Verify prompt card and rubric card
+    await expect(page.getByTestId('followup-prompt-card')).toBeVisible();
+    await expect(page.getByTestId('followup-rubric-card')).toBeVisible();
+
+    // Capture screenshot of follow-up drawer showing challenges and rubric
+    await page.waitForTimeout(500);
+    await modal.screenshot({
+      path: '/Users/cheese/.gemini/antigravity/brain/fed3126a-a4b9-406d-97d7-77339209d8ec/system_design_followups_drawer.png'
+    });
+
+    // If there is a second challenge pill, switch to it and verify
+    const secondPill = page.getByTestId('followup-pill-1');
+    if (await secondPill.count() > 0) {
+      await secondPill.click();
+      await expect(page.getByTestId('followup-prompt-card')).toBeVisible();
+      // Switch back to first pill
+      await firstPill.click();
+    }
+
+    // Toggle progressive hint
+    const hintToggle = page.getByTestId('followup-hint-toggle-0');
+    if (await hintToggle.count() > 0) {
+      await hintToggle.click();
+      await expect(page.getByTestId('followup-hint-content-0')).toBeVisible();
+    }
+
+    // Type candidate architectural response into editor
+    const responseTextarea = page.getByTestId('followup-response-textarea');
+    await expect(responseTextarea).toBeVisible();
+    const testArchitectureText = '### Distributed Stream Architecture\n\n1. **Kafka Partitioning**: Keyed by Watershed Cell ID.\n2. **Flink Streaming Topology**: 5-minute tumbling windows computing reservoir deltas.\n3. **Storage Tiering**: TimescaleDB hot storage + S3 Parquet cold archive.';
+    await responseTextarea.fill(testArchitectureText);
+
+    // Click Save Architecture Draft
+    const saveBtn = page.getByTestId('save-followup-response-btn');
+    await expect(saveBtn).toBeVisible();
+    await saveBtn.click();
+
+    // Verify saved status indicator appears
+    await expect(page.getByText('Saved')).toBeVisible({ timeout: 5000 });
+
+    // Capture screenshot of response editor with saved draft and rubric
+    await page.waitForTimeout(500);
+    await modal.screenshot({
+      path: '/Users/cheese/.gemini/antigravity/brain/fed3126a-a4b9-406d-97d7-77339209d8ec/system_design_followup_response_editor.png'
+    });
+  });
 });
+
 

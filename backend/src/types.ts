@@ -152,6 +152,15 @@ export interface StudyTodoRow {
 export type ProblemType = 'CODING' | 'SYSTEM_DESIGN' | 'ML_SYSTEM_DESIGN' | 'OBJECT_ORIENTED_DESIGN';
 export type ProblemDifficulty = 'EASY' | 'MEDIUM' | 'HARD';
 
+export interface SystemDesignFollowUp {
+  id: string;
+  title: string;
+  prompt: string;
+  rubric: Record<string, number>;
+  hints?: string[];
+  sampleArchitecture?: string;
+}
+
 export interface ProblemRow {
   id: string;
   title: string;
@@ -165,6 +174,7 @@ export interface ProblemRow {
   starter_code: any;
   test_cases: any;
   rubric: any;
+  follow_ups: any;
   target_companies: string[];
   time_limit_minutes: number;
   created_at: string | Date;
@@ -194,6 +204,7 @@ export interface ProblemDTO {
   starterCode: Record<string, string>;
   testCases: Array<{ input: any; expected: any; explanation?: string }>;
   rubric?: Record<string, any>;
+  followUps?: SystemDesignFollowUp[];
   targetCompanies: string[];
   timeLimitMinutes: number;
   prerequisiteTopicIds?: string[];
@@ -216,6 +227,7 @@ export interface CreateProblemPayload {
   starterCode?: Record<string, string>;
   testCases?: Array<{ input: any; expected: any; explanation?: string }>;
   rubric?: Record<string, any>;
+  followUps?: SystemDesignFollowUp[];
   targetCompanies?: string[];
   timeLimitMinutes?: number;
   prerequisiteTopicIds?: string[];
@@ -271,6 +283,37 @@ export interface SubmitProblemPayload {
   memoryKb?: number;
   failedTestCase?: any;
   stdout?: string;
+}
+
+export interface ProblemFollowUpResponseRow {
+  id: string;
+  problem_id: string;
+  follow_up_id: string;
+  response_text: string;
+  diagram_data: any;
+  score: number | string | null;
+  feedback: string | null;
+  created_at: string | Date;
+  updated_at: string | Date;
+}
+
+export interface ProblemFollowUpResponseDTO {
+  id: string;
+  problemId: string;
+  followUpId: string;
+  responseText: string;
+  diagramData?: any;
+  score?: number | null;
+  feedback?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SaveFollowUpResponsePayload {
+  responseText: string;
+  diagramData?: any;
+  score?: number;
+  feedback?: string;
 }
 
 // API DTOs (Data Transfer Objects) matching Frontend Types

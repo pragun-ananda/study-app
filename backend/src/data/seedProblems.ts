@@ -98,6 +98,28 @@ end
       system_architecture: 30,
       concurrency_and_failure_modes: 30
     },
+    followUps: [
+      {
+        id: 'FU-RATE-LIMIT-GLOBAL',
+        title: 'Global Multi-Region Quotas & Local-First Batching',
+        prompt: `### System Design Follow-Up: Global Multi-Region Rate Limiting
+
+A user has a rate limit of 1,000 requests/minute. Their requests are routed across global edge locations (us-east, eu-west, ap-south). Making a cross-region roundtrip (150ms) to check a central counter violates the <5ms latency SLA.
+
+#### Challenge:
+1. **Local-First Rate Limiting**: How do regional nodes make sub-1ms decisions without synchronous cross-datacenter calls?
+2. **Partition Tolerance**: If cross-region links are severed, how do you prevent catastrophic quota over-allocation while avoiding false positives?`,
+        rubric: {
+          token_allocation_and_local_pooling: 35,
+          crdt_or_async_sync_protocol: 35,
+          partition_degradation_strategy: 30
+        },
+        hints: [
+          'Pre-allocate token tranches to regional clusters proportional to recent traffic patterns (e.g. 50% to US, 30% to EU, 20% to APAC).',
+          'Use CRDT counters (P-N Counters) synchronized asynchronously via background gossip protocol.'
+        ]
+      }
+    ],
     targetCompanies: ['Stripe', 'Netflix', 'Amazon', 'Cloudflare'],
     timeLimitMinutes: 45,
     prerequisiteTopicIds: ['TOPIC-073', 'TOPIC-078']
@@ -169,6 +191,28 @@ flowchart LR
       conflict_resolution: 25,
       anti_entropy_mechanisms: 20
     },
+    followUps: [
+      {
+        id: 'FU-KV-HOTSPOT',
+        title: 'Celebrity Key / Hotspot Mitigation Under 1,000x Load',
+        prompt: `### System Design Follow-Up: Super-Hotspot Key Mitigation
+
+In a consistent hash ring, a celebrity user (or breaking news item) receives **100,000x normal read traffic** on a single key. That key hashes to a single replica set, driving those nodes to 100% CPU and triggering cascading failures across the ring.
+
+#### Challenge:
+1. **Dynamic Hotspot Detection**: How does the cluster identify that a key is becoming hot within 500ms?
+2. **Dynamic Scatter-Gather & Shard Spreading**: How do you replicate and spread the hot key across all physical ring nodes without modifying the master consistent hashing partition map?`,
+        rubric: {
+          hotspot_detection_telemetry: 30,
+          dynamic_read_replication: 35,
+          write_combining_and_lease_management: 35
+        },
+        hints: [
+          'Track key frequencies in memory using Count-Min Sketch or Heavy Hitters algorithms.',
+          'Append random sub-keys (e.g. key#1, key#2, ..., key#N) or push the key to client-side or edge caching layers with brief TTLs.'
+        ]
+      }
+    ],
     targetCompanies: ['Amazon', 'Netflix', 'Apple', 'Meta'],
     timeLimitMinutes: 45,
     prerequisiteTopicIds: ['TOPIC-073', 'TOPIC-035']
@@ -310,6 +354,52 @@ message WaterResponse {
       edge_cases: 15,
       code_clarity: 15
     },
+    followUps: [
+      {
+        id: 'FU-TRAP-STREAM',
+        title: 'Distributed Stream Aggregation & Flood Early Warning',
+        prompt: `### System Design Follow-Up: Real-Time Distributed Flood Risk Monitoring
+
+In an industrial IoT or municipal meteorological monitoring network, **5,000,000 hydrological sensors** continuously report elevation bar heights across geographical watersheds every 5 seconds (1M events/sec).
+
+#### Challenge:
+1. **Stream Ingestion & Partitioning**: How do you ingest and partition sensor telemetry streams to preserve topological watershed boundaries?
+2. **Stateful Window Aggregation**: Design the stateful stream processing topology to compute sliding trapped water volumes and flag overflow conditions in under 2 seconds.
+3. **Disaster Recovery & Out-of-Order Readings**: Handle late-arriving or dropped readings from degraded telemetry nodes during torrential weather without skewing accumulated basin estimates.`,
+        rubric: {
+          stream_partitioning_and_ingestion: 25,
+          stateful_windowed_computation: 25,
+          fault_tolerance_and_late_events: 25,
+          low_latency_alerting_pipeline: 25
+        },
+        hints: [
+          'Consider partitioning incoming streams by geospatial watershed cell IDs (e.g. Uber H3 or S2 cells) so all sensors in a contiguous basin route to the same worker instance.',
+          'Stateful stream processors like Apache Flink or Kafka Streams can maintain tumbling or sliding event-time windows backed by incremental RocksDB state stores.',
+          'Use watermarking heuristics with allowed lateness to reconcile late-arriving packets without stalling the real-time alerting pipeline.'
+        ],
+        sampleArchitecture: 'Sensors -> Edge Gateways -> Kafka Cluster (keyed by WatershedID) -> Apache Flink Stateful Stream Workers (RocksDB incremental state checkpointing) -> Time-Series DB (TimescaleDB / ClickHouse) + Alert Dispatcher (PagerDuty / Emergency SMS).'
+      },
+      {
+        id: 'FU-TRAP-HISTORICAL',
+        title: 'Petabyte-Scale Hydrological Archive & Materialized Analytics',
+        prompt: `### System Design Follow-Up: Historical Flood Inundation Analytics
+
+Civil engineers and insurance underwriters need to run historical queries over **10 years of elevation telemetry spanning 50 billion records** (e.g. "What was the peak trapped volume in Basin 42 during Hurricane Sandy?"). Queries must return in under 1.5 seconds.
+
+#### Challenge:
+1. **Columnar Storage & Tiering**: How do you structure data across hot, warm, and cold tiers?
+2. **Pre-aggregation & Materialized Rollups**: Design the roll-up pipeline that supports arbitrary temporal slicing without scanning raw uncompressed sensor events.`,
+        rubric: {
+          storage_tiering_and_compression: 35,
+          pre_aggregation_materialized_views: 35,
+          query_engine_and_caching: 30
+        },
+        hints: [
+          'Organize storage using Parquet columnar files partitioned by year/month/basin_id on S3/GCS with Z-order curve clustering on timestamp and spatial coordinates.',
+          'Pre-compute multi-resolution rollups (1-minute, 1-hour, 1-day) using ClickHouse or Pinot materialized views.'
+        ]
+      }
+    ],
     targetCompanies: ['Google', 'Meta', 'Amazon', 'Bloomberg'],
     timeLimitMinutes: 30,
     prerequisiteTopicIds: ['TOPIC-034', 'TOPIC-040']
@@ -412,6 +502,51 @@ class LRUCache:
       sentinel_nodes_cleanliness: 15,
       edge_cases: 15
     },
+    followUps: [
+      {
+        id: 'FU-CACHE-MULTI-REGION',
+        title: 'Global Multi-Region Distributed Cache with Write-Invalidation',
+        prompt: `### System Design Follow-Up: Multi-Region Distributed Cache
+
+Scale your in-memory cache architecture from a single node to an active-active deployment across **5 global AWS regions** (us-east, us-west, eu-central, ap-northeast, sa-east) serving **10,000,000 reads/sec** with sub-5ms p99 latency.
+
+#### Challenge:
+1. **Cache Stampede (Thundering Herd)**: When a popular key expires or is invalidated, prevent thousands of concurrent cache misses from crashing the database.
+2. **Cross-Region Invalidation**: When an item is updated in eu-central, how are the other 4 regions invalidated while maintaining low cross-region network costs?
+3. **Write-Through vs Cache-Aside**: What are the trade-offs in consistency and latency?`,
+        rubric: {
+          cache_invalidation_protocol: 30,
+          thundering_herd_stampede_prevention: 25,
+          cross_region_replication_topology: 25,
+          eviction_and_memory_pressure: 20
+        },
+        hints: [
+          'Use singleflight / distributed mutexes or probabilistic early expiration (XFetch algorithm) to ensure only 1 thread refreshes the backing database on a miss.',
+          'Consider CDC (Change Data Capture) via Debezium and a global Kafka/SNS topic to broadcast invalidation tombstones asynchronously to regional clusters.'
+        ],
+        sampleArchitecture: 'Clients -> Regional Envoy / Cloudflare -> Local Redis / Memcached cluster (with singleflight request collapsing) -> Read Replicas. Database writes generate CDC events -> Kafka Global Mesh -> Regional Cache Invalidation Workers.'
+      },
+      {
+        id: 'FU-CACHE-HYBRID-TIER',
+        title: 'Two-Tier Flash/NVMe + DRAM Hybrid Storage Engine',
+        prompt: `### System Design Follow-Up: Hybrid DRAM + Flash NVMe Cache
+
+Your dataset is **10 Terabytes**, but RAM is costly ($64GB available per machine). Flash NVMe is cheap (2TB per node). Design a tiered cache that achieves 90% DRAM hit rate for hot keys and sub-100μs flash hit rate for warm keys.
+
+#### Challenge:
+1. **Tier Migration Policy**: How do items promote from Flash to DRAM, and demote from DRAM to Flash?
+2. **Flash Wear & Write Amplification**: How do you avoid wearing out SSD write cycles when evicting dirty cache items?`,
+        rubric: {
+          tiering_policy_and_admission_control: 35,
+          write_amplification_mitigation: 35,
+          index_structure_in_memory: 30
+        },
+        hints: [
+          'Use TinyLFU admission policy (Bloom filter frequency sketches) to reject one-hit wonders before they pollute either DRAM or Flash.',
+          'Append-only log-structured segments (LSM-style or Slab allocator) prevent random 4KB writes to flash and minimize write amplification factor (WAF).'
+        ]
+      }
+    ],
     targetCompanies: ['Google', 'Meta', 'Apple', 'Microsoft'],
     timeLimitMinutes: 30,
     prerequisiteTopicIds: ['TOPIC-053', 'TOPIC-038']

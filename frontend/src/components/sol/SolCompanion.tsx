@@ -104,7 +104,7 @@ export default function SolCompanion() {
 
   return (
     <div
-      className="absolute bottom-4 right-6 z-40 flex flex-col items-end pointer-events-auto"
+      className="absolute bottom-4 right-3 sm:right-6 pb-safe z-40 flex flex-col items-end pointer-events-auto"
       data-testid="sol-companion"
     >
       {/* Thought Bubble / Welcome / Topic Reaction Hint */}
@@ -150,7 +150,7 @@ export default function SolCompanion() {
         onClick={handleClick}
         aria-label="Chat with Sol"
         data-testid="sol-trigger-button"
-        className="relative w-24 h-24 flex items-center justify-center cursor-pointer transition-transform duration-200 active:scale-95 focus:outline-none"
+        className="relative w-20 h-20 sm:w-24 sm:h-24 flex items-center justify-center cursor-pointer transition-transform duration-200 active:scale-95 focus:outline-none"
       >
         {/* Sol 3D Canvas */}
         <div className="w-full h-full pointer-events-none">

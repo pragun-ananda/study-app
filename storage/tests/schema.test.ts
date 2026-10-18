@@ -637,6 +637,54 @@ describe('PostgreSQL Storage Schema (storage/schema.sql)', () => {
       const remaining = db.public.many("SELECT * FROM problem_submissions WHERE problem_id = 'PROB-SUB-TEST'");
       expect(remaining.length).toBe(0);
     });
+
+    it('stores system design follow_ups on problems and persists candidate follow_up responses', () => {
+      const sampleFollowUps = JSON.stringify([
+        {
+          id: 'FU-001',
+          title: 'Distributed Stream Aggregation',
+          prompt: 'How to scale water volume computation across Kafka partitions?',
+          rubric: { 'Partitioning': 25, 'Windowing': 25, 'Fault Tolerance': 25, 'State Recovery': 25 },
+          hints: ['Use sliding windows', 'Consider stateful processing with RocksDB checkpointing']
+        }
+      ]);
+
+      db.public.none(`
+        INSERT INTO problems (id, title, type, difficulty, domain, summary, prompt, solution, follow_ups)
+        VALUES ('PROB-FU-TEST', 'Trapping Rain Water', 'CODING', 'HARD', 'CS', 'Summary', 'Prompt', 'Sol', '${sampleFollowUps}');
+
+        INSERT INTO problem_follow_up_responses (
+          id, problem_id, follow_up_id, response_text, score, feedback
+        ) VALUES (
+          'RESP-001', 'PROB-FU-TEST', 'FU-001', 'We use Apache Flink stateful stream processing with tumbling windows.', 92.5, 'Excellent trade-off analysis.'
+        );
+      `);
+
+      const prob = db.public.one("SELECT * FROM problems WHERE id = 'PROB-FU-TEST'");
+      const parsedFollowUps = typeof prob.follow_ups === 'string' ? JSON.parse(prob.follow_ups) : prob.follow_ups;
+      expect(parsedFollowUps.length).toBe(1);
+      expect(parsedFollowUps[0].id).toBe('FU-001');
+      expect(parsedFollowUps[0].title).toBe('Distributed Stream Aggregation');
+
+      const resp = db.public.one("SELECT * FROM problem_follow_up_responses WHERE id = 'RESP-001'");
+      expect(resp.problem_id).toBe('PROB-FU-TEST');
+      expect(resp.follow_up_id).toBe('FU-001');
+      expect(resp.response_text).toContain('Apache Flink');
+      expect(Number(resp.score)).toBe(92.5);
+
+      // Verify unique constraint on (problem_id, follow_up_id)
+      expect(() => {
+        db.public.none(`
+          INSERT INTO problem_follow_up_responses (id, problem_id, follow_up_id, response_text)
+          VALUES ('RESP-002', 'PROB-FU-TEST', 'FU-001', 'Duplicate response');
+        `);
+      }).toThrow();
+
+      // Verify cascade delete
+      db.public.none("DELETE FROM problems WHERE id = 'PROB-FU-TEST'");
+      const remainingResp = db.public.many("SELECT * FROM problem_follow_up_responses WHERE problem_id = 'PROB-FU-TEST'");
+      expect(remainingResp.length).toBe(0);
+    });
   });
 });
 

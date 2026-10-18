@@ -269,5 +269,79 @@ describe('Integration: Problem Bank REST API (/api/problems - BAC-38)', () => {
       expect(res.body.failedTestCase.actual).toBe(0);
     });
   });
+
+  describe('GET /api/problems/:id/follow-ups & Responses', () => {
+    it('retrieves system design follow-ups for a problem', async () => {
+      await request(app)
+        .put('/api/problems/PROB-TEST-1')
+        .send({
+          followUps: [
+            {
+              id: 'FU-TEST-1',
+              title: 'Scaling Flood Telemetry',
+              prompt: 'How to scale to 10M events/sec?',
+              rubric: { partitioning: 50, reliability: 50 },
+              hints: ['Use Kafka partitioning']
+            }
+          ]
+        });
+
+      const res = await request(app).get('/api/problems/PROB-TEST-1/follow-ups');
+      expect(res.status).toBe(200);
+      expect(Array.isArray(res.body)).toBe(true);
+      expect(res.body.length).toBe(1);
+      expect(res.body[0].id).toBe('FU-TEST-1');
+      expect(res.body[0].title).toBe('Scaling Flood Telemetry');
+      expect(res.body[0].hints).toContain('Use Kafka partitioning');
+    });
+
+    it('returns 404 for follow-ups on non-existent problem', async () => {
+      const res = await request(app).get('/api/problems/PROB-GHOST/follow-ups');
+      expect(res.status).toBe(404);
+    });
+
+    it('saves candidate architecture follow-up response (upsert) and retrieves response history', async () => {
+      const saveRes = await request(app)
+        .post('/api/problems/PROB-TEST-1/follow-ups/FU-TEST-1/response')
+        .send({
+          responseText: 'We use Kafka partitioned by watershed ID with Flink for sliding window aggregation.',
+          diagramData: { nodes: [{ id: 'kafka', label: 'Kafka' }] },
+          score: 95,
+          feedback: 'Strong stateful stream design'
+        });
+
+      expect(saveRes.status).toBe(200);
+      expect(saveRes.body.problemId).toBe('PROB-TEST-1');
+      expect(saveRes.body.followUpId).toBe('FU-TEST-1');
+      expect(saveRes.body.responseText).toContain('Kafka partitioned');
+      expect(saveRes.body.diagramData).toBeDefined();
+      expect(saveRes.body.score).toBe(95);
+
+      // Verify upsert updates the response text
+      const updateRes = await request(app)
+        .post('/api/problems/PROB-TEST-1/follow-ups/FU-TEST-1/response')
+        .send({
+          responseText: 'Updated response with RocksDB state stores.'
+        });
+
+      expect(updateRes.status).toBe(200);
+      expect(updateRes.body.responseText).toContain('RocksDB state stores');
+
+      // Retrieve responses
+      const getRes = await request(app).get('/api/problems/PROB-TEST-1/follow-ups/responses');
+      expect(getRes.status).toBe(200);
+      expect(Array.isArray(getRes.body)).toBe(true);
+      expect(getRes.body.length).toBe(1);
+      expect(getRes.body[0].responseText).toContain('RocksDB state stores');
+    });
+
+    it('rejects response save with 400 if responseText is missing', async () => {
+      const res = await request(app)
+        .post('/api/problems/PROB-TEST-1/follow-ups/FU-TEST-1/response')
+        .send({});
+      expect(res.status).toBe(400);
+      expect(res.body.error).toContain('responseText is required');
+    });
+  });
 });
 

@@ -216,7 +216,7 @@ export default function NotificationsDropdown() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 8, scale: 0.95 }}
             transition={{ duration: 0.15, ease: 'easeOut' }}
-            className={`absolute right-0 mt-2 w-84 sm:w-96 max-h-[520px] flex flex-col border rounded-xl shadow-2xl backdrop-blur-xl z-50 overflow-hidden ${
+            className={`absolute right-0 mt-2 w-[calc(100vw-24px)] max-w-sm sm:w-96 max-h-[520px] flex flex-col border rounded-xl shadow-2xl backdrop-blur-xl z-50 overflow-hidden ${
               isLight ? 'bg-white/95 border-slate-200 text-slate-900' : 'bg-[#080c16]/95 border-[#00f0ff]/30 text-slate-100'
             }`}
           >

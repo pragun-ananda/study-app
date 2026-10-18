@@ -153,6 +153,23 @@ export default function TelemetryHUD() {
     }
   }, [isSearchOpen, setIsSidebarOpen]);
 
+  // Mobile mutual exclusivity: Avoid sidebar and inspector overlapping on screens < 768px
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      if (isInspectorOpen && selectedTopicId) {
+        setIsSidebarOpen(false);
+      }
+    }
+  }, [isInspectorOpen, selectedTopicId, setIsSidebarOpen]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      if (isSidebarOpen) {
+        setIsInspectorOpen(false);
+      }
+    }
+  }, [isSidebarOpen, setIsInspectorOpen]);
+
 
   const categories = ['ALL', 'AI & ML', 'CS', 'SYSTEMS', 'MATH', 'PHYSICS', 'CYBERSECURITY', 'ARCH'];
   const selectedNode = topicNodes.find((n) => n.id === selectedTopicId);
@@ -335,10 +352,10 @@ export default function TelemetryHUD() {
     <div
       className={`pointer-events-none absolute inset-0 ${
         activeProblem || activeNote || activeQuiz ? 'z-50' : 'z-20'
-      } flex flex-col justify-between p-4 md:p-6 overflow-hidden`}
+      } flex flex-col justify-between p-2 sm:p-4 md:p-6 pt-safe pb-safe pl-safe pr-safe overflow-hidden`}
     >
       {/* ================= TRANSPARENT TOP SUBGRAPHS & SEARCH BAR ================= */}
-      <header className="pointer-events-auto flex items-center justify-between gap-4 bg-transparent py-1 px-1">
+      <header className="pointer-events-auto flex items-center justify-between gap-2 sm:gap-4 bg-transparent py-1 px-1">
         {/* 1. Collapsible Subgraphs Navigation Bar (Minimized by default) */}
         <div className={`flex items-center border rounded-lg p-1 text-xs flex-shrink-0 backdrop-blur-md ${
           isLight ? 'bg-white/85 border-slate-200 shadow-sm' : 'bg-[#080c16]/70 border-white/10'
@@ -446,7 +463,7 @@ export default function TelemetryHUD() {
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 8, scale: 0.95 }}
                   transition={{ duration: 0.15, ease: 'easeOut' }}
-                  className={`absolute right-0 mt-2 w-80 md:w-96 p-3 rounded-xl backdrop-blur-xl z-50 flex flex-col gap-2.5 border ${
+                  className={`absolute right-0 mt-2 w-[calc(100vw-24px)] max-w-sm sm:w-96 p-3 rounded-xl backdrop-blur-xl z-50 flex flex-col gap-2.5 border ${
                     isLight
                       ? 'bg-white/95 border-slate-200 text-slate-900 shadow-xl'
                       : 'bg-[#080c16]/95 border-[#00f0ff]/30 text-slate-100 shadow-2xl'
@@ -641,7 +658,7 @@ export default function TelemetryHUD() {
                         setActiveTab('TOPICS');
                       }
                     }}
-                    className={`bg-transparent font-sans text-xs focus:outline-none w-36 md:w-48 ${
+                    className={`bg-transparent font-sans text-base sm:text-xs focus:outline-none w-28 xs:w-36 md:w-48 ${
                       isLight ? 'text-slate-900 placeholder-slate-400' : 'text-slate-100 placeholder-slate-500'
                     }`}
                   />
@@ -692,8 +709,8 @@ export default function TelemetryHUD() {
           initial={{ x: -30, opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
           onWheel={(e) => e.stopPropagation()}
-          className={`pointer-events-auto glass-panel rounded-xl p-4 transition-all duration-300 relative flex flex-col max-h-[calc(100vh-180px)] ${
-            isSidebarOpen ? 'w-80 md:w-96' : 'w-12'
+          className={`pointer-events-auto glass-panel rounded-xl p-3 sm:p-4 transition-all duration-300 relative flex flex-col max-h-[calc(100vh-180px)] ${
+            isSidebarOpen ? 'w-[calc(100vw-24px)] max-w-sm sm:w-80 md:w-96' : 'w-12'
           }`}
         >
           <button
@@ -1051,7 +1068,7 @@ export default function TelemetryHUD() {
               exit={{ x: 40, opacity: 0 }}
               onWheel={(e) => e.stopPropagation()}
               data-testid="topic-inspector"
-              className="pointer-events-auto glass-panel p-4 md:p-5 rounded-xl w-80 md:w-96 text-xs space-y-3.5 mr-6 max-h-[calc(100vh-140px)] flex flex-col shadow-2xl overscroll-contain z-30"
+              className="pointer-events-auto glass-panel p-4 md:p-5 rounded-xl w-[calc(100vw-24px)] max-w-sm sm:w-80 md:w-96 text-xs space-y-3.5 mr-0 sm:mr-6 max-h-[calc(100vh-140px)] flex flex-col shadow-2xl overscroll-contain z-30"
             >
               {/* Fixed Header */}
               <div className={`flex items-center justify-between border-b pb-2.5 flex-shrink-0 ${isLight ? 'border-slate-200' : 'border-white/10'}`}>

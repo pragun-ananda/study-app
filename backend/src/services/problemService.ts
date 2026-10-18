@@ -17,7 +17,11 @@ import {
   QuizQuestionDTO,
   ProblemSubmissionRow,
   ProblemSubmissionDTO,
-  SubmitProblemPayload
+  SubmitProblemPayload,
+  SystemDesignFollowUp,
+  ProblemFollowUpResponseRow,
+  ProblemFollowUpResponseDTO,
+  SaveFollowUpResponsePayload
 } from '../types.js';
 
 export function parseJsonField<T>(field: any, defaultValue: T): T {
@@ -51,6 +55,7 @@ export function toProblemDTO(
     starterCode: parseJsonField<Record<string, string>>(row.starter_code, {}),
     testCases: parseJsonField<Array<{ input: any; expected: any; explanation?: string }>>(row.test_cases, []),
     rubric: parseJsonField<Record<string, any>>(row.rubric, {}),
+    followUps: parseJsonField<SystemDesignFollowUp[]>(row.follow_ups, []),
     targetCompanies: Array.isArray(row.target_companies) ? row.target_companies : [],
     timeLimitMinutes: Number(row.time_limit_minutes) || 45,
     prerequisiteTopicIds,
@@ -251,13 +256,14 @@ export async function createProblem(payload: CreateProblemPayload): Promise<Prob
   const starterCode = JSON.stringify(payload.starterCode || {});
   const testCases = JSON.stringify(payload.testCases || []);
   const rubric = JSON.stringify(payload.rubric || {});
+  const followUps = JSON.stringify(payload.followUps || []);
   const timeLimit = Number(payload.timeLimitMinutes) || 45;
 
   const res = await query<ProblemRow>(
     `INSERT INTO problems (
       id, title, type, difficulty, domain, summary, prompt, solution,
-      hints, starter_code, test_cases, rubric, target_companies, time_limit_minutes, created_at, updated_at
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW(), NOW())
+      hints, starter_code, test_cases, rubric, follow_ups, target_companies, time_limit_minutes, created_at, updated_at
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW(), NOW())
     RETURNING *`,
     [
       id,
@@ -272,6 +278,7 @@ export async function createProblem(payload: CreateProblemPayload): Promise<Prob
       starterCode,
       testCases,
       rubric,
+      followUps,
       targetCompanies,
       timeLimit
     ]
@@ -338,15 +345,17 @@ export async function updateProblem(
   const testCases =
     payload.testCases !== undefined ? JSON.stringify(payload.testCases) : JSON.stringify(current.test_cases);
   const rubric = payload.rubric !== undefined ? JSON.stringify(payload.rubric) : JSON.stringify(current.rubric);
+  const followUps =
+    payload.followUps !== undefined ? JSON.stringify(payload.followUps) : JSON.stringify(current.follow_ups);
   const targetCompanies = payload.targetCompanies !== undefined ? payload.targetCompanies : current.target_companies;
   const timeLimit = payload.timeLimitMinutes !== undefined ? payload.timeLimitMinutes : current.time_limit_minutes;
 
   await query(
     `UPDATE problems
      SET title = $1, type = $2, difficulty = $3, domain = $4, summary = $5, prompt = $6, solution = $7,
-         hints = $8, starter_code = $9, test_cases = $10, rubric = $11, target_companies = $12,
-         time_limit_minutes = $13, updated_at = NOW()
-     WHERE id = $14`,
+         hints = $8, starter_code = $9, test_cases = $10, rubric = $11, follow_ups = $12, target_companies = $13,
+         time_limit_minutes = $14, updated_at = NOW()
+     WHERE id = $15`,
     [
       title,
       type,
@@ -359,6 +368,7 @@ export async function updateProblem(
       starterCode,
       testCases,
       rubric,
+      followUps,
       targetCompanies,
       timeLimit,
       id
@@ -474,5 +484,82 @@ export async function getSubmissionsByProblemId(problemId: string): Promise<Prob
   );
 
   return (result.rows || []).map(toSubmissionDTO);
+}
+
+export function toFollowUpResponseDTO(row: ProblemFollowUpResponseRow): ProblemFollowUpResponseDTO {
+  return {
+    id: row.id,
+    problemId: row.problem_id,
+    followUpId: row.follow_up_id,
+    responseText: row.response_text || '',
+    diagramData: parseJsonField(row.diagram_data, null),
+    score: row.score !== null && row.score !== undefined ? Number(row.score) : null,
+    feedback: row.feedback || null,
+    createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at || ''),
+    updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : String(row.updated_at || '')
+  };
+}
+
+/**
+ * Retrieve candidate follow-up architecture responses for a problem
+ */
+export async function getFollowUpResponses(problemId: string): Promise<ProblemFollowUpResponseDTO[]> {
+  const result = await query<ProblemFollowUpResponseRow>(
+    `SELECT * FROM problem_follow_up_responses
+     WHERE problem_id = $1
+     ORDER BY updated_at DESC`,
+    [problemId]
+  );
+
+  return (result.rows || []).map(toFollowUpResponseDTO);
+}
+
+/**
+ * Retrieve candidate follow-up response for a specific challenge
+ */
+export async function getFollowUpResponse(
+  problemId: string,
+  followUpId: string
+): Promise<ProblemFollowUpResponseDTO | null> {
+  const result = await query<ProblemFollowUpResponseRow>(
+    `SELECT * FROM problem_follow_up_responses
+     WHERE problem_id = $1 AND follow_up_id = $2`,
+    [problemId, followUpId]
+  );
+
+  if (!result.rows || result.rows.length === 0) return null;
+  return toFollowUpResponseDTO(result.rows[0]);
+}
+
+/**
+ * Upsert candidate follow-up architecture response (draft or submitted)
+ */
+export async function saveFollowUpResponse(
+  problemId: string,
+  followUpId: string,
+  payload: SaveFollowUpResponsePayload
+): Promise<ProblemFollowUpResponseDTO> {
+  const id = generateEntityId('RESP');
+  const responseText = payload.responseText ?? '';
+  const diagramData = payload.diagramData ? JSON.stringify(payload.diagramData) : null;
+  const score = payload.score !== undefined && payload.score !== null ? payload.score : null;
+  const feedback = payload.feedback || null;
+
+  const result = await query<ProblemFollowUpResponseRow>(
+    `INSERT INTO problem_follow_up_responses (
+       id, problem_id, follow_up_id, response_text, diagram_data, score, feedback, created_at, updated_at
+     ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
+     ON CONFLICT (problem_id, follow_up_id)
+     DO UPDATE SET
+       response_text = EXCLUDED.response_text,
+       diagram_data = COALESCE(EXCLUDED.diagram_data, problem_follow_up_responses.diagram_data),
+       score = COALESCE(EXCLUDED.score, problem_follow_up_responses.score),
+       feedback = COALESCE(EXCLUDED.feedback, problem_follow_up_responses.feedback),
+       updated_at = NOW()
+     RETURNING *`,
+    [id, problemId, followUpId, responseText, diagramData, score, feedback]
+  );
+
+  return toFollowUpResponseDTO(result.rows[0]);
 }
 
