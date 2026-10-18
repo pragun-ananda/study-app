@@ -195,6 +195,32 @@ describe('App Component', () => {
 
     document.body.removeChild(select);
   });
+
+  it('applies split-screen layout classes to main viewport and renders SolChatDrawer when Sol chat opens', () => {
+    const { useSolStore } = require('../src/store/useSolStore');
+    useSolStore.getState().setIsOpen(false);
+    const { rerender } = render(<App />);
+
+    const viewport = screen.getByTestId('main-content-viewport');
+    expect(viewport.className).toContain('right-0');
+    expect(viewport.className).not.toContain('sm:right-[400px]');
+    expect(screen.queryByTestId('sol-chat-drawer')).not.toBeInTheDocument();
+
+    // Open Sol chat
+    act(() => {
+      useSolStore.getState().setIsOpen(true);
+    });
+    rerender(<App />);
+
+    expect(viewport.className).toContain('sm:right-[400px]');
+    expect(viewport.className).toContain('md:right-[440px]');
+    expect(viewport.className).toContain('lg:right-[460px]');
+    expect(screen.getByTestId('sol-chat-drawer')).toBeInTheDocument();
+
+    // Escape dismisses Sol chat drawer
+    fireEvent.keyDown(window, { key: 'Escape', code: 'Escape' });
+    expect(useSolStore.getState().isOpen).toBe(false);
+  });
 });
 
 

@@ -220,7 +220,7 @@ export default function ApplicationViewerModal() {
           exit={{ x: '-100%', opacity: 0 }}
           transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
           data-testid="application-viewer-modal"
-          className={`fixed top-0 bottom-0 left-0 w-full md:w-1/2 z-30 flex flex-col border-r shadow-2xl overflow-hidden backdrop-blur-xl transition-colors pointer-events-auto ${
+          className={`absolute top-0 bottom-0 left-0 w-full md:w-1/2 z-30 flex flex-col border-r shadow-2xl overflow-hidden backdrop-blur-xl transition-colors pointer-events-auto ${
             isLight
               ? 'bg-white/95 border-slate-300 text-slate-900'
               : 'bg-[#070b16]/95 border-white/10 text-slate-100'

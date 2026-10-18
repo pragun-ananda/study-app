@@ -2,12 +2,14 @@ import React, { useEffect } from 'react';
 import SceneCanvas from './components/canvas/SceneCanvas';
 import TelemetryHUD from './components/hud/TelemetryHUD';
 import SolCompanion from './components/sol/SolCompanion';
+import SolChatDrawer from './components/sol/SolChatDrawer';
 import { useSolStore } from './store/useSolStore';
 import { useStore, applyThemeToDocument } from './store/useStore';
 
 export default function App() {
   const theme = useStore((state) => state.theme);
   const activeApplication = useStore((state) => state.activeApplication);
+  const isSolOpen = useSolStore((state) => state.isOpen);
 
   useEffect(() => {
     document.title = 'Knowledge Graph';
@@ -139,28 +141,39 @@ export default function App() {
       data-testid="app-container"
       data-theme={theme}
     >
-      {/* Layer z-0: 3D Scene Viewport & WebGL Post Processing */}
+      {/* Main Website Content Area - Shifts left and resizes when Sol Chat split opens */}
       <div
-        className={`absolute inset-y-0 right-0 z-0 transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] will-change-[left] ${
-          activeApplication ? 'left-0 md:left-1/2' : 'left-0'
+        className={`absolute inset-y-0 left-0 transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] overflow-hidden ${
+          isSolOpen ? 'right-full sm:right-[400px] md:right-[440px] lg:right-[460px]' : 'right-0'
         }`}
-        data-testid="scene-canvas-container"
+        data-testid="main-content-viewport"
       >
-        <SceneCanvas />
+        {/* Layer z-0: 3D Scene Viewport & WebGL Post Processing */}
+        <div
+          className={`absolute inset-y-0 right-0 z-0 transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] will-change-[left] ${
+            activeApplication ? 'left-0 md:left-1/2' : 'left-0'
+          }`}
+          data-testid="scene-canvas-container"
+        >
+          <SceneCanvas />
+        </div>
+
+        {/* Layer z-10: CRT Scanlines, Screen Vignette & Grain Overlay */}
+        <div
+          className={`pointer-events-none absolute inset-0 z-10 crt-scanlines crt-vignette transition-opacity duration-300 ${
+            theme === 'light' ? 'opacity-0' : 'opacity-80'
+          }`}
+        />
+
+        {/* Layer z-20: HUD & Telemetry UI */}
+        <TelemetryHUD />
+
+        {/* Layer z-30: Sol AI Companion */}
+        <SolCompanion />
       </div>
 
-      {/* Layer z-10: CRT Scanlines, Screen Vignette & Grain Overlay */}
-      <div
-        className={`pointer-events-none absolute inset-0 z-10 crt-scanlines crt-vignette transition-opacity duration-300 ${
-          theme === 'light' ? 'opacity-0' : 'opacity-80'
-        }`}
-      />
-
-      {/* Layer z-20: HUD & Telemetry UI */}
-      <TelemetryHUD />
-
-      {/* Layer z-30: Sol AI Companion & Interactive Study Drawer */}
-      <SolCompanion />
+      {/* Layer z-40: Dedicated Right-Side Split AI Chat Drawer */}
+      <SolChatDrawer />
     </div>
   );
 }

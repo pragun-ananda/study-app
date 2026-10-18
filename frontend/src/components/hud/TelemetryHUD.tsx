@@ -296,7 +296,7 @@ export default function TelemetryHUD() {
 
   if (!hudVisible) {
     return (
-      <div className="pointer-events-none fixed inset-0 z-20 flex items-bottom justify-end p-6">
+      <div className="pointer-events-none absolute inset-0 z-20 flex items-bottom justify-end p-6">
         <motion.button
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -328,7 +328,7 @@ export default function TelemetryHUD() {
   });
 
   return (
-    <div className="pointer-events-none fixed inset-0 z-20 flex flex-col justify-between p-4 md:p-6 overflow-hidden">
+    <div className="pointer-events-none absolute inset-0 z-20 flex flex-col justify-between p-4 md:p-6 overflow-hidden">
       {/* ================= TRANSPARENT TOP SUBGRAPHS & SEARCH BAR ================= */}
       <header className="pointer-events-auto flex items-center justify-between gap-4 bg-transparent py-1 px-1">
         {/* 1. Collapsible Subgraphs Navigation Bar (Minimized by default) */}
@@ -1001,7 +1001,7 @@ export default function TelemetryHUD() {
               initial={{ y: 30, opacity: 0, scale: 0.9 }}
               animate={{ y: 0, opacity: 1, scale: 1 }}
               exit={{ y: 30, opacity: 0, scale: 0.9 }}
-              className="pointer-events-auto fixed bottom-6 right-6 z-30"
+              className="pointer-events-auto absolute bottom-6 right-28 z-30"
             >
               <button
                 data-testid="explore-topic-btn"

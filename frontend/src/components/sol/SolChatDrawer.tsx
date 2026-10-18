@@ -52,23 +52,23 @@ export default function SolChatDrawer() {
   return (
     <AnimatePresence>
       {isOpen && (
-        <motion.div
-          initial={{ opacity: 0, y: 30, scale: 0.92 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: 25, scale: 0.92 }}
-          transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
-          className={`fixed bottom-28 right-6 z-50 w-[380px] max-w-[calc(100vw-2rem)] h-[560px] max-h-[75vh] flex flex-col rounded-2xl border shadow-2xl backdrop-blur-xl overflow-hidden ${
+        <motion.aside
+          initial={{ x: '100%' }}
+          animate={{ x: 0 }}
+          exit={{ x: '100%' }}
+          transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+          className={`fixed inset-y-0 right-0 z-40 w-full sm:w-[400px] md:w-[440px] lg:w-[460px] h-full flex flex-col border-l shadow-2xl backdrop-blur-xl overflow-hidden ${
             theme === 'light'
-              ? 'bg-white/90 border-cyan-200/80 shadow-cyan-900/10 text-slate-800'
-              : 'bg-[#06101e]/95 border-cyan-500/30 shadow-cyan-950/50 text-slate-100'
+              ? 'bg-white/95 border-slate-200 text-slate-800'
+              : 'bg-[#060c18]/95 border-cyan-500/20 shadow-cyan-950/50 text-slate-100'
           }`}
           data-testid="sol-chat-drawer"
         >
           {/* Header */}
           <div
-            className={`flex items-center justify-between px-4 py-3 border-b ${
+            className={`flex items-center justify-between px-4 py-3 border-b flex-shrink-0 ${
               theme === 'light'
-                ? 'bg-gradient-to-r from-cyan-500/10 via-sky-500/5 to-transparent border-cyan-200/60'
+                ? 'bg-gradient-to-r from-cyan-500/10 via-sky-500/5 to-transparent border-slate-200'
                 : 'bg-gradient-to-r from-cyan-950/60 via-slate-900/60 to-transparent border-cyan-500/20'
             }`}
           >
@@ -76,14 +76,8 @@ export default function SolChatDrawer() {
               <div className="relative w-7 h-7 rounded-full bg-cyan-400/20 border border-cyan-400/40 flex items-center justify-center text-cyan-400 shadow-sm shadow-cyan-400/30">
                 <Sparkles className="w-4 h-4 animate-spin-slow" />
               </div>
-              <div>
-                <div className="flex items-center space-x-1.5">
-                  <span className="font-semibold text-sm tracking-wide text-cyan-400">Sol</span>
-                  <span className="text-[10px] uppercase font-mono px-1.5 py-0.2 rounded bg-cyan-500/15 text-cyan-400 border border-cyan-500/30">
-                    Cosmic AI
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-400">Study Companion & Guide</p>
+              <div className="flex items-center">
+                <span className="font-semibold text-sm tracking-wide text-cyan-400">Sol</span>
               </div>
             </div>
 
@@ -274,7 +268,7 @@ export default function SolChatDrawer() {
               <Send className="w-3.5 h-3.5" />
             </button>
           </form>
-        </motion.div>
+        </motion.aside>
       )}
     </AnimatePresence>
   );
