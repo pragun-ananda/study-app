@@ -70,6 +70,27 @@ export interface ApplicationItem {
 export type ProblemType = 'CODING' | 'SYSTEM_DESIGN' | 'ML_SYSTEM_DESIGN' | 'OBJECT_ORIENTED_DESIGN';
 export type ProblemDifficulty = 'EASY' | 'MEDIUM' | 'HARD';
 
+export interface SystemDesignFollowUp {
+  id: string;
+  title: string;
+  prompt: string;
+  rubric: Record<string, number>;
+  hints?: string[];
+  sampleArchitecture?: string;
+}
+
+export interface ProblemFollowUpResponseDTO {
+  id: string;
+  problemId: string;
+  followUpId: string;
+  responseText: string;
+  diagramData?: any;
+  score?: number | null;
+  feedback?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface ProblemItem {
   id: string;
   title: string;
@@ -83,6 +104,7 @@ export interface ProblemItem {
   starterCode?: Record<string, string>;
   testCases?: Array<{ input: any; expected: any; explanation?: string }>;
   rubric?: Record<string, any>;
+  followUps?: SystemDesignFollowUp[];
   targetCompanies: string[];
   timeLimitMinutes: number;
   prerequisiteTopicIds?: string[];
@@ -306,6 +328,8 @@ export interface TelemetryState {
   activeProblem: ProblemItem | null;
   problemSubmissions: Record<string, ProblemSubmission[]>;
   isSubmittingCode: boolean;
+  followUpResponses: Record<string, ProblemFollowUpResponseDTO[]>;
+  isSavingFollowUp: boolean;
 
   // Review & Diff Updates (FRO-11)
   graphUpdates: GraphUpdate[];
@@ -390,6 +414,12 @@ export interface TelemetryActions {
   deleteProblem: (id: string) => Promise<void>;
   submitProblem: (problemId: string, payload: SubmitProblemPayload) => Promise<ProblemSubmission | void>;
   fetchProblemSubmissions: (problemId: string) => Promise<ProblemSubmission[]>;
+  fetchFollowUpResponses: (problemId: string) => Promise<ProblemFollowUpResponseDTO[]>;
+  saveFollowUpResponse: (
+    problemId: string,
+    followUpId: string,
+    payload: { responseText: string; diagramData?: any; score?: number; feedback?: string }
+  ) => Promise<ProblemFollowUpResponseDTO | void>;
 
   // Diff Review Actions (FRO-11)
   setIsNotificationsOpen: (open: boolean) => void;

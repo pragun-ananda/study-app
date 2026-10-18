@@ -156,6 +156,7 @@ CREATE TABLE IF NOT EXISTS problems (
     starter_code JSONB NOT NULL DEFAULT '{}'::jsonb,
     test_cases JSONB NOT NULL DEFAULT '[]'::jsonb,
     rubric JSONB NOT NULL DEFAULT '{}'::jsonb,
+    follow_ups JSONB NOT NULL DEFAULT '[]'::jsonb,
     target_companies TEXT[] NOT NULL DEFAULT '{}',
     time_limit_minutes INTEGER NOT NULL DEFAULT 45,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -203,6 +204,22 @@ CREATE TABLE IF NOT EXISTS problem_submissions (
 CREATE INDEX IF NOT EXISTS idx_problem_submissions_problem_id ON problem_submissions(problem_id);
 CREATE INDEX IF NOT EXISTS idx_problem_submissions_created_at ON problem_submissions(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_problem_submissions_status ON problem_submissions(status);
+
+-- 13. Problem Follow-Up Responses (Candidate written architecture notes, diagram state, and evaluations)
+CREATE TABLE IF NOT EXISTS problem_follow_up_responses (
+    id VARCHAR(64) PRIMARY KEY,
+    problem_id VARCHAR(64) NOT NULL REFERENCES problems(id) ON DELETE CASCADE,
+    follow_up_id VARCHAR(64) NOT NULL,
+    response_text TEXT NOT NULL DEFAULT '',
+    diagram_data JSONB,
+    score NUMERIC(5,2),
+    feedback TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE (problem_id, follow_up_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_problem_follow_up_responses_problem_id ON problem_follow_up_responses(problem_id);
 
 
 

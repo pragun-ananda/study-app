@@ -7,7 +7,10 @@ import {
   updateProblem,
   deleteProblem,
   createSubmission,
-  getSubmissionsByProblemId
+  getSubmissionsByProblemId,
+  getFollowUpResponses,
+  getFollowUpResponse,
+  saveFollowUpResponse
 } from '../services/problemService.js';
 import { SEED_INTERVIEW_PROBLEMS } from '../data/seedProblems.js';
 import { query } from '../db.js';
@@ -147,6 +150,57 @@ router.get('/:id/submissions', async (req: Request, res: Response) => {
     return res.json(submissions);
   } catch (error) {
     return handleDatabaseError(res, error, 'Failed to retrieve problem submissions');
+  }
+});
+
+// GET /api/problems/:id/follow-ups - Retrieve system design follow-up challenges for problem
+router.get('/:id/follow-ups', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const problem = await getProblemById(id);
+    if (!problem) {
+      return res.status(404).json({ error: `Problem with id '${id}' not found` });
+    }
+    return res.json(problem.followUps || []);
+  } catch (error) {
+    return handleDatabaseError(res, error, 'Failed to retrieve problem follow-ups');
+  }
+});
+
+// GET /api/problems/:id/follow-ups/responses - Retrieve candidate responses for follow-ups
+router.get('/:id/follow-ups/responses', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const problem = await getProblemById(id);
+    if (!problem) {
+      return res.status(404).json({ error: `Problem with id '${id}' not found` });
+    }
+    const responses = await getFollowUpResponses(id);
+    return res.json(responses);
+  } catch (error) {
+    return handleDatabaseError(res, error, 'Failed to retrieve follow-up responses');
+  }
+});
+
+// POST /api/problems/:id/follow-ups/:followUpId/response - Save candidate architecture response
+router.post('/:id/follow-ups/:followUpId/response', async (req: Request, res: Response) => {
+  try {
+    const { id, followUpId } = req.params;
+    const { responseText } = req.body || {};
+
+    if (responseText === undefined || responseText === null) {
+      return res.status(400).json({ error: 'responseText is required' });
+    }
+
+    const problem = await getProblemById(id);
+    if (!problem) {
+      return res.status(404).json({ error: `Problem with id '${id}' not found` });
+    }
+
+    const saved = await saveFollowUpResponse(id, followUpId, req.body);
+    return res.status(200).json(saved);
+  } catch (error) {
+    return handleDatabaseError(res, error, 'Failed to save follow-up response');
   }
 });
 

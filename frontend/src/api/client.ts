@@ -9,7 +9,9 @@ import {
   LineReviewComment,
   ProblemItem,
   ProblemSubmission,
-  SubmitProblemPayload
+  SubmitProblemPayload,
+  SystemDesignFollowUp,
+  ProblemFollowUpResponseDTO
 } from '../types/telemetry';
 
 export class ApiError extends Error {
@@ -350,6 +352,29 @@ export async function submitProblemSolution(
 
 export async function fetchProblemSubmissions(id: string): Promise<ProblemSubmission[]> {
   return request<ProblemSubmission[]>(`/api/problems/${encodeURIComponent(id)}/submissions`);
+}
+
+export async function fetchProblemFollowUps(id: string): Promise<SystemDesignFollowUp[]> {
+  return request<SystemDesignFollowUp[]>(`/api/problems/${encodeURIComponent(id)}/follow-ups`);
+}
+
+export async function fetchProblemFollowUpResponses(id: string): Promise<ProblemFollowUpResponseDTO[]> {
+  return request<ProblemFollowUpResponseDTO[]>(`/api/problems/${encodeURIComponent(id)}/follow-ups/responses`);
+}
+
+export async function saveProblemFollowUpResponse(
+  id: string,
+  followUpId: string,
+  payload: { responseText: string; diagramData?: any; score?: number; feedback?: string }
+): Promise<ProblemFollowUpResponseDTO> {
+  return request<ProblemFollowUpResponseDTO>(
+    `/api/problems/${encodeURIComponent(id)}/follow-ups/${encodeURIComponent(followUpId)}/response`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }
+  );
 }
 
 

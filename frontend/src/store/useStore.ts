@@ -265,6 +265,8 @@ export const INITIAL_STATE: TelemetryState = {
   activeProblem: null,
   problemSubmissions: {},
   isSubmittingCode: false,
+  followUpResponses: {},
+  isSavingFollowUp: false,
 
   // Review & Diff Updates (FRO-11)
   graphUpdates: INITIAL_UPDATES,
@@ -485,6 +487,54 @@ export const useStore = create<TelemetryStore>((set, get) => ({
     } catch (err: any) {
       console.warn('[FETCH_PROBLEM_SUBMISSIONS_WARN]:', err?.message);
       return [];
+    }
+  },
+  fetchFollowUpResponses: async (problemId: string) => {
+    try {
+      const responses = await api.fetchProblemFollowUpResponses(problemId);
+      set((state) => ({
+        followUpResponses: {
+          ...state.followUpResponses,
+          [problemId]: responses
+        },
+        error: null
+      }));
+      return responses;
+    } catch (err: any) {
+      console.warn('[FETCH_FOLLOW_UP_RESPONSES_WARN]:', err?.message);
+      return [];
+    }
+  },
+  saveFollowUpResponse: async (
+    problemId: string,
+    followUpId: string,
+    payload: { responseText: string; diagramData?: any; score?: number; feedback?: string }
+  ) => {
+    set({ isSavingFollowUp: true });
+    try {
+      const saved = await api.saveProblemFollowUpResponse(problemId, followUpId, payload);
+      set((state) => {
+        const existingList = state.followUpResponses[problemId] || [];
+        const index = existingList.findIndex((r) => r.followUpId === followUpId);
+        let updatedList: any[];
+        if (index >= 0) {
+          updatedList = existingList.map((item, i) => (i === index ? saved : item));
+        } else {
+          updatedList = [saved, ...existingList];
+        }
+        return {
+          followUpResponses: {
+            ...state.followUpResponses,
+            [problemId]: updatedList
+          },
+          isSavingFollowUp: false,
+          error: null
+        };
+      });
+      return saved;
+    } catch (err: any) {
+      set({ isSavingFollowUp: false, error: err.message || 'Failed to save follow-up response' });
+      throw err;
     }
   },
 
