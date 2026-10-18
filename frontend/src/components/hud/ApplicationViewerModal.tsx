@@ -228,7 +228,7 @@ export default function ApplicationViewerModal() {
         >
         {/* Top Header Bar */}
         <div
-          className={`px-5 py-3.5 border-b flex items-center justify-between gap-3 select-none shrink-0 ${
+          className={`px-5 py-3.5 pt-[max(0.875rem,env(safe-area-inset-top))] border-b flex items-center justify-between gap-3 select-none shrink-0 ${
             isLight ? 'bg-white border-slate-200' : 'bg-slate-900/90 border-white/10'
           }`}
         >

@@ -184,10 +184,11 @@ test.describe('3D WebGL SceneCanvas & Engine (FRO-9)', () => {
     // Verify CRT scanlines and vignette overlay layers are present
     const crtOverlay = page.locator('.crt-scanlines.crt-vignette');
     await expect(crtOverlay).toBeVisible();
+    await expect(crtOverlay).toHaveClass(/opacity-80/);
 
     // Press KeyO again to restore normal mode
     await page.keyboard.press('KeyO');
-    await expect(crtOverlay).toBeVisible();
+    await expect(crtOverlay).toHaveClass(/opacity-0/);
   });
 
   test('Toggles HUD visibility with KeyH and allows restoring via Restore HUD button', async ({ page }) => {

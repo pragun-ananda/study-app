@@ -8,6 +8,7 @@ import { useStore, applyThemeToDocument } from './store/useStore';
 
 export default function App() {
   const theme = useStore((state) => state.theme);
+  const isOverloaded = useStore((state) => state.isOverloaded);
   const activeApplication = useStore((state) => state.activeApplication);
   const isSolOpen = useSolStore((state) => state.isOpen);
 
@@ -160,8 +161,8 @@ export default function App() {
 
         {/* Layer z-10: CRT Scanlines, Screen Vignette & Grain Overlay */}
         <div
-          className={`pointer-events-none absolute inset-0 z-10 crt-scanlines crt-vignette transition-opacity duration-300 ${
-            theme === 'light' ? 'opacity-0' : 'opacity-80'
+          className={`pointer-events-none absolute inset-0 w-full h-full z-10 crt-scanlines crt-vignette transition-opacity duration-300 ${
+            theme === 'light' && !isOverloaded ? 'opacity-0' : 'opacity-80'
           }`}
         />
 

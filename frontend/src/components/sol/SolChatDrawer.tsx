@@ -66,7 +66,7 @@ export default function SolChatDrawer() {
         >
           {/* Header */}
           <div
-            className={`flex items-center justify-between px-4 py-3 border-b flex-shrink-0 ${
+            className={`flex items-center justify-between px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] border-b flex-shrink-0 ${
               theme === 'light'
                 ? 'bg-gradient-to-r from-cyan-500/10 via-sky-500/5 to-transparent border-slate-200'
                 : 'bg-gradient-to-r from-cyan-950/60 via-slate-900/60 to-transparent border-cyan-500/20'
@@ -237,7 +237,7 @@ export default function SolChatDrawer() {
           {/* Input Form */}
           <form
             onSubmit={handleSubmit}
-            className={`p-3 border-t flex items-center gap-2 ${
+            className={`p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] border-t flex items-center gap-2 ${
               theme === 'light'
                 ? 'bg-slate-50/90 border-slate-200'
                 : 'bg-slate-900/60 border-cyan-500/20'
@@ -249,7 +249,7 @@ export default function SolChatDrawer() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Ask Sol anything about your studies..."
-              className={`flex-1 px-3.5 py-2 text-xs rounded-xl border focus:outline-none focus:ring-1 transition-all ${
+              className={`flex-1 px-3.5 py-2 text-base sm:text-xs rounded-xl border focus:outline-none focus:ring-1 transition-all ${
                 theme === 'light'
                   ? 'bg-white border-slate-300 text-slate-900 placeholder-slate-400 focus:border-cyan-500 focus:ring-cyan-500'
                   : 'bg-[#081528] border-cyan-900/60 text-slate-100 placeholder-slate-500 focus:border-cyan-400 focus:ring-cyan-400'

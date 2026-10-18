@@ -895,7 +895,7 @@ export default function SceneCanvas() {
   return (
     <div
       id="canvas-viewport"
-      className="w-full h-full relative cursor-grab active:cursor-grabbing"
+      className="w-full h-full relative cursor-grab active:cursor-grabbing touch-none select-none"
     >
       <Canvas
         dpr={[1, 2]}
