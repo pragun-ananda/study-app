@@ -8,6 +8,7 @@ import ingestRouter from './routes/ingest.js';
 import reviewQueueRouter from './routes/reviewQueue.js';
 import quizzesRouter from './routes/quizzes.js';
 import problemsRouter from './routes/problems.js';
+import solRouter from './routes/sol.js';
 
 export function createApp(): Express {
   const app = express();
@@ -37,6 +38,7 @@ export function createApp(): Express {
   app.use('/ingest', ingestRouter);
   app.use('/api/review-queue', reviewQueueRouter);
   app.use('/review-queue', reviewQueueRouter);
+  app.use('/api/sol', solRouter);
 
   // 404 Handler
   app.use((_req: Request, res: Response) => {

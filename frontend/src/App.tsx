@@ -1,6 +1,8 @@
 import React, { useEffect } from 'react';
 import SceneCanvas from './components/canvas/SceneCanvas';
 import TelemetryHUD from './components/hud/TelemetryHUD';
+import SolCompanion from './components/sol/SolCompanion';
+import { useSolStore } from './store/useSolStore';
 import { useStore, applyThemeToDocument } from './store/useStore';
 
 export default function App() {
@@ -36,6 +38,12 @@ export default function App() {
       if (event.key === 'Escape' || event.code === 'Escape') {
         if (isInput) {
           target?.blur();
+        }
+
+        // If Sol Chat Drawer is open, dismiss it first on Escape
+        if (useSolStore.getState().isOpen) {
+          useSolStore.getState().setIsOpen(false);
+          return;
         }
 
         const state = useStore.getState();
@@ -150,6 +158,9 @@ export default function App() {
 
       {/* Layer z-20: HUD & Telemetry UI */}
       <TelemetryHUD />
+
+      {/* Layer z-30: Sol AI Companion & Interactive Study Drawer */}
+      <SolCompanion />
     </div>
   );
 }
