@@ -10,12 +10,20 @@ export interface SolMessage {
 
 export type SolMood = 'idle' | 'happy' | 'thinking' | 'talking';
 
+export type SolReactionTrigger = 'nod' | 'jump' | 'wave' | 'thumbsUp' | 'dance';
+
+export interface SolReaction {
+  trigger: SolReactionTrigger;
+  timestamp: number;
+}
+
 interface SolState {
   isOpen: boolean;
   solMood: SolMood;
   messages: SolMessage[];
   isLoading: boolean;
   hasUnreadGreeting: boolean;
+  lastReaction: SolReaction | null;
 
   // Actions
   toggleChat: () => void;
@@ -23,6 +31,7 @@ interface SolState {
   closeChat: () => void;
   setIsOpen: (open: boolean) => void;
   setSolMood: (mood: SolMood) => void;
+  triggerReaction: (trigger: SolReactionTrigger) => void;
   sendMessage: (text: string) => Promise<void>;
   clearMessages: () => void;
   dismissGreeting: () => void;
@@ -43,6 +52,7 @@ export const useSolStore = create<SolState>((set, get) => ({
   messages: INITIAL_MESSAGES,
   isLoading: false,
   hasUnreadGreeting: true,
+  lastReaction: null,
 
   toggleChat: () => {
     const next = !get().isOpen;
@@ -62,6 +72,9 @@ export const useSolStore = create<SolState>((set, get) => ({
       ...(open ? { hasUnreadGreeting: false } : {})
     }),
   setSolMood: (mood: SolMood) => set({ solMood: mood }),
+  triggerReaction: (trigger: SolReactionTrigger) => {
+    set({ lastReaction: { trigger, timestamp: Date.now() } });
+  },
   dismissGreeting: () => set({ hasUnreadGreeting: false }),
 
   clearMessages: () => set({ messages: INITIAL_MESSAGES }),
