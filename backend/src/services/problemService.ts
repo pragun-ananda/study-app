@@ -14,7 +14,10 @@ import {
   QuizRow,
   QuizQuestionRow,
   QuizDTO,
-  QuizQuestionDTO
+  QuizQuestionDTO,
+  ProblemSubmissionRow,
+  ProblemSubmissionDTO,
+  SubmitProblemPayload
 } from '../types.js';
 
 export function parseJsonField<T>(field: any, defaultValue: T): T {
@@ -402,3 +405,74 @@ export async function deleteProblem(id: string): Promise<boolean> {
   const res = await query('DELETE FROM problems WHERE id = $1 RETURNING id', [id]);
   return (res.rowCount || 0) > 0;
 }
+
+export function toSubmissionDTO(row: ProblemSubmissionRow): ProblemSubmissionDTO {
+  return {
+    id: row.id,
+    problemId: row.problem_id,
+    language: row.language,
+    code: row.code,
+    status: row.status,
+    passedCount: Number(row.passed_count) || 0,
+    totalCount: Number(row.total_count) || 0,
+    runtimeMs: Number(row.runtime_ms) || 0,
+    memoryKb: Number(row.memory_kb) || 0,
+    failedTestCase: parseJsonField(row.failed_test_case, null),
+    stdout: row.stdout || null,
+    createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at || '')
+  };
+}
+
+/**
+ * Record a submission and execution result for a problem
+ */
+export async function createSubmission(
+  problemId: string,
+  payload: SubmitProblemPayload
+): Promise<ProblemSubmissionDTO> {
+  const submissionId = generateEntityId('SUB');
+  const status = payload.status || 'ACCEPTED';
+  const passedCount = payload.passedCount ?? 0;
+  const totalCount = payload.totalCount ?? 0;
+  const runtimeMs = payload.runtimeMs ?? 0;
+  const memoryKb = payload.memoryKb ?? 36500;
+  const failedTestCase = payload.failedTestCase ? JSON.stringify(payload.failedTestCase) : null;
+  const stdout = payload.stdout || null;
+
+  const result = await query<ProblemSubmissionRow>(
+    `INSERT INTO problem_submissions (
+      id, problem_id, language, code, status, passed_count, total_count, runtime_ms, memory_kb, failed_test_case, stdout
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+    RETURNING *`,
+    [
+      submissionId,
+      problemId,
+      payload.language,
+      payload.code,
+      status,
+      passedCount,
+      totalCount,
+      runtimeMs,
+      memoryKb,
+      failedTestCase,
+      stdout
+    ]
+  );
+
+  return toSubmissionDTO(result.rows[0]);
+}
+
+/**
+ * Retrieve past submissions for a problem ordered chronologically descending
+ */
+export async function getSubmissionsByProblemId(problemId: string): Promise<ProblemSubmissionDTO[]> {
+  const result = await query<ProblemSubmissionRow>(
+    `SELECT * FROM problem_submissions
+     WHERE problem_id = $1
+     ORDER BY created_at DESC`,
+    [problemId]
+  );
+
+  return (result.rows || []).map(toSubmissionDTO);
+}
+

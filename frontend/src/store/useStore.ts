@@ -263,6 +263,8 @@ export const INITIAL_STATE: TelemetryState = {
   // Problem Bank (BAC-38)
   problems: [],
   activeProblem: null,
+  problemSubmissions: {},
+  isSubmittingCode: false,
 
   // Review & Diff Updates (FRO-11)
   graphUpdates: INITIAL_UPDATES,
@@ -446,6 +448,43 @@ export const useStore = create<TelemetryStore>((set, get) => ({
     } catch (err: any) {
       set({ error: err.message || 'Failed to delete problem' });
       throw err;
+    }
+  },
+  submitProblem: async (problemId: string, payload: any) => {
+    set({ isSubmittingCode: true });
+    try {
+      const submission = await api.submitProblemSolution(problemId, payload);
+      set((state) => {
+        const existing = state.problemSubmissions[problemId] || [];
+        return {
+          problemSubmissions: {
+            ...state.problemSubmissions,
+            [problemId]: [submission, ...existing]
+          },
+          isSubmittingCode: false,
+          error: null
+        };
+      });
+      return submission;
+    } catch (err: any) {
+      set({ isSubmittingCode: false, error: err.message || 'Failed to submit problem solution' });
+      throw err;
+    }
+  },
+  fetchProblemSubmissions: async (problemId: string) => {
+    try {
+      const submissions = await api.fetchProblemSubmissions(problemId);
+      set((state) => ({
+        problemSubmissions: {
+          ...state.problemSubmissions,
+          [problemId]: submissions
+        },
+        error: null
+      }));
+      return submissions;
+    } catch (err: any) {
+      console.warn('[FETCH_PROBLEM_SUBMISSIONS_WARN]:', err?.message);
+      return [];
     }
   },
 

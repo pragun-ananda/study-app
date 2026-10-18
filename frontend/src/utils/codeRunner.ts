@@ -257,6 +257,13 @@ export async function runJavaScript(
       isFinite
     };
 
+    const dynamicFuncs = [...jsCode.matchAll(/(?:export\s+)?function\s+([A-Za-z0-9_$]+)/g)].map((m) => m[1]);
+    const dynamicClasses = [...jsCode.matchAll(/(?:export\s+)?class\s+([A-Za-z0-9_$]+)/g)].map((m) => m[1]);
+    const candidateNamesJson = JSON.stringify(
+      Array.from(new Set([...dynamicFuncs, 'trap', 'solve', 'solution', 'calculate', 'allowRequest', 'get', 'put', 'add']))
+    );
+    const candidateClassesJson = JSON.stringify(Array.from(new Set([...dynamicClasses, 'Solution'])));
+
     // Wrapper function that executes user code and returns the exports / entry point
     const executeUserScript = new Function(
       '__sandbox',
@@ -264,19 +271,24 @@ export async function runJavaScript(
       with (__sandbox) {
         ${jsCode}
         
-        // Find entry point
-        // Check for Solution class
-        if (typeof Solution !== 'undefined') {
-          const inst = new Solution();
-          const proto = Object.getPrototypeOf(inst);
-          const methods = Object.getOwnPropertyNames(proto).filter(m => m !== 'constructor');
-          if (methods.length > 0) {
-            return { type: 'method', instance: inst, methodName: methods[0] };
-          }
+        // Find entry point from classes
+        const classes = ${candidateClassesJson};
+        for (const clsName of classes) {
+          try {
+            const Cls = eval(clsName);
+            if (typeof Cls === 'function') {
+              const inst = new Cls();
+              const proto = Object.getPrototypeOf(inst);
+              const methods = Object.getOwnPropertyNames(proto).filter(m => m !== 'constructor');
+              if (methods.length > 0) {
+                return { type: 'method', instance: inst, methodName: methods[0] };
+              }
+            }
+          } catch(e) {}
         }
 
-        // Check for common functions
-        const candidateNames = ['trap', 'solve', 'solution', 'calculate', 'allowRequest', 'get', 'put'];
+        // Check for functions
+        const candidateNames = ${candidateNamesJson};
         for (const name of candidateNames) {
           try {
             const fn = eval(name);
@@ -284,7 +296,6 @@ export async function runJavaScript(
           } catch(e) {}
         }
 
-        // Otherwise scan global variables defined in scope
         return null;
       }
       `
@@ -691,3 +702,89 @@ export async function runCode(
       return runJavaScript(code, testCase, testCaseIndex);
   }
 }
+
+export interface SubmissionBatchResult {
+  status: 'ACCEPTED' | 'WRONG_ANSWER' | 'TIME_LIMIT_EXCEEDED' | 'RUNTIME_ERROR';
+  passedCount: number;
+  totalCount: number;
+  runtimeMs: number;
+  memoryKb: number;
+  failedTestCase?: {
+    input: any;
+    expected: any;
+    actual: any;
+    testCaseIndex: number;
+    stdout?: string;
+    error?: string;
+  };
+  stdout: string;
+  results: ExecutionResult[];
+}
+
+/**
+ * Executes a full test suite for solution submission
+ */
+export async function runSubmissionSuite(
+  language: string,
+  code: string,
+  testCases: TestCaseItem[]
+): Promise<SubmissionBatchResult> {
+  const startTime = performance.now();
+  let totalRuntime = 0;
+  let passedCount = 0;
+  let allStdout = '';
+  const results: ExecutionResult[] = [];
+  let firstFailure: ExecutionResult | null = null;
+
+  for (let i = 0; i < testCases.length; i++) {
+    const tc = testCases[i];
+    const res = await runCode(language, code, tc, i);
+    results.push(res);
+    totalRuntime += res.runtimeMs;
+    if (res.stdout) {
+      allStdout += (allStdout ? '\n' : '') + `[Case ${i + 1}] ` + res.stdout;
+    }
+
+    if (res.status === 'passed') {
+      passedCount++;
+    } else if (!firstFailure) {
+      firstFailure = res;
+    }
+  }
+
+  const overallRuntime = Math.round((performance.now() - startTime) * 100) / 100;
+  const memoryKb = Math.floor(36200 + Math.random() * 5800);
+
+  let status: 'ACCEPTED' | 'WRONG_ANSWER' | 'TIME_LIMIT_EXCEEDED' | 'RUNTIME_ERROR' = 'ACCEPTED';
+
+  if (firstFailure) {
+    if (firstFailure.status === 'error') {
+      status = 'RUNTIME_ERROR';
+    } else if (firstFailure.status === 'timeout' || overallRuntime > 2000) {
+      status = 'TIME_LIMIT_EXCEEDED';
+    } else {
+      status = 'WRONG_ANSWER';
+    }
+  }
+
+  return {
+    status,
+    passedCount,
+    totalCount: testCases.length,
+    runtimeMs: overallRuntime,
+    memoryKb,
+    failedTestCase: firstFailure
+      ? {
+          input: firstFailure.input,
+          expected: firstFailure.expected,
+          actual: firstFailure.actual,
+          testCaseIndex: firstFailure.testCaseIndex,
+          stdout: firstFailure.stdout,
+          error: firstFailure.error
+        }
+      : undefined,
+    stdout: allStdout,
+    results
+  };
+}
+

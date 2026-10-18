@@ -72,6 +72,9 @@ export default function TelemetryHUD() {
   const setActiveApplication = useStore((state) => state.setActiveApplication);
   const problems = useStore((state) => state.problems);
   const setActiveProblem = useStore((state) => state.setActiveProblem);
+  const activeNote = useStore((state) => state.activeNote);
+  const activeQuiz = useStore((state) => state.activeQuiz);
+  const activeProblem = useStore((state) => state.activeProblem);
 
   // Ingestion State & Actions
   const ingestUrl = useStore((state) => state.ingestUrl);
@@ -328,7 +331,11 @@ export default function TelemetryHUD() {
   });
 
   return (
-    <div className="pointer-events-none fixed inset-0 z-20 flex flex-col justify-between p-4 md:p-6 overflow-hidden">
+    <div
+      className={`pointer-events-none fixed inset-0 ${
+        activeProblem || activeNote || activeQuiz ? 'z-50' : 'z-20'
+      } flex flex-col justify-between p-4 md:p-6 overflow-hidden`}
+    >
       {/* ================= TRANSPARENT TOP SUBGRAPHS & SEARCH BAR ================= */}
       <header className="pointer-events-auto flex items-center justify-between gap-4 bg-transparent py-1 px-1">
         {/* 1. Collapsible Subgraphs Navigation Bar (Minimized by default) */}

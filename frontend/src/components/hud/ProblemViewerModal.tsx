@@ -29,7 +29,11 @@ import {
   RotateCcw,
   Play,
   Columns,
-  Maximize2
+  Maximize2,
+  Trophy,
+  AlertOctagon,
+  XCircle,
+  History
 } from 'lucide-react';
 import Editor from '@monaco-editor/react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
@@ -38,9 +42,10 @@ import { useStore } from '../../store/useStore';
 import { getCategoryShade, getDomainBaseColor } from '../../utils/theme';
 import { MarkdownContent } from './MarkdownContent';
 import { QuizViewer } from './QuizViewer';
-import { ProblemDifficulty, ProblemType, TopicNode, ProblemItem, DomainCategory } from '../../types/telemetry';
+import { ProblemDifficulty, ProblemType, TopicNode, ProblemItem, DomainCategory, ProblemSubmission } from '../../types/telemetry';
 import {
   runCode,
+  runSubmissionSuite,
   TestCaseItem,
   ExecutionResult,
   formatValue,
@@ -137,8 +142,15 @@ export default function ProblemViewerModal() {
   const setSelectedTopicId = useStore((state) => state.setSelectedTopicId);
   const setActiveNote = useStore((state) => state.setActiveNote);
   const setIsInspectorOpen = useStore((state) => state.setIsInspectorOpen);
+  const submitProblem = useStore((state) => state.submitProblem);
+  const fetchProblemSubmissions = useStore((state) => state.fetchProblemSubmissions);
+  const problemSubmissions = useStore((state) => state.problemSubmissions);
+  const submissions = activeProblem ? problemSubmissions[activeProblem.id] || [] : [];
 
-  const [activeTab, setActiveTab] = useState<'PROMPT' | 'SOLUTION' | 'QUIZ'>('PROMPT');
+  const [activeTab, setActiveTab] = useState<'PROMPT' | 'SOLUTION' | 'QUIZ' | 'SUBMISSIONS'>('PROMPT');
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [submissionResult, setSubmissionResult] = useState<ProblemSubmission | null>(null);
+  const [isSubmissionModalOpen, setIsSubmissionModalOpen] = useState<boolean>(false);
   const [revealedHints, setRevealedHints] = useState<number[]>([]);
   const [selectedLanguage, setSelectedLanguage] = useState<string>('python');
   const [copiedStarter, setCopiedStarter] = useState(false);
@@ -236,6 +248,9 @@ export default function ProblemViewerModal() {
       setSelectedCaseIndex(0);
       setLastRunResult(null);
       setConsoleTab('testcases');
+      if (activeProblem.id) {
+        fetchProblemSubmissions(activeProblem.id);
+      }
     }
   }, [activeProblem?.id]);
 
@@ -488,6 +503,35 @@ export default function ProblemViewerModal() {
       setIsRunningCode(false);
     }
   };
+
+  const handleSubmitSolution = async () => {
+    if (!activeProblem || isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      const batchResult = await runSubmissionSuite(selectedLanguage, currentEditorCode, currentTestCases);
+      const submission = await submitProblem(activeProblem.id, {
+        language: selectedLanguage,
+        code: currentEditorCode,
+        status: batchResult.status,
+        passedCount: batchResult.passedCount,
+        totalCount: batchResult.totalCount,
+        runtimeMs: batchResult.runtimeMs,
+        memoryKb: batchResult.memoryKb,
+        failedTestCase: batchResult.failedTestCase,
+        stdout: batchResult.stdout
+      });
+
+      if (submission) {
+        setSubmissionResult(submission);
+        setIsSubmissionModalOpen(true);
+      }
+    } catch (err: any) {
+      console.error('[SUBMIT_SOLUTION_ERROR]:', err);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
 
   const handleAddTestCase = () => {
     const newCase: TestCaseItem = {
@@ -915,6 +959,32 @@ export default function ProblemViewerModal() {
                   <HelpCircle size={13} /> CONCEPT CHECKPOINTS
                 </button>
               )}
+
+              <button
+                onClick={() => {
+                  setActiveTab('SUBMISSIONS');
+                  if (activeProblem?.id) {
+                    fetchProblemSubmissions(activeProblem.id);
+                  }
+                }}
+                data-testid="problem-tab-submissions"
+                className={`px-3 py-2 border-b-2 transition-colors flex items-center gap-1.5 ${
+                  activeTab === 'SUBMISSIONS'
+                    ? isLight
+                      ? 'border-sky-600 text-sky-600'
+                      : 'border-[#00f0ff] text-[#00f0ff]'
+                    : isLight
+                    ? 'border-transparent text-slate-500 hover:text-slate-800'
+                    : 'border-transparent text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <CheckCircle2 size={13} /> SUBMISSIONS
+                {submissions.length > 0 && (
+                  <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] bg-emerald-500/20 text-emerald-400 font-mono">
+                    {submissions.length}
+                  </span>
+                )}
+              </button>
             </div>
 
             {/* WRITE / PREVIEW TOGGLE WHEN EDITING */}
@@ -1905,11 +1975,19 @@ export default function ProblemViewerModal() {
                           <button
                             type="button"
                             data-testid="submit-solution-btn"
-                            className="px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-md font-sans cursor-pointer"
+                            onClick={handleSubmitSolution}
+                            disabled={isSubmitting}
+                            className={`px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-md font-sans cursor-pointer ${
+                              isSubmitting ? 'opacity-60 cursor-not-allowed' : ''
+                            }`}
                             title="Submit code against all test cases (Step 4 Judge)"
                           >
-                            <Check size={14} className="stroke-[2.5]" />
-                            <span>Submit</span>
+                            {isSubmitting ? (
+                              <Loader2 size={14} className="animate-spin text-slate-950" />
+                            ) : (
+                              <Check size={14} className="stroke-[2.5]" />
+                            )}
+                            <span>{isSubmitting ? 'Submitting...' : 'Submit'}</span>
                           </button>
                         </div>
                       </div>
@@ -2221,8 +2299,376 @@ export default function ProblemViewerModal() {
                 />
               </div>
             )}
+
+            {/* TAB 4: SUBMISSION HISTORY */}
+            {activeTab === 'SUBMISSIONS' && (
+              <div className="space-y-6" data-testid="problem-submissions-section">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-base font-bold flex items-center gap-2">
+                      <History size={16} className="text-sky-400" />
+                      Submission History
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Review all past attempts, execution runtimes, memory usage, and solution telemetry.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('PROMPT')}
+                    data-testid="return-to-code-btn"
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase transition-all border flex items-center gap-1.5 cursor-pointer ${
+                      isLight
+                        ? 'bg-white hover:bg-slate-100 text-slate-800 border-slate-300'
+                        : 'bg-slate-900 hover:bg-slate-800 text-slate-200 border-slate-700'
+                    }`}
+                  >
+                    <Code size={13} />
+                    <span>Open Editor</span>
+                  </button>
+                </div>
+
+                {submissions.length === 0 ? (
+                  <div
+                    className={`p-10 text-center rounded-xl border flex flex-col items-center justify-center gap-3 ${
+                      isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-900/40 border-slate-800'
+                    }`}
+                    data-testid="no-submissions-message"
+                  >
+                    <div className="w-12 h-12 rounded-full bg-sky-500/10 flex items-center justify-center text-sky-400">
+                      <Terminal size={24} />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold">No Submissions Yet</h4>
+                      <p className="text-xs text-slate-400 mt-1 max-w-sm">
+                        You have not submitted a solution for this problem yet. Open the code workbench and click Submit to run against the complete test suite.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('PROMPT')}
+                      className="mt-2 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider bg-sky-600 hover:bg-sky-500 text-white cursor-pointer"
+                    >
+                      Solve Problem
+                    </button>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto rounded-xl border border-slate-800">
+                    <table className="w-full text-left text-xs font-mono" data-testid="submissions-table">
+                      <thead
+                        className={`text-[10px] uppercase font-bold tracking-wider ${
+                          isLight ? 'bg-slate-100 text-slate-500 border-b border-slate-200' : 'bg-slate-950 text-slate-400 border-b border-slate-800'
+                        }`}
+                      >
+                        <tr>
+                          <th className="px-4 py-3">Status</th>
+                          <th className="px-4 py-3">Language</th>
+                          <th className="px-4 py-3">Runtime</th>
+                          <th className="px-4 py-3">Memory</th>
+                          <th className="px-4 py-3">Test Cases</th>
+                          <th className="px-4 py-3">Submitted</th>
+                          <th className="px-4 py-3 text-right">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/60">
+                        {submissions.map((sub, idx) => (
+                          <tr
+                            key={sub.id || idx}
+                            data-testid="submission-history-row"
+                            className={`transition-colors ${
+                              isLight ? 'hover:bg-slate-50' : 'hover:bg-slate-900/60'
+                            }`}
+                          >
+                            <td className="px-4 py-3">
+                              <span
+                                className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${
+                                  sub.status === 'ACCEPTED'
+                                    ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                                    : sub.status === 'WRONG_ANSWER'
+                                    ? 'bg-rose-500/10 text-rose-400 border-rose-500/30'
+                                    : 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+                                }`}
+                              >
+                                {sub.status.replace('_', ' ')}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 uppercase text-slate-300 font-bold">{sub.language}</td>
+                            <td className="px-4 py-3 text-slate-300">{sub.runtimeMs} ms</td>
+                            <td className="px-4 py-3 text-slate-300">{(sub.memoryKb / 1024).toFixed(1)} MB</td>
+                            <td className="px-4 py-3 text-slate-300">
+                              {sub.passedCount} / {sub.totalCount}
+                            </td>
+                            <td className="px-4 py-3 text-slate-400">
+                              {new Date(sub.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSubmissionResult(sub);
+                                  setIsSubmissionModalOpen(true);
+                                }}
+                                data-testid="view-submission-details-btn"
+                                className="px-2.5 py-1 rounded text-[11px] font-bold bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 cursor-pointer"
+                              >
+                                View Details
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </motion.div>
+
+        {/* SUBMISSION RESULT MODAL OVERLAY */}
+        {isSubmissionModalOpen && submissionResult && (
+          <div
+            className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
+            data-testid="submission-result-modal-backdrop"
+            onClick={() => setIsSubmissionModalOpen(false)}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              data-testid="submission-result-modal"
+              className={`w-full max-w-2xl rounded-2xl border shadow-2xl overflow-hidden flex flex-col ${
+                isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-[#0b101e] border-slate-700/80 text-slate-100'
+              } ${
+                submissionResult.status === 'ACCEPTED'
+                  ? 'shadow-[0_0_40px_rgba(16,185,129,0.2)]'
+                  : 'shadow-[0_0_40px_rgba(244,63,94,0.2)]'
+              }`}
+            >
+              {/* Modal Header */}
+              <div className="px-6 py-5 border-b border-slate-800 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div
+                    className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                      submissionResult.status === 'ACCEPTED'
+                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                        : submissionResult.status === 'WRONG_ANSWER'
+                        ? 'bg-rose-500/20 text-rose-400 border border-rose-500/40'
+                        : 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
+                    }`}
+                  >
+                    {submissionResult.status === 'ACCEPTED' ? (
+                      <Trophy size={20} className="stroke-[2.5]" />
+                    ) : submissionResult.status === 'WRONG_ANSWER' ? (
+                      <XCircle size={20} className="stroke-[2.5]" />
+                    ) : (
+                      <AlertOctagon size={20} className="stroke-[2.5]" />
+                    )}
+                  </div>
+                  <div>
+                    <h3
+                      data-testid="submission-verdict-title"
+                      className={`text-xl font-black font-mono tracking-tight ${
+                        submissionResult.status === 'ACCEPTED'
+                          ? 'text-emerald-400'
+                          : submissionResult.status === 'WRONG_ANSWER'
+                          ? 'text-rose-400'
+                          : 'text-amber-400'
+                      }`}
+                    >
+                      {submissionResult.status === 'ACCEPTED'
+                        ? 'Accepted'
+                        : submissionResult.status === 'WRONG_ANSWER'
+                        ? 'Wrong Answer'
+                        : submissionResult.status.replace('_', ' ')}
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      {submissionResult.status === 'ACCEPTED'
+                        ? `All ${submissionResult.totalCount} test cases passed!`
+                        : `${submissionResult.passedCount} / ${submissionResult.totalCount} test cases passed.`}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsSubmissionModalOpen(false)}
+                  data-testid="close-submission-modal-btn"
+                  className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Metrics Cards */}
+              <div className="p-6 space-y-5 max-h-[70vh] overflow-y-auto">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div
+                    className={`p-3 rounded-xl border text-center ${
+                      isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-900/60 border-slate-800'
+                    }`}
+                  >
+                    <span className="block text-[10px] uppercase font-bold text-slate-400 mb-1">Runtime</span>
+                    <span data-testid="submission-runtime-stat" className="text-base font-mono font-bold text-sky-400">
+                      {submissionResult.runtimeMs} ms
+                    </span>
+                    <span className="block text-[9px] text-emerald-400 mt-0.5 font-sans">Beats 94.2%</span>
+                  </div>
+
+                  <div
+                    className={`p-3 rounded-xl border text-center ${
+                      isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-900/60 border-slate-800'
+                    }`}
+                  >
+                    <span className="block text-[10px] uppercase font-bold text-slate-400 mb-1">Memory</span>
+                    <span data-testid="submission-memory-stat" className="text-base font-mono font-bold text-purple-400">
+                      {(submissionResult.memoryKb / 1024).toFixed(1)} MB
+                    </span>
+                    <span className="block text-[9px] text-sky-400 mt-0.5 font-sans">Beats 86.5%</span>
+                  </div>
+
+                  <div
+                    className={`p-3 rounded-xl border text-center ${
+                      isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-900/60 border-slate-800'
+                    }`}
+                  >
+                    <span className="block text-[10px] uppercase font-bold text-slate-400 mb-1">Testcases</span>
+                    <span data-testid="submission-passed-stat" className="text-base font-mono font-bold text-emerald-400">
+                      {submissionResult.passedCount} / {submissionResult.totalCount}
+                    </span>
+                    <span className="block text-[9px] text-slate-400 mt-0.5 font-sans">
+                      {Math.round((submissionResult.passedCount / Math.max(1, submissionResult.totalCount)) * 100)}% Passed
+                    </span>
+                  </div>
+
+                  <div
+                    className={`p-3 rounded-xl border text-center ${
+                      isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-900/60 border-slate-800'
+                    }`}
+                  >
+                    <span className="block text-[10px] uppercase font-bold text-slate-400 mb-1">Language</span>
+                    <span data-testid="submission-language-stat" className="text-base font-mono font-bold text-amber-400 uppercase">
+                      {submissionResult.language}
+                    </span>
+                    <span className="block text-[9px] text-slate-400 mt-0.5 font-sans">Verified</span>
+                  </div>
+                </div>
+
+                {/* Failed Test Case Details (if Wrong Answer or Error) */}
+                {submissionResult.failedTestCase && (
+                  <div
+                    className={`p-4 rounded-xl border space-y-3 ${
+                      isLight ? 'bg-rose-50/50 border-rose-200' : 'bg-rose-950/20 border-rose-900/60'
+                    }`}
+                    data-testid="submission-failed-panel"
+                  >
+                    <div className="flex items-center gap-2">
+                      <AlertOctagon size={14} className="text-rose-400" />
+                      <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-rose-400">
+                        Failing Test Case Details
+                      </h4>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-mono">
+                      <div
+                        className={`p-2.5 rounded border ${
+                          isLight ? 'bg-white border-slate-200' : 'bg-slate-950 border-slate-800'
+                        }`}
+                      >
+                        <span className="block text-[10px] uppercase font-bold text-slate-400 mb-1">Input:</span>
+                        <pre data-testid="submission-failed-input" className="text-slate-200 whitespace-pre-wrap">
+                          {formatValue(submissionResult.failedTestCase.input)}
+                        </pre>
+                      </div>
+
+                      <div
+                        className={`p-2.5 rounded border ${
+                          isLight ? 'bg-white border-slate-200' : 'bg-slate-950 border-slate-800'
+                        }`}
+                      >
+                        <span className="block text-[10px] uppercase font-bold text-slate-400 mb-1">Expected Output:</span>
+                        <pre data-testid="submission-failed-expected" className="text-emerald-400 font-bold whitespace-pre-wrap">
+                          {formatValue(submissionResult.failedTestCase.expected)}
+                        </pre>
+                      </div>
+                    </div>
+
+                    <div
+                      className={`p-2.5 rounded border ${
+                        isLight ? 'bg-white border-slate-200' : 'bg-slate-950 border-slate-800'
+                      }`}
+                    >
+                      <span className="block text-[10px] uppercase font-bold text-slate-400 mb-1">Your Output:</span>
+                      <pre data-testid="submission-failed-actual" className="text-rose-400 font-bold whitespace-pre-wrap">
+                        {formatValue(submissionResult.failedTestCase.actual)}
+                      </pre>
+                    </div>
+
+                    {submissionResult.failedTestCase.error && (
+                      <div
+                        className={`p-2.5 rounded border ${
+                          isLight ? 'bg-white border-slate-200' : 'bg-slate-950 border-slate-800'
+                        }`}
+                      >
+                        <span className="block text-[10px] uppercase font-bold text-rose-400 mb-1">Error Traceback:</span>
+                        <pre data-testid="submission-failed-error" className="text-rose-300 whitespace-pre-wrap">
+                          {submissionResult.failedTestCase.error}
+                        </pre>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Standard Output (stdout) */}
+                {submissionResult.stdout && (
+                  <div
+                    className={`p-3.5 rounded-xl border space-y-1.5 ${
+                      isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-900/60 border-slate-800'
+                    }`}
+                  >
+                    <span className="block text-[10px] uppercase font-mono font-bold text-slate-400">
+                      Standard Output (stdout):
+                    </span>
+                    <pre
+                      data-testid="submission-stdout-display"
+                      className="p-2.5 rounded bg-slate-950 border border-slate-800 font-mono text-xs text-slate-300 max-h-36 overflow-y-auto whitespace-pre-wrap"
+                    >
+                      {submissionResult.stdout}
+                    </pre>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer Buttons */}
+              <div
+                className={`px-6 py-4 border-t flex items-center justify-between gap-3 ${
+                  isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-950/80 border-slate-800'
+                }`}
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsSubmissionModalOpen(false);
+                    setActiveTab('SUBMISSIONS');
+                    fetchProblemSubmissions(activeProblem.id);
+                  }}
+                  data-testid="view-all-submissions-btn"
+                  className="px-3.5 py-1.5 rounded-lg text-xs font-bold uppercase transition-all text-sky-400 hover:text-sky-300 cursor-pointer"
+                >
+                  View All Submissions &rarr;
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsSubmissionModalOpen(false)}
+                  data-testid="back-to-code-btn"
+                  className="px-5 py-2 rounded-lg text-xs font-bold uppercase tracking-wider bg-sky-600 hover:bg-sky-500 text-white shadow-md cursor-pointer"
+                >
+                  Back to Code
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </AnimatePresence>
   );

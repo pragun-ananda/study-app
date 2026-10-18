@@ -5,7 +5,9 @@ import {
   getProblemById,
   createProblem,
   updateProblem,
-  deleteProblem
+  deleteProblem,
+  createSubmission,
+  getSubmissionsByProblemId
 } from '../services/problemService.js';
 import { SEED_INTERVIEW_PROBLEMS } from '../data/seedProblems.js';
 import { query } from '../db.js';
@@ -107,6 +109,44 @@ router.delete('/:id', async (req: Request, res: Response) => {
     return res.json({ status: 'success', message: `Problem ${id} deleted successfully` });
   } catch (error) {
     return handleDatabaseError(res, error, 'Failed to delete interview problem');
+  }
+});
+
+// POST /api/problems/:id/submit - Submit solution against full test suite
+router.post('/:id/submit', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { language, code } = req.body || {};
+
+    if (!language || !code) {
+      return res.status(400).json({ error: 'Language and code are required for solution submission' });
+    }
+
+    const problem = await getProblemById(id);
+    if (!problem) {
+      return res.status(404).json({ error: `Problem with id '${id}' not found` });
+    }
+
+    const submission = await createSubmission(id, req.body);
+    return res.status(201).json(submission);
+  } catch (error) {
+    return handleDatabaseError(res, error, 'Failed to submit problem solution');
+  }
+});
+
+// GET /api/problems/:id/submissions - Retrieve submission history for problem
+router.get('/:id/submissions', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const problem = await getProblemById(id);
+    if (!problem) {
+      return res.status(404).json({ error: `Problem with id '${id}' not found` });
+    }
+
+    const submissions = await getSubmissionsByProblemId(id);
+    return res.json(submissions);
+  } catch (error) {
+    return handleDatabaseError(res, error, 'Failed to retrieve problem submissions');
   }
 });
 

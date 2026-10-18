@@ -7,7 +7,9 @@ import {
   ReviewQueueResponseDTO,
   GraphUpdate,
   LineReviewComment,
-  ProblemItem
+  ProblemItem,
+  ProblemSubmission,
+  SubmitProblemPayload
 } from '../types/telemetry';
 
 export class ApiError extends Error {
@@ -334,6 +336,22 @@ export async function deleteProblem(id: string): Promise<boolean> {
   });
   return true;
 }
+
+export async function submitProblemSolution(
+  id: string,
+  payload: SubmitProblemPayload
+): Promise<ProblemSubmission> {
+  return request<ProblemSubmission>(`/api/problems/${encodeURIComponent(id)}/submit`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function fetchProblemSubmissions(id: string): Promise<ProblemSubmission[]> {
+  return request<ProblemSubmission[]>(`/api/problems/${encodeURIComponent(id)}/submissions`);
+}
+
 
 
 

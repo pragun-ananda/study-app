@@ -192,4 +192,82 @@ describe('Integration: Problem Bank REST API (/api/problems - BAC-38)', () => {
       expect(res.body.seededCount).toBeGreaterThan(0);
     });
   });
+
+  describe('POST /api/problems/:id/submit & GET /api/problems/:id/submissions', () => {
+    it('rejects submission with 400 if language or code is missing', async () => {
+      const res = await request(app)
+        .post('/api/problems/PROB-TEST-1/submit')
+        .send({ language: 'typescript' });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toContain('Language and code are required');
+    });
+
+    it('returns 404 when submitting solution for non-existent problem', async () => {
+      const res = await request(app)
+        .post('/api/problems/PROB-GHOST/submit')
+        .send({ language: 'typescript', code: 'export function solve() {}' });
+      expect(res.status).toBe(404);
+    });
+
+    it('successfully records solution submission with test execution telemetry', async () => {
+      const res = await request(app)
+        .post('/api/problems/PROB-TEST-1/submit')
+        .send({
+          language: 'typescript',
+          code: 'export function solve() { return true; }',
+          status: 'ACCEPTED',
+          passedCount: 5,
+          totalCount: 5,
+          runtimeMs: 1.25,
+          memoryKb: 38400,
+          stdout: 'Executing test suite...\nAll 5 cases passed.'
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.id).toMatch(/^SUB-/);
+      expect(res.body.problemId).toBe('PROB-TEST-1');
+      expect(res.body.language).toBe('typescript');
+      expect(res.body.status).toBe('ACCEPTED');
+      expect(res.body.passedCount).toBe(5);
+      expect(res.body.totalCount).toBe(5);
+      expect(res.body.runtimeMs).toBe(1.25);
+      expect(res.body.memoryKb).toBe(38400);
+      expect(res.body.stdout).toContain('All 5 cases passed.');
+
+      // Retrieve submission history
+      const histRes = await request(app).get('/api/problems/PROB-TEST-1/submissions');
+      expect(histRes.status).toBe(200);
+      expect(Array.isArray(histRes.body)).toBe(true);
+      expect(histRes.body.length).toBe(1);
+      expect(histRes.body[0].id).toBe(res.body.id);
+      expect(histRes.body[0].status).toBe('ACCEPTED');
+    });
+
+    it('records failing submission with failed test case details', async () => {
+      const res = await request(app)
+        .post('/api/problems/PROB-TEST-1/submit')
+        .send({
+          language: 'python',
+          code: 'class Solution:\n    def trap(self): return 0',
+          status: 'WRONG_ANSWER',
+          passedCount: 0,
+          totalCount: 2,
+          runtimeMs: 2.1,
+          failedTestCase: {
+            input: [0, 1, 0, 2],
+            expected: 1,
+            actual: 0
+          }
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.status).toBe('WRONG_ANSWER');
+      expect(res.body.passedCount).toBe(0);
+      expect(res.body.totalCount).toBe(2);
+      expect(res.body.failedTestCase).toBeDefined();
+      expect(res.body.failedTestCase.expected).toBe(1);
+      expect(res.body.failedTestCase.actual).toBe(0);
+    });
+  });
 });
+

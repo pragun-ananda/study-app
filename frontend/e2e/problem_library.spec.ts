@@ -318,5 +318,70 @@ test.describe('Interview Problem Library & Content Editor E2E (BAC-38 / FRO-18)'
     await toggleConsoleBtn.click();
     await expect(consoleDrawer).toHaveClass(/h-\[230px\]/);
   });
+
+  test('submits code solution to backend, displays LeetCode-style submission result overlay with telemetry, and inspects submissions history tab', async ({ page }) => {
+    // Open sidebar and launch Trapping Rain Water
+    await page.getByLabel('Toggle study panel').click();
+    await page.getByTestId('sidebar-tab-problems').click();
+    const codingProblem = page.getByTestId('sidebar-problem-card').filter({ hasText: /Trapping Rain Water/i }).first();
+    if (await codingProblem.count() > 0) {
+      await codingProblem.click();
+    } else {
+      await page.getByTestId('sidebar-problem-card').first().click();
+    }
+
+    const modal = page.getByTestId('problem-viewer-modal');
+    await expect(modal).toBeVisible();
+
+    // Verify Submit button
+    const submitBtn = page.getByTestId('submit-solution-btn');
+    await expect(submitBtn).toBeVisible();
+    await submitBtn.click();
+
+    // Submission overlay appears
+    const submissionModal = page.getByTestId('submission-result-modal');
+    await expect(submissionModal).toBeVisible({ timeout: 10000 });
+
+    // Verify submission status badge and telemetry cards
+    const statusBadge = page.getByTestId('submission-verdict-title');
+    await expect(statusBadge).toBeVisible();
+    await expect(statusBadge).toHaveText(/Accepted|Wrong Answer|Runtime Error/i);
+
+    await expect(page.getByTestId('submission-runtime-stat')).toBeVisible();
+    await expect(page.getByTestId('submission-memory-stat')).toBeVisible();
+    await expect(page.getByTestId('submission-passed-stat')).toBeVisible();
+
+    // Click View All Submissions button to transition to history tab
+    const viewAllBtn = page.getByTestId('view-all-submissions-btn');
+    await expect(viewAllBtn).toBeVisible();
+    await viewAllBtn.click();
+
+    // Submission modal closes and Submissions tab becomes active
+    await expect(submissionModal).not.toBeVisible();
+    const submissionsSection = page.getByTestId('problem-submissions-section');
+    await expect(submissionsSection).toBeVisible();
+
+    const submissionsTable = page.getByTestId('submissions-table');
+    await expect(submissionsTable).toBeVisible();
+
+    // At least one submission row exists
+    const historyRows = page.getByTestId('submission-history-row');
+    await expect(historyRows.first()).toBeVisible();
+
+    // Click View Details on first history item
+    const viewDetailsBtn = page.getByTestId('view-submission-details-btn').first();
+    await expect(viewDetailsBtn).toBeVisible();
+    await viewDetailsBtn.click();
+
+    // Verify modal re-opens with that submission's details
+    await expect(submissionModal).toBeVisible();
+    await expect(page.getByTestId('submission-verdict-title')).toBeVisible();
+
+    // Close via Back to Code
+    const backBtn = page.getByTestId('back-to-code-btn');
+    await expect(backBtn).toBeVisible();
+    await backBtn.click();
+    await expect(submissionModal).not.toBeVisible();
+  });
 });
 
