@@ -282,3 +282,331 @@ export function calculateNewNodeCoordinates(
   ];
 }
 
+export type TopologicalNodeGroup = 'NEED' | 'CURRENT' | 'PARENT';
+
+export interface TopologicalLayoutNode {
+  id: string;
+  name: string;
+  category: string;
+  mastery: number;
+  group: TopologicalNodeGroup;
+  layer: number;
+  step?: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  node: TopicNode;
+}
+
+export interface TopologicalLayoutEdge {
+  id: string;
+  fromId: string;
+  toId: string;
+  group: TopologicalNodeGroup;
+  path: string;
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+}
+
+export interface Topological2DLayoutResult {
+  nodes: TopologicalLayoutNode[];
+  edges: TopologicalLayoutEdge[];
+  width: number;
+  height: number;
+  needsCount: number;
+  parentsCount: number;
+}
+
+/**
+ * Computes a 2-D top-down topological layout for a node's local neighborhood:
+ * 1. Ancestor prerequisite nodes (Needs) flow downwards in topological rank.
+ * 2. Current node sits prominently in the middle focal layer.
+ * 3. Downstream parent/unlock nodes flow downward from the current node.
+ * Uses bounded 2-column wrapping to ensure node cards fit comfortably in narrow popup sidebars.
+ */
+export function calculateTopological2DLayout(
+  targetId: string,
+  topicNodes: TopicNode[],
+  options: {
+    svgWidth?: number;
+    layerGap?: number;
+    nodeHeight?: number;
+  } = {}
+): Topological2DLayoutResult {
+  const svgWidth = options.svgWidth ?? 320;
+  const layerGap = options.layerGap ?? 56;
+  const standardHeight = options.nodeHeight ?? 34;
+  const currentHeight = standardHeight + 4;
+
+  const nodeMap = new Map<string, TopicNode>();
+  topicNodes.forEach((n) => nodeMap.set(n.id, n));
+
+  const targetNode = nodeMap.get(targetId);
+  if (!targetNode) {
+    return {
+      nodes: [],
+      edges: [],
+      width: svgWidth,
+      height: 120,
+      needsCount: 0,
+      parentsCount: 0
+    };
+  }
+
+  // 1. Ancestor Prerequisites (Needs) in Topological Order
+  const ancestorPrereqs = getTopologicalPrerequisites(targetId, topicNodes);
+  const ancestorIdSet = new Set(ancestorPrereqs.map((n) => n.id));
+
+  // Compute topological rank / layer within ancestors
+  const ancestorLayerMap = new Map<string, number>();
+  ancestorPrereqs.forEach((node) => {
+    let maxPrereqLayer = -1;
+    node.prerequisites.forEach((pId) => {
+      if (ancestorLayerMap.has(pId)) {
+        maxPrereqLayer = Math.max(maxPrereqLayer, ancestorLayerMap.get(pId)!);
+      }
+    });
+    ancestorLayerMap.set(node.id, maxPrereqLayer + 1);
+  });
+
+  const maxAncestorLayer = ancestorPrereqs.length > 0
+    ? Math.max(...Array.from(ancestorLayerMap.values()))
+    : -1;
+
+  // 2. Current Node Layer
+  const currentLayer = maxAncestorLayer + 1;
+
+  // 3. Parent / Unlocked Nodes
+  const parentIdSet = new Set<string>();
+  targetNode.unlocks.forEach((uId) => parentIdSet.add(uId));
+  topicNodes.forEach((node) => {
+    if (node.prerequisites.includes(targetId)) {
+      parentIdSet.add(node.id);
+    }
+  });
+  // Exclude target itself and any ancestor nodes
+  parentIdSet.delete(targetId);
+  ancestorIdSet.forEach((aId) => parentIdSet.delete(aId));
+
+  const parentNodes: TopicNode[] = [];
+  parentIdSet.forEach((pId) => {
+    const pNode = nodeMap.get(pId);
+    if (pNode) parentNodes.push(pNode);
+  });
+
+  // Assign layers to parent nodes (starting from currentLayer + 1)
+  const parentLayerMap = new Map<string, number>();
+  parentNodes.forEach((pNode) => {
+    parentLayerMap.set(pNode.id, currentLayer + 1);
+  });
+
+  for (let iter = 0; iter < parentNodes.length; iter++) {
+    let changed = false;
+    parentNodes.forEach((pNode) => {
+      pNode.prerequisites.forEach((prereqId) => {
+        if (parentIdSet.has(prereqId)) {
+          const prereqLayer = parentLayerMap.get(prereqId) ?? (currentLayer + 1);
+          const currL = parentLayerMap.get(pNode.id) ?? (currentLayer + 1);
+          if (currL <= prereqLayer) {
+            parentLayerMap.set(pNode.id, prereqLayer + 1);
+            changed = true;
+          }
+        }
+      });
+    });
+    if (!changed) break;
+  }
+
+  // 4. Organize nodes into layer buckets
+  interface RawLayoutItem {
+    node: TopicNode;
+    group: TopologicalNodeGroup;
+    layer: number;
+    step?: number;
+  }
+
+  const layerBuckets = new Map<number, RawLayoutItem[]>();
+
+  const addToLayer = (layer: number, item: RawLayoutItem) => {
+    if (!layerBuckets.has(layer)) {
+      layerBuckets.set(layer, []);
+    }
+    layerBuckets.get(layer)!.push(item);
+  };
+
+  ancestorPrereqs.forEach((node, idx) => {
+    const l = ancestorLayerMap.get(node.id) ?? 0;
+    addToLayer(l, {
+      node,
+      group: 'NEED',
+      layer: l,
+      step: idx + 1
+    });
+  });
+
+  addToLayer(currentLayer, {
+    node: targetNode,
+    group: 'CURRENT',
+    layer: currentLayer
+  });
+
+  parentNodes.forEach((node) => {
+    const l = parentLayerMap.get(node.id) ?? (currentLayer + 1);
+    addToLayer(l, {
+      node,
+      group: 'PARENT',
+      layer: l
+    });
+  });
+
+  // 5. Position nodes with bounded sub-row wrapping to fit within popup width
+  const sortedLayers = Array.from(layerBuckets.keys()).sort((a, b) => a - b);
+  const layoutNodes: TopologicalLayoutNode[] = [];
+  const coordMap = new Map<string, TopologicalLayoutNode>();
+
+  const PADDING_TOP = 24;
+  const PADDING_BOTTOM = 24;
+  let currentY = PADDING_TOP;
+
+  sortedLayers.forEach((l) => {
+    const items = layerBuckets.get(l)!;
+    // Chunk items into rows of at most 2 nodes to avoid overcrowding in narrow popup
+    const chunkSize = items.length <= 2 ? items.length : 2;
+    for (let i = 0; i < items.length; i += chunkSize) {
+      const chunk = items.slice(i, i + chunkSize);
+      const isCurrent = chunk.some((it) => it.group === 'CURRENT');
+      const h = isCurrent ? currentHeight : standardHeight;
+
+      if (chunk.length === 1) {
+        const item = chunk[0];
+        const w = item.group === 'CURRENT' ? 160 : 138;
+        const x = svgWidth / 2;
+        const y = currentY + h / 2;
+        const layoutNode: TopologicalLayoutNode = {
+          id: item.node.id,
+          name: item.node.name,
+          category: item.node.category,
+          mastery: item.node.mastery,
+          group: item.group,
+          layer: item.layer,
+          step: item.step,
+          x,
+          y,
+          width: w,
+          height: h,
+          node: item.node
+        };
+        layoutNodes.push(layoutNode);
+        coordMap.set(item.node.id, layoutNode);
+      } else {
+        const w = 120;
+        const col1X = 85;
+        const col2X = 235;
+        chunk.forEach((item, colIdx) => {
+          const x = colIdx === 0 ? col1X : col2X;
+          const y = currentY + h / 2;
+          const layoutNode: TopologicalLayoutNode = {
+            id: item.node.id,
+            name: item.node.name,
+            category: item.node.category,
+            mastery: item.node.mastery,
+            group: item.group,
+            layer: item.layer,
+            step: item.step,
+            x,
+            y,
+            width: w,
+            height: h,
+            node: item.node
+          };
+          layoutNodes.push(layoutNode);
+          coordMap.set(item.node.id, layoutNode);
+        });
+      }
+
+      currentY += layerGap;
+    }
+  });
+
+  const totalHeight = Math.max(160, currentY - layerGap + standardHeight / 2 + PADDING_BOTTOM);
+
+  // 6. Generate Directed Edges
+  const edgeList: TopologicalLayoutEdge[] = [];
+  const addedEdgeKeys = new Set<string>();
+
+  const addEdge = (fromId: string, toId: string, group: TopologicalNodeGroup) => {
+    const edgeKey = `${fromId}->${toId}`;
+    if (addedEdgeKeys.has(edgeKey)) return;
+    addedEdgeKeys.add(edgeKey);
+
+    const fromNode = coordMap.get(fromId);
+    const toNode = coordMap.get(toId);
+    if (!fromNode || !toNode) return;
+
+    const x1 = fromNode.x;
+    const y1 = fromNode.y + fromNode.height / 2;
+    const x2 = toNode.x;
+    const y2 = toNode.y - toNode.height / 2;
+
+    const midY = (y1 + y2) / 2;
+    const path = `M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2 - 2}`;
+
+    edgeList.push({
+      id: edgeKey,
+      fromId,
+      toId,
+      group,
+      path,
+      x1,
+      y1,
+      x2,
+      y2
+    });
+  };
+
+  // Edges within Ancestors
+  ancestorPrereqs.forEach((aNode) => {
+    aNode.prerequisites.forEach((pId) => {
+      if (ancestorIdSet.has(pId)) {
+        addEdge(pId, aNode.id, 'NEED');
+      }
+    });
+  });
+
+  // Edges from immediate prerequisites to Current Node
+  targetNode.prerequisites.forEach((pId) => {
+    if (ancestorIdSet.has(pId)) {
+      addEdge(pId, targetId, 'NEED');
+    }
+  });
+
+  // Edges from Current Node to Parent Nodes
+  parentNodes.forEach((pNode) => {
+    if (pNode.prerequisites.includes(targetId) || targetNode.unlocks.includes(pNode.id)) {
+      addEdge(targetId, pNode.id, 'CURRENT');
+    }
+  });
+
+  // Edges between Parent Nodes
+  parentNodes.forEach((pNode) => {
+    pNode.prerequisites.forEach((prereqId) => {
+      if (parentIdSet.has(prereqId)) {
+        addEdge(prereqId, pNode.id, 'PARENT');
+      }
+    });
+  });
+
+  return {
+    nodes: layoutNodes,
+    edges: edgeList,
+    width: svgWidth,
+    height: totalHeight,
+    needsCount: ancestorPrereqs.length,
+    parentsCount: parentNodes.length
+  };
+}
+
+
