@@ -199,14 +199,28 @@ test.describe('Interview Problem Library & Content Editor E2E (BAC-38 / FRO-18)'
     const monacoContainer = page.getByTestId('monaco-editor-container');
     await expect(monacoContainer).toBeVisible();
 
-    // Verify workbench language tabs and switch to typescript
-    const pythonTab = page.getByTestId('workbench-lang-tab-python');
-    await expect(pythonTab).toBeVisible();
-    const tsTab = page.getByTestId('workbench-lang-tab-typescript');
-    if (await tsTab.count() > 0) {
-      await tsTab.click();
-      await expect(tsTab).toHaveClass(/bg-sky-600|bg-\[#00f0ff\]/);
+    // Verify all 8 workbench language tabs are rendered and selectable
+    const expectedLangs = ['python', 'typescript', 'java', 'cpp', 'go', 'rust', 'sql', 'protobuf'];
+    for (const lang of expectedLangs) {
+      await expect(page.getByTestId(`workbench-lang-tab-${lang}`)).toBeVisible();
     }
+
+    // Switch to Rust and verify tab active styling and status bar
+    const rustTab = page.getByTestId('workbench-lang-tab-rust');
+    await rustTab.click();
+    await expect(rustTab).toHaveClass(/bg-sky-600|bg-\[#00f0ff\]/);
+    await expect(workbench.getByText('Rust', { exact: true })).toBeVisible();
+
+    // Switch to Protobuf and verify tab active styling and status bar
+    const protoTab = page.getByTestId('workbench-lang-tab-protobuf');
+    await protoTab.click();
+    await expect(protoTab).toHaveClass(/bg-sky-600|bg-\[#00f0ff\]/);
+    await expect(workbench.getByText('Protobuf', { exact: true })).toBeVisible();
+
+    // Switch to TypeScript
+    const tsTab = page.getByTestId('workbench-lang-tab-typescript');
+    await tsTab.click();
+    await expect(tsTab).toHaveClass(/bg-sky-600|bg-\[#00f0ff\]/);
 
     // Verify font size controls
     const increaseFontBtn = page.getByTestId('increase-font-btn');
