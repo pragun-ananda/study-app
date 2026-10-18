@@ -247,5 +247,76 @@ test.describe('Interview Problem Library & Content Editor E2E (BAC-38 / FRO-18)'
     await layoutToggleBtn.click();
     await expect(workbench).toBeVisible();
   });
+
+  test('interacts with testcase console drawer, creates custom case, and executes code via Run Code button', async ({ page }) => {
+    // Open sidebar and launch Trapping Rain Water
+    await page.getByLabel('Toggle study panel').click();
+    await page.getByTestId('sidebar-tab-problems').click();
+    const codingProblem = page.getByTestId('sidebar-problem-card').filter({ hasText: /Trapping Rain Water/i }).first();
+    if (await codingProblem.count() > 0) {
+      await codingProblem.click();
+    } else {
+      await page.getByTestId('sidebar-problem-card').first().click();
+    }
+
+    const modal = page.getByTestId('problem-viewer-modal');
+    await expect(modal).toBeVisible();
+
+    // Verify testcase console drawer is present
+    const consoleDrawer = page.getByTestId('testcase-console-drawer');
+    await expect(consoleDrawer).toBeVisible();
+
+    // Verify testcase tabs: Test Cases and Console Output
+    const tabTestcases = page.getByTestId('tab-testcases');
+    const tabConsoleOutput = page.getByTestId('tab-console-output');
+    await expect(tabTestcases).toBeVisible();
+    await expect(tabConsoleOutput).toBeVisible();
+
+    // Verify Case 1 pill is selected and input editor has content
+    const case1Pill = page.getByTestId('case-pill-0');
+    await expect(case1Pill).toBeVisible();
+    const inputEditor = page.getByTestId('testcase-input-editor');
+    await expect(inputEditor).toBeVisible();
+    const expectedEditor = page.getByTestId('testcase-expected-editor');
+    await expect(expectedEditor).toBeVisible();
+
+    // Add custom test case
+    const addCaseBtn = page.getByTestId('add-testcase-btn');
+    await expect(addCaseBtn).toBeVisible();
+    await addCaseBtn.click();
+
+    // Verify Case 3 was added (since problem has 2 seeded cases)
+    const newCasePill = page.getByTestId('case-pill-2');
+    await expect(newCasePill).toBeVisible();
+
+    // Delete the custom test case
+    const deleteBtn = page.getByTestId('delete-case-btn-2');
+    await expect(deleteBtn).toBeVisible();
+    await deleteBtn.click();
+    await expect(newCasePill).not.toBeVisible();
+
+    // Switch back to Case 1
+    await case1Pill.click();
+
+    // Click Run Code button
+    const runBtn = page.getByTestId('run-code-btn');
+    await expect(runBtn).toBeVisible();
+    await runBtn.click();
+
+    // Verify Console Output displays execution results
+    const verdictBadge = page.getByTestId('execution-verdict-badge');
+    await expect(verdictBadge).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('actual-output-display')).toBeVisible();
+    await expect(page.getByTestId('expected-output-display')).toBeVisible();
+
+    // Test toggle collapse / expand console drawer
+    const toggleConsoleBtn = page.getByTestId('toggle-console-btn');
+    await expect(toggleConsoleBtn).toBeVisible();
+    await toggleConsoleBtn.click();
+    await expect(consoleDrawer).toHaveClass(/h-10/);
+
+    await toggleConsoleBtn.click();
+    await expect(consoleDrawer).toHaveClass(/h-\[230px\]/);
+  });
 });
 

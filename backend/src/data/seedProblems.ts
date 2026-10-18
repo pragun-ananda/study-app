@@ -159,7 +159,10 @@ flowchart LR
     def get_node(self, key: str) -> str:
         return ""`
     },
-    testCases: [],
+    testCases: [
+      { input: { r: 2, w: 2, n: 3 }, expected: true, explanation: 'Strict Quorum Holds: R + W > N (read set overlaps with write set)' },
+      { input: { r: 1, w: 2, n: 3 }, expected: false, explanation: 'Eventual Consistency: R + W <= N (stale reads possible)' }
+    ],
     rubric: {
       data_partitioning: 25,
       replication_and_consistency: 30,
@@ -399,7 +402,10 @@ class LRUCache:
     def put(self, key: int, value: int) -> None:
         pass`
     },
-    testCases: [],
+    testCases: [
+      { input: { capacity: 2, operations: ['put(1,1)', 'put(2,2)', 'get(1)', 'put(3,3)', 'get(2)'] }, expected: [null, null, 1, null, -1], explanation: 'Key 2 evicted when key 3 inserted' },
+      { input: { capacity: 1, operations: ['put(2,1)', 'get(2)', 'put(3,2)', 'get(2)', 'get(3)'] }, expected: [null, 1, null, -1, 2], explanation: 'Key 2 evicted when key 3 inserted into 1-capacity cache' }
+    ],
     rubric: {
       correctness: 40,
       o1_time_invariants: 30,
@@ -456,7 +462,10 @@ flowchart TD
       'How does Reciprocal Rank Fusion eliminate the need for brittle score normalization calibration?'
     ],
     starterCode: {},
-    testCases: [],
+    testCases: [
+      { input: { queryVector: [0.6, 0.8], candidates: [{ id: 'item_1', vector: [0.6, 0.8] }, { id: 'item_2', vector: [-0.6, -0.8] }] }, expected: 'item_1', explanation: 'Top cosine similarity candidate is item_1' },
+      { input: { queryVector: [1.0, 0.0], candidates: [{ id: 'item_A', vector: [0.7, 0.7] }, { id: 'item_B', vector: [0.99, 0.01] }] }, expected: 'item_B', explanation: 'Closest angular match is item_B' }
+    ],
     rubric: {
       embedding_pipeline: 25,
       vector_indexing_hnsw: 30,

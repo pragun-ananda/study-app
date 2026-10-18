@@ -1,6 +1,6 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { describe, it, expect, beforeEach } from 'vitest';
+import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import ProblemViewerModal from '../../src/components/hud/ProblemViewerModal';
 import { useStore } from '../../src/store/useStore';
 import { ProblemItem, TopicNode } from '../../src/types/telemetry';
@@ -8,6 +8,10 @@ import { ProblemItem, TopicNode } from '../../src/types/telemetry';
 describe('ProblemViewerModal Component', () => {
   beforeEach(() => {
     useStore.getState().resetState();
+  });
+
+  afterEach(() => {
+    cleanup();
   });
 
   const mockTopic: TopicNode = {
@@ -322,6 +326,95 @@ Design a high-throughput, low-latency rate limiter service across multiple regio
       fireEvent.click(starterTab);
       expect(screen.getByTestId('problem-starter-code-box')).toBeInTheDocument();
     }
+  });
+
+  it('renders testcase console drawer with case tabs, inputs, and allows running code', async () => {
+    const problemWithCases: ProblemItem = {
+      ...mockProblem,
+      testCases: [
+        { input: [0, 1, 0, 2, 1, 0, 1, 3, 2, 1, 2, 1], expected: 6, explanation: 'Sample trap case' },
+        { input: [4, 2, 0, 3, 2, 5], expected: 9, explanation: 'Second trap case' }
+      ]
+    };
+    useStore.getState().setActiveProblem(problemWithCases);
+    render(<ProblemViewerModal />);
+
+    // Testcase Console Drawer is rendered
+    expect(screen.getByTestId('testcase-console-drawer')).toBeInTheDocument();
+    expect(screen.getByTestId('tab-testcases')).toBeInTheDocument();
+    expect(screen.getByTestId('tab-console-output')).toBeInTheDocument();
+
+    // Default Case 1 and Case 2 pills exist
+    expect(screen.getByTestId('case-pill-0')).toBeInTheDocument();
+    expect(screen.getByTestId('case-pill-1')).toBeInTheDocument();
+
+    // Input editor has Case 1 value
+    const inputEditor = screen.getByTestId('testcase-input-editor');
+    expect(inputEditor).toHaveValue(JSON.stringify(problemWithCases.testCases![0].input, null, 2));
+
+    // Expected editor has Case 1 expected value
+    const expectedEditor = screen.getByTestId('testcase-expected-editor');
+    expect(expectedEditor).toHaveValue('6');
+
+    // Switch to Case 2
+    fireEvent.click(screen.getByTestId('case-pill-1'));
+    expect(screen.getByTestId('testcase-expected-editor')).toHaveValue('9');
+
+    // Click Run Code button
+    const runBtn = screen.getByTestId('run-code-btn');
+    fireEvent.click(runBtn);
+
+    // Console output tab opens and shows verdict
+    await waitFor(() => {
+      expect(screen.getByTestId('execution-verdict-badge')).toBeInTheDocument();
+      expect(screen.getByTestId('actual-output-display')).toBeInTheDocument();
+      expect(screen.getByTestId('expected-output-display')).toBeInTheDocument();
+    });
+  });
+
+  it('allows adding and deleting custom test cases in the testcase console', () => {
+    useStore.getState().setActiveProblem(mockProblem);
+    render(<ProblemViewerModal />);
+
+    // Initially has 1 sample case
+    expect(screen.getByTestId('case-pill-0')).toBeInTheDocument();
+    expect(screen.queryByTestId('case-pill-1')).not.toBeInTheDocument();
+
+    // Click Add Case
+    const addCaseBtn = screen.getByTestId('add-testcase-btn');
+    fireEvent.click(addCaseBtn);
+
+    // Case 2 pill should now exist
+    expect(screen.getByTestId('case-pill-1')).toBeInTheDocument();
+
+    // Edit custom case input
+    const inputEditor = screen.getByTestId('testcase-input-editor');
+    fireEvent.change(inputEditor, { target: { value: '{"test": 123}' } });
+    expect(inputEditor).toHaveValue('{"test": 123}');
+
+    // Delete custom case
+    const deleteBtn = screen.getByTestId('delete-case-btn-1');
+    fireEvent.click(deleteBtn);
+
+    // Case 2 pill should be gone
+    expect(screen.queryByTestId('case-pill-1')).not.toBeInTheDocument();
+  });
+
+  it('allows collapsing and expanding the testcase console drawer', () => {
+    useStore.getState().setActiveProblem(mockProblem);
+    render(<ProblemViewerModal />);
+
+    const drawer = screen.getByTestId('testcase-console-drawer');
+    expect(drawer).toHaveClass('h-[230px]');
+
+    // Click toggle button to collapse
+    const toggleBtn = screen.getByTestId('toggle-console-btn');
+    fireEvent.click(toggleBtn);
+    expect(drawer).toHaveClass('h-10');
+
+    // Click toggle button to expand
+    fireEvent.click(toggleBtn);
+    expect(drawer).toHaveClass('h-[230px]');
   });
 });
 

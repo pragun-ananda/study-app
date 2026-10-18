@@ -39,6 +39,13 @@ import { getCategoryShade, getDomainBaseColor } from '../../utils/theme';
 import { MarkdownContent } from './MarkdownContent';
 import { QuizViewer } from './QuizViewer';
 import { ProblemDifficulty, ProblemType, TopicNode, ProblemItem, DomainCategory } from '../../types/telemetry';
+import {
+  runCode,
+  TestCaseItem,
+  ExecutionResult,
+  formatValue,
+  parseValue
+} from '../../utils/codeRunner';
 
 export interface SupportedLanguageConfig {
   id: string;
@@ -141,6 +148,14 @@ export default function ProblemViewerModal() {
   const [copiedEditorCode, setCopiedEditorCode] = useState<boolean>(false);
   const bodyRef = useRef<HTMLDivElement>(null);
 
+  // Step 3 Testcase Console & In-Browser Execution State
+  const [currentTestCases, setCurrentTestCases] = useState<TestCaseItem[]>([]);
+  const [selectedCaseIndex, setSelectedCaseIndex] = useState<number>(0);
+  const [isConsoleOpen, setIsConsoleOpen] = useState<boolean>(true);
+  const [consoleTab, setConsoleTab] = useState<'testcases' | 'output'>('testcases');
+  const [isRunningCode, setIsRunningCode] = useState<boolean>(false);
+  const [lastRunResult, setLastRunResult] = useState<ExecutionResult | null>(null);
+
   // Edit Mode State
   const [isEditing, setIsEditing] = useState(false);
   const [editTabMode, setEditTabMode] = useState<'WRITE' | 'PREVIEW'>('WRITE');
@@ -195,6 +210,32 @@ export default function ProblemViewerModal() {
       } else {
         setUserCodeByLang({ ...DEFAULT_STARTER_CODES });
       }
+
+      // Initialize test cases
+      if (activeProblem.testCases && activeProblem.testCases.length > 0) {
+        setCurrentTestCases(
+          activeProblem.testCases.map((tc, idx) => ({
+            id: `case-${idx}`,
+            input: tc.input,
+            expected: tc.expected,
+            explanation: tc.explanation,
+            isCustom: false
+          }))
+        );
+      } else {
+        setCurrentTestCases([
+          {
+            id: 'case-0',
+            input: [0, 1, 0, 2, 1, 0, 1, 3, 2, 1, 2, 1],
+            expected: 6,
+            explanation: 'Sample test case',
+            isCustom: false
+          }
+        ]);
+      }
+      setSelectedCaseIndex(0);
+      setLastRunResult(null);
+      setConsoleTab('testcases');
     }
   }, [activeProblem?.id]);
 
@@ -416,6 +457,82 @@ export default function ProblemViewerModal() {
       navigator.clipboard.writeText(currentEditorCode);
       setCopiedEditorCode(true);
       setTimeout(() => setCopiedEditorCode(false), 2000);
+    }
+  };
+
+  const handleRunCode = async () => {
+    if (isRunningCode) return;
+    const activeCase = currentTestCases[selectedCaseIndex] || currentTestCases[0];
+    if (!activeCase) return;
+
+    setIsRunningCode(true);
+    setConsoleTab('output');
+    if (!isConsoleOpen) setIsConsoleOpen(true);
+
+    try {
+      const res = await runCode(selectedLanguage, currentEditorCode, activeCase, selectedCaseIndex);
+      setLastRunResult(res);
+    } catch (err: any) {
+      setLastRunResult({
+        status: 'error',
+        testCaseId: activeCase.id,
+        testCaseIndex: selectedCaseIndex,
+        input: activeCase.input,
+        expected: activeCase.expected,
+        actual: null,
+        stdout: '',
+        runtimeMs: 0,
+        error: err.message || String(err)
+      });
+    } finally {
+      setIsRunningCode(false);
+    }
+  };
+
+  const handleAddTestCase = () => {
+    const newCase: TestCaseItem = {
+      id: `custom-${Date.now()}`,
+      input: '',
+      expected: '',
+      explanation: 'Custom test case',
+      isCustom: true
+    };
+    const updated = [...currentTestCases, newCase];
+    setCurrentTestCases(updated);
+    setSelectedCaseIndex(updated.length - 1);
+    setConsoleTab('testcases');
+    if (!isConsoleOpen) setIsConsoleOpen(true);
+  };
+
+  const handleDeleteTestCase = (indexToDelete: number) => {
+    const updated = currentTestCases.filter((_, idx) => idx !== indexToDelete);
+    setCurrentTestCases(updated);
+    if (selectedCaseIndex >= updated.length) {
+      setSelectedCaseIndex(Math.max(0, updated.length - 1));
+    }
+  };
+
+  const handleUpdateTestCaseInput = (index: number, val: string) => {
+    const updated = [...currentTestCases];
+    if (updated[index]) {
+      updated[index] = {
+        ...updated[index],
+        input: parseValue(val),
+        rawInput: val
+      };
+      setCurrentTestCases(updated);
+    }
+  };
+
+  const handleUpdateTestCaseExpected = (index: number, val: string) => {
+    const updated = [...currentTestCases];
+    if (updated[index]) {
+      updated[index] = {
+        ...updated[index],
+        expected: parseValue(val),
+        rawExpected: val
+      };
+      setCurrentTestCases(updated);
     }
   };
 
@@ -1403,7 +1520,12 @@ export default function ProblemViewerModal() {
                       </div>
 
                       {/* MONACO CODE EDITOR CANVAS */}
-                      <div className="flex-1 min-h-[350px] relative bg-slate-950/20" data-testid="monaco-editor-container">
+                      <div
+                        className={`relative bg-slate-950/20 transition-all ${
+                          isConsoleOpen ? 'flex-1 min-h-[200px]' : 'flex-1 min-h-[350px]'
+                        }`}
+                        data-testid="monaco-editor-container"
+                      >
                         <Editor
                           height="100%"
                           language={currentLanguageConfig.monacoLang}
@@ -1427,6 +1549,319 @@ export default function ProblemViewerModal() {
                         />
                       </div>
 
+                      {/* TEST CASE & CONSOLE OUTPUT DRAWER (STEP 3) */}
+                      <div
+                        className={`border-t flex flex-col transition-all duration-200 shrink-0 ${
+                          isConsoleOpen ? 'h-[230px]' : 'h-10'
+                        } ${
+                          isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-900/90 border-slate-800'
+                        }`}
+                        data-testid="testcase-console-drawer"
+                      >
+                        {/* Drawer Tabs Header */}
+                        <div
+                          className={`px-3 py-1.5 flex items-center justify-between border-b shrink-0 ${
+                            isLight ? 'bg-slate-200/50 border-slate-200' : 'bg-slate-950/60 border-slate-800/80'
+                          }`}
+                        >
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              data-testid="tab-testcases"
+                              onClick={() => {
+                                setConsoleTab('testcases');
+                                if (!isConsoleOpen) setIsConsoleOpen(true);
+                              }}
+                              className={`px-2.5 py-1 rounded text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
+                                consoleTab === 'testcases'
+                                  ? isLight
+                                    ? 'bg-white text-sky-700 shadow-sm'
+                                    : 'bg-slate-800 text-sky-400 shadow-sm'
+                                  : isLight
+                                  ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+                                  : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                              }`}
+                            >
+                              <CheckCircle2 size={13} className={consoleTab === 'testcases' ? (isLight ? 'text-sky-600' : 'text-sky-400') : 'text-slate-400'} />
+                              <span>Test Cases ({currentTestCases.length})</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              data-testid="tab-console-output"
+                              onClick={() => {
+                                setConsoleTab('output');
+                                if (!isConsoleOpen) setIsConsoleOpen(true);
+                              }}
+                              className={`px-2.5 py-1 rounded text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
+                                consoleTab === 'output'
+                                  ? isLight
+                                    ? 'bg-white text-sky-700 shadow-sm'
+                                    : 'bg-slate-800 text-sky-400 shadow-sm'
+                                  : isLight
+                                  ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+                                  : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                              }`}
+                            >
+                              <Terminal size={13} className={consoleTab === 'output' ? (isLight ? 'text-sky-600' : 'text-sky-400') : 'text-slate-400'} />
+                              <span>Console Output</span>
+                              {lastRunResult && (
+                                <span
+                                  className={`px-1.5 py-0.2 rounded text-[10px] font-bold uppercase ${
+                                    lastRunResult.status === 'passed'
+                                      ? 'bg-emerald-500/20 text-emerald-400'
+                                      : 'bg-rose-500/20 text-rose-400'
+                                  }`}
+                                >
+                                  {lastRunResult.status === 'passed' ? 'Passed' : 'Failed'}
+                                </span>
+                              )}
+                            </button>
+                          </div>
+
+                          {/* Toggle Collapse Button */}
+                          <button
+                            type="button"
+                            data-testid="toggle-console-btn"
+                            onClick={() => setIsConsoleOpen((prev) => !prev)}
+                            className={`p-1 rounded transition-colors cursor-pointer ${
+                              isLight ? 'text-slate-500 hover:bg-slate-200' : 'text-slate-400 hover:bg-slate-800'
+                            }`}
+                            title={isConsoleOpen ? 'Collapse console' : 'Expand console'}
+                          >
+                            {isConsoleOpen ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+                          </button>
+                        </div>
+
+                        {/* Drawer Body */}
+                        {isConsoleOpen && (
+                          <div className="flex-1 overflow-y-auto p-3 text-xs font-mono">
+                            {consoleTab === 'testcases' ? (
+                              <div>
+                                {/* Case Pills + Add Case */}
+                                <div className="flex items-center gap-1.5 mb-2.5 overflow-x-auto pb-1">
+                                  {currentTestCases.map((tc, idx) => {
+                                    const isSelected = selectedCaseIndex === idx;
+                                    return (
+                                      <div key={tc.id || idx} className="flex items-center">
+                                        <button
+                                          type="button"
+                                          data-testid={`case-pill-${idx}`}
+                                          onClick={() => setSelectedCaseIndex(idx)}
+                                          className={`px-2.5 py-1 rounded text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer ${
+                                            isSelected
+                                              ? isLight
+                                                ? 'bg-sky-600 text-white shadow-sm'
+                                                : 'bg-sky-500/20 text-sky-400 border border-sky-500/40'
+                                              : isLight
+                                              ? 'bg-slate-200/70 text-slate-700 hover:bg-slate-300'
+                                              : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                                          }`}
+                                        >
+                                          <span>Case {idx + 1}</span>
+                                        </button>
+                                        {tc.isCustom && (
+                                          <button
+                                            type="button"
+                                            data-testid={`delete-case-btn-${idx}`}
+                                            onClick={() => handleDeleteTestCase(idx)}
+                                            className="ml-1 p-0.5 text-slate-400 hover:text-rose-500 transition-colors cursor-pointer"
+                                            title="Delete custom case"
+                                          >
+                                            <Trash2 size={12} />
+                                          </button>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+
+                                  <button
+                                    type="button"
+                                    data-testid="add-testcase-btn"
+                                    onClick={handleAddTestCase}
+                                    className={`px-2 py-1 rounded text-xs font-medium flex items-center gap-1 transition-colors border border-dashed cursor-pointer ${
+                                      isLight
+                                        ? 'border-slate-300 text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                                        : 'border-slate-700 text-slate-400 hover:text-white hover:bg-slate-800'
+                                    }`}
+                                    title="Add custom test case"
+                                  >
+                                    <Plus size={12} />
+                                    <span>Add Case</span>
+                                  </button>
+                                </div>
+
+                                {/* Active Case Inputs */}
+                                {currentTestCases[selectedCaseIndex] && (
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <div>
+                                      <label className="block text-[11px] font-semibold uppercase text-slate-400 mb-1">
+                                        Input
+                                      </label>
+                                      <textarea
+                                        data-testid="testcase-input-editor"
+                                        value={
+                                          currentTestCases[selectedCaseIndex].rawInput !== undefined
+                                            ? currentTestCases[selectedCaseIndex].rawInput
+                                            : typeof currentTestCases[selectedCaseIndex].input === 'string'
+                                            ? currentTestCases[selectedCaseIndex].input
+                                            : JSON.stringify(currentTestCases[selectedCaseIndex].input, null, 2)
+                                        }
+                                        onChange={(e) => handleUpdateTestCaseInput(selectedCaseIndex, e.target.value)}
+                                        className={`w-full h-20 p-2 rounded border text-xs font-mono resize-none focus:outline-none focus:ring-1 focus:ring-sky-500 ${
+                                          isLight
+                                            ? 'bg-white border-slate-300 text-slate-800'
+                                            : 'bg-slate-950 border-slate-800 text-slate-200'
+                                        }`}
+                                        placeholder="Enter test case input (JSON or primitive)"
+                                      />
+                                    </div>
+
+                                    <div>
+                                      <label className="block text-[11px] font-semibold uppercase text-slate-400 mb-1">
+                                        Expected Output
+                                      </label>
+                                      <textarea
+                                        data-testid="testcase-expected-editor"
+                                        value={
+                                          currentTestCases[selectedCaseIndex].rawExpected !== undefined
+                                            ? currentTestCases[selectedCaseIndex].rawExpected
+                                            : typeof currentTestCases[selectedCaseIndex].expected === 'string'
+                                            ? currentTestCases[selectedCaseIndex].expected
+                                            : JSON.stringify(currentTestCases[selectedCaseIndex].expected, null, 2)
+                                        }
+                                        onChange={(e) => handleUpdateTestCaseExpected(selectedCaseIndex, e.target.value)}
+                                        className={`w-full h-20 p-2 rounded border text-xs font-mono resize-none focus:outline-none focus:ring-1 focus:ring-sky-500 ${
+                                          isLight
+                                            ? 'bg-white border-slate-300 text-slate-800'
+                                            : 'bg-slate-950 border-slate-800 text-slate-200'
+                                        }`}
+                                        placeholder="Enter expected output"
+                                      />
+                                    </div>
+                                  </div>
+                                )}
+
+                                {currentTestCases[selectedCaseIndex]?.explanation && (
+                                  <p className="mt-2 text-[11px] text-slate-400 italic">
+                                    Note: {currentTestCases[selectedCaseIndex].explanation}
+                                  </p>
+                                )}
+                              </div>
+                            ) : (
+                              <div>
+                                {isRunningCode ? (
+                                  <div className="flex flex-col items-center justify-center py-6 gap-2 text-slate-400">
+                                    <Loader2 className="w-5 h-5 animate-spin text-sky-400" />
+                                    <span className="text-xs">Executing {currentLanguageConfig.label} solution...</span>
+                                  </div>
+                                ) : !lastRunResult ? (
+                                  <div className="flex flex-col items-center justify-center py-6 text-slate-400 gap-1">
+                                    <Terminal size={18} className="opacity-50" />
+                                    <span>Click "Run Code" to execute active case</span>
+                                  </div>
+                                ) : (
+                                  <div className="space-y-3">
+                                    {/* Verdict Header */}
+                                    <div className="flex items-center justify-between pb-2 border-b border-white/5">
+                                      <div className="flex items-center gap-2">
+                                        <span
+                                          data-testid="execution-verdict-badge"
+                                          className={`px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 ${
+                                            lastRunResult.status === 'passed'
+                                              ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                              : lastRunResult.status === 'failed'
+                                              ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                                              : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                                          }`}
+                                        >
+                                          {lastRunResult.status === 'passed' ? (
+                                            <>
+                                              <Check size={13} className="stroke-[3]" />
+                                              <span>Accepted</span>
+                                            </>
+                                          ) : lastRunResult.status === 'failed' ? (
+                                            <>
+                                              <X size={13} className="stroke-[3]" />
+                                              <span>Wrong Answer</span>
+                                            </>
+                                          ) : (
+                                            <>
+                                              <ShieldAlert size={13} />
+                                              <span>Runtime Error</span>
+                                            </>
+                                          )}
+                                        </span>
+                                        <span className="text-xs text-slate-400">
+                                          Case {lastRunResult.testCaseIndex + 1}
+                                        </span>
+                                      </div>
+
+                                      <div className="text-xs font-semibold text-slate-400">
+                                        Runtime: <span className="text-sky-400">{lastRunResult.runtimeMs} ms</span>
+                                      </div>
+                                    </div>
+
+                                    {/* Error Traceback (if any) */}
+                                    {lastRunResult.error && (
+                                      <div className="p-2.5 rounded bg-rose-950/40 border border-rose-800/50 text-rose-300 text-xs">
+                                        <div className="font-bold mb-1">Error Trace:</div>
+                                        <pre className="whitespace-pre-wrap">{lastRunResult.error}</pre>
+                                      </div>
+                                    )}
+
+                                    {/* Comparison Grid */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+                                      <div
+                                        className={`p-2 rounded border ${
+                                          isLight ? 'bg-white border-slate-200' : 'bg-slate-950 border-slate-800'
+                                        }`}
+                                      >
+                                        <span className="block text-[10px] uppercase font-bold text-slate-400 mb-0.5">
+                                          Your Output:
+                                        </span>
+                                        <pre data-testid="actual-output-display" className="overflow-x-auto text-emerald-400 font-mono">
+                                          {formatValue(lastRunResult.actual)}
+                                        </pre>
+                                      </div>
+
+                                      <div
+                                        className={`p-2 rounded border ${
+                                          isLight ? 'bg-white border-slate-200' : 'bg-slate-950 border-slate-800'
+                                        }`}
+                                      >
+                                        <span className="block text-[10px] uppercase font-bold text-slate-400 mb-0.5">
+                                          Expected Output:
+                                        </span>
+                                        <pre data-testid="expected-output-display" className="overflow-x-auto text-sky-400 font-mono">
+                                          {formatValue(lastRunResult.expected)}
+                                        </pre>
+                                      </div>
+                                    </div>
+
+                                    {/* Standard Output Logs (if any) */}
+                                    {lastRunResult.stdout && (
+                                      <div
+                                        className={`p-2 rounded border ${
+                                          isLight ? 'bg-slate-100 border-slate-300' : 'bg-slate-950 border-slate-800'
+                                        }`}
+                                      >
+                                        <span className="block text-[10px] uppercase font-bold text-slate-400 mb-0.5">
+                                          Standard Output (stdout):
+                                        </span>
+                                        <pre data-testid="stdout-logs-display" className="text-slate-300 whitespace-pre-wrap">
+                                          {lastRunResult.stdout}
+                                        </pre>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
                       {/* BOTTOM ACTION & EXECUTION STATUS BAR */}
                       <div
                         className={`px-4 py-3 border-t flex flex-wrap items-center justify-between gap-3 text-xs font-mono shrink-0 ${
@@ -1448,15 +1883,23 @@ export default function ProblemViewerModal() {
                           <button
                             type="button"
                             data-testid="run-code-btn"
+                            onClick={handleRunCode}
+                            disabled={isRunningCode}
                             className={`px-3.5 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all border cursor-pointer ${
+                              isRunningCode ? 'opacity-60 cursor-not-allowed' : ''
+                            } ${
                               isLight
                                 ? 'bg-white hover:bg-slate-100 text-slate-800 border-slate-300 shadow-sm'
                                 : 'bg-slate-900 hover:bg-slate-800 text-slate-200 border-slate-700 hover:border-slate-500'
                             }`}
                             title="Run code against sample test cases (Step 3 WASM runner)"
                           >
-                            <Play size={13} className={isLight ? 'text-sky-600 fill-sky-600' : 'text-sky-400 fill-sky-400'} />
-                            <span>Run Code</span>
+                            {isRunningCode ? (
+                              <Loader2 size={13} className="animate-spin text-sky-400" />
+                            ) : (
+                              <Play size={13} className={isLight ? 'text-sky-600 fill-sky-600' : 'text-sky-400 fill-sky-400'} />
+                            )}
+                            <span>{isRunningCode ? 'Running...' : 'Run Code'}</span>
                           </button>
 
                           <button
