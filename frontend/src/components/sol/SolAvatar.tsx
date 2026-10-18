@@ -3,20 +3,24 @@ import { Canvas, useFrame } from '@react-three/fiber';
 import { useGLTF, useAnimations } from '@react-three/drei';
 import * as THREE from 'three';
 import { useSolStore, SolMood } from '../../store/useSolStore';
+import { calculateSolGaze, solMotionState, initSolMotionListeners } from './solMotion';
 
 interface RobotCompanionProps {
   mood: SolMood;
   isHovered: boolean;
+  containerRectRef: React.MutableRefObject<DOMRect | null>;
   onClick?: () => void;
 }
 
-function RobotCompanion({ mood, isHovered, onClick }: RobotCompanionProps) {
+function RobotCompanion({ mood, isHovered, containerRectRef, onClick }: RobotCompanionProps) {
   const group = useRef<THREE.Group>(null);
   const { scene, animations } = useGLTF('/models/robot.glb');
   const { actions, mixer } = useAnimations(animations, group);
+  const visorMaterialsRef = useRef<THREE.MeshStandardMaterial[]>([]);
 
-  // Customize robot color palette to Sol's signature electric cyan theme
+  // Customize robot color palette to Sol's signature Pearl White & Cyan LED theme
   useMemo(() => {
+    visorMaterialsRef.current = [];
     scene.traverse((child) => {
       if ((child as THREE.Mesh).isMesh) {
         const mesh = child as THREE.Mesh;
@@ -31,14 +35,15 @@ function RobotCompanion({ mood, isHovered, onClick }: RobotCompanionProps) {
             mat.roughness = 0.15;
             mat.metalness = 0.05;
           } else if (origMat.name === 'Black' || mesh.name === 'Head_4') {
-            // Glossy obsidian visor lenses with subtle blue LED catchlight
+            // Glossy obsidian visor lenses with glowing cyan LED catchlight
             mat.color = new THREE.Color('#090d16');
             mat.emissive = new THREE.Color('#00e5ff');
             mat.emissiveIntensity = 0.35;
             mat.roughness = 0.08;
             mat.metalness = 0.2;
+            visorMaterialsRef.current.push(mat);
           } else if (origMat.name === 'Grey') {
-            // Sleek titanium-cyan joint accents
+            // Sleek titanium-slate joint accents
             mat.color = new THREE.Color('#94a3b8');
             mat.roughness = 0.3;
             mat.metalness = 0.4;
@@ -57,6 +62,51 @@ function RobotCompanion({ mood, isHovered, onClick }: RobotCompanionProps) {
     }
   }, [actions]);
 
+  // Helper to play one-shot reaction animations and smoothly crossfade back to Idle
+  const playReaction = (actionName: string) => {
+    if (!actions || !actions[actionName] || !mixer) return;
+    const currentAction = actions[actionName];
+    const idleAction = actions['Idle'];
+    if (!currentAction) return;
+
+    currentAction.reset().setLoop(THREE.LoopOnce, 1);
+    currentAction.clampWhenFinished = false;
+    currentAction.fadeIn(0.12).play();
+    if (idleAction) {
+      idleAction.crossFadeTo(currentAction, 0.12, true);
+    }
+
+    const onFinished = (e: any) => {
+      if (e.action === currentAction) {
+        mixer.removeEventListener('finished', onFinished);
+        if (idleAction) {
+          currentAction.fadeOut(0.2);
+          idleAction.reset().fadeIn(0.2).play();
+        }
+      }
+    };
+    mixer.addEventListener('finished', onFinished);
+  };
+
+  // React to reactive trigger events (graph clicks, app actions, direct interaction)
+  const lastReaction = useSolStore((state) => state.lastReaction);
+  useEffect(() => {
+    if (!lastReaction) return;
+    const { trigger } = lastReaction;
+
+    if (trigger === 'nod') {
+      playReaction('Yes');
+    } else if (trigger === 'jump') {
+      playReaction('Jump');
+    } else if (trigger === 'wave') {
+      playReaction('Wave');
+    } else if (trigger === 'thumbsUp') {
+      playReaction('ThumbsUp');
+    } else if (trigger === 'dance') {
+      playReaction('Dance');
+    }
+  }, [lastReaction]);
+
   // React to mood changes
   useEffect(() => {
     if (!actions || !mixer) return;
@@ -72,59 +122,49 @@ function RobotCompanion({ mood, isHovered, onClick }: RobotCompanionProps) {
         };
       }
     } else if (mood === 'happy') {
-      const thumbsUp = actions['ThumbsUp'];
-      const idleAction = actions['Idle'];
-      if (thumbsUp && idleAction) {
-        thumbsUp.reset().setLoop(THREE.LoopOnce, 1);
-        thumbsUp.clampWhenFinished = false;
-        thumbsUp.fadeIn(0.2).play();
-        idleAction.crossFadeTo(thumbsUp, 0.2, true);
-
-        const onFinished = () => {
-          mixer.removeEventListener('finished', onFinished);
-          idleAction.reset().fadeIn(0.3).play();
-        };
-        mixer.addEventListener('finished', onFinished);
-      }
+      playReaction('ThumbsUp');
     }
   }, [mood, actions, mixer]);
 
-  // Click handler: trigger a cheerful Wave or ThumbsUp animation!
+  // Click handler: trigger Wave or ThumbsUp animation
   const handleClick = (e: any) => {
     e.stopPropagation();
-    if (actions && mixer) {
-      const waveAction = actions['Wave'];
-      const idleAction = actions['Idle'];
-      if (waveAction && idleAction) {
-        waveAction.reset().setLoop(THREE.LoopOnce, 1);
-        waveAction.clampWhenFinished = false;
-        waveAction.fadeIn(0.15).play();
-        idleAction.crossFadeTo(waveAction, 0.15, true);
-
-        const onFinished = () => {
-          mixer.removeEventListener('finished', onFinished);
-          idleAction.reset().fadeIn(0.3).play();
-        };
-        mixer.addEventListener('finished', onFinished);
-      }
-    }
+    playReaction('Wave');
     if (onClick) onClick();
   };
 
-  // Hover effect: when hovering, make head/body lean forward slightly
+  // Real-time motion tracking with cursor alignment and click reactions
   useFrame((state, delta) => {
     if (!group.current) return;
 
     const t = state.clock.getElapsedTime();
+    const gaze = calculateSolGaze(
+      containerRectRef.current,
+      isHovered,
+      delta,
+      group.current.rotation,
+      group.current.position,
+      t
+    );
 
-    // Gentle mechanical floating bob
-    group.current.position.y = -1.35 + Math.sin(t * 2.2) * 0.06;
+    // Apply orientation (yaw, pitch, roll) smoothly aligned with cursor
+    group.current.rotation.x = gaze.rotation.x;
+    group.current.rotation.y = gaze.rotation.y;
+    group.current.rotation.z = gaze.rotation.z;
 
-    // Smooth gaze tracking towards mouse cursor
-    const targetRotY = state.pointer.x * 0.42;
-    const targetRotX = -state.pointer.y * 0.16;
-    group.current.rotation.y = THREE.MathUtils.lerp(group.current.rotation.y, targetRotY, delta * 4);
-    group.current.rotation.x = THREE.MathUtils.lerp(group.current.rotation.x, targetRotX, delta * 4);
+    // Apply floating position and click spring bounce
+    group.current.position.x = gaze.position.x;
+    group.current.position.y = gaze.position.y;
+    group.current.position.z = gaze.position.z;
+
+    // Modulate Visor LED eye glow: pulses on click and brightens on hover
+    const moodBoost = mood === 'thinking' ? 0.35 : mood === 'happy' ? 0.2 : 0;
+    const targetEmissive = 0.35 + (isHovered ? 0.25 : 0) + gaze.emissiveBoost * 0.95 + moodBoost;
+
+    for (let i = 0; i < visorMaterialsRef.current.length; i++) {
+      const mat = visorMaterialsRef.current[i];
+      mat.emissiveIntensity = THREE.MathUtils.lerp(mat.emissiveIntensity, targetEmissive, delta * 12);
+    }
   });
 
   return (
@@ -142,9 +182,9 @@ function RobotCompanion({ mood, isHovered, onClick }: RobotCompanionProps) {
 // Preload the robot model so it appears instantaneously
 useGLTF.preload('/models/robot.glb');
 
-// Orbiting Celestial Stardust Sparkles
+// Orbiting Celestial Stardust Sparkles that swirl and react to user clicks
 function StardustParticles() {
-  const count = 20;
+  const count = 22;
   const particlesRef = useRef<THREE.Points>(null);
 
   const [positions, initialAngles, radii, speeds] = useMemo(() => {
@@ -170,8 +210,11 @@ function StardustParticles() {
     const posAttr = particlesRef.current.geometry.attributes.position;
     const array = posAttr.array as Float32Array;
 
+    // Particle orbits speed up during clicks
+    const speedBoost = 1.0 + solMotionState.clickPulse * 3.5;
+
     for (let i = 0; i < count; i++) {
-      initialAngles[i] += delta * speeds[i] * 0.8;
+      initialAngles[i] += delta * speeds[i] * 0.8 * speedBoost;
       const x = Math.cos(initialAngles[i]) * radii[i];
       const z = Math.sin(initialAngles[i]) * radii[i];
       let y = array[i * 3 + 1] + Math.sin(state.clock.elapsedTime * 2 + i) * 0.005;
@@ -232,9 +275,33 @@ interface SolAvatarProps {
 
 export default function SolAvatar({ className = '', isHovered = false, onClick }: SolAvatarProps) {
   const mood = useSolStore((state) => state.solMood);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const containerRectRef = useRef<DOMRect | null>(null);
+
+  // Initialize global cursor and click listeners on mount
+  useEffect(() => {
+    const cleanup = initSolMotionListeners();
+    const updateRect = () => {
+      if (containerRef.current) {
+        containerRectRef.current = containerRef.current.getBoundingClientRect();
+      }
+    };
+    updateRect();
+    window.addEventListener('resize', updateRect, { passive: true });
+    window.addEventListener('scroll', updateRect, { passive: true });
+
+    return () => {
+      cleanup();
+      window.removeEventListener('resize', updateRect);
+      window.removeEventListener('scroll', updateRect);
+    };
+  }, []);
 
   return (
-    <div className={`relative w-full h-full cursor-pointer select-none ${className}`}>
+    <div
+      ref={containerRef}
+      className={`relative w-full h-full cursor-pointer select-none ${className}`}
+    >
       {/* Outer Cyan Cosmic Aura Glow */}
       <div
         className={`absolute inset-0 rounded-full blur-xl transition-all duration-500 pointer-events-none ${
@@ -249,7 +316,7 @@ export default function SolAvatar({ className = '', isHovered = false, onClick }
       <Canvas
         camera={{ position: [0, 0, 4.5], fov: 42 }}
         gl={{ antialias: true, alpha: true }}
-        className="w-full h-full"
+        className="w-full h-full pointer-events-auto"
       >
         <ambientLight intensity={1.3} />
         <directionalLight position={[3, 5, 4]} intensity={2.0} color="#ffffff" />
@@ -257,8 +324,13 @@ export default function SolAvatar({ className = '', isHovered = false, onClick }
         <directionalLight position={[0, -2, -3]} intensity={1.0} color="#38bdf8" />
 
         <Suspense fallback={<LoadingPlaceholder />}>
-          {/* 🌟 Professional Animated Robot Companion */}
-          <RobotCompanion mood={mood} isHovered={isHovered} onClick={onClick} />
+          {/* 🌟 Professional 3D Robot Companion with Cursor Tracking & Click Reactions */}
+          <RobotCompanion
+            mood={mood}
+            isHovered={isHovered}
+            containerRectRef={containerRectRef}
+            onClick={onClick}
+          />
         </Suspense>
 
         {/* Orbiting Stardust Particles */}

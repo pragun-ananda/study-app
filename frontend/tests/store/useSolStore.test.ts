@@ -71,4 +71,17 @@ describe('Sol AI Persona Store (useSolStore)', () => {
     expect(messages[2].text).toContain('quiz');
     expect(useSolStore.getState().isLoading).toBe(false);
   });
+
+  it('triggers reactive animations and updates lastReaction state', () => {
+    expect(useSolStore.getState().lastReaction).toBeNull();
+
+    useSolStore.getState().triggerReaction('nod');
+    const reaction = useSolStore.getState().lastReaction;
+    expect(reaction).not.toBeNull();
+    expect(reaction?.trigger).toBe('nod');
+    expect(reaction?.timestamp).toBeGreaterThan(0);
+
+    useSolStore.getState().triggerReaction('thumbsUp');
+    expect(useSolStore.getState().lastReaction?.trigger).toBe('thumbsUp');
+  });
 });
