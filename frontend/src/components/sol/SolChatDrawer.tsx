@@ -26,7 +26,7 @@ export default function SolChatDrawer() {
   // Auto-scroll to bottom of messages
   useEffect(() => {
     if (isOpen) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      messagesEndRef.current?.scrollIntoView?.({ behavior: 'smooth' });
     }
   }, [messages, isLoading, isOpen]);
 
