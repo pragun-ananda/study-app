@@ -209,13 +209,13 @@ test.describe('Interview Problem Library & Content Editor E2E (BAC-38 / FRO-18)'
     const rustTab = page.getByTestId('workbench-lang-tab-rust');
     await rustTab.click();
     await expect(rustTab).toHaveClass(/bg-sky-600|bg-\[#00f0ff\]/);
-    await expect(workbench.getByText('Rust', { exact: true })).toBeVisible();
+    await expect(workbench.locator('span', { hasText: /^Rust$/ })).toBeVisible();
 
     // Switch to Protobuf and verify tab active styling and status bar
     const protoTab = page.getByTestId('workbench-lang-tab-protobuf');
     await protoTab.click();
     await expect(protoTab).toHaveClass(/bg-sky-600|bg-\[#00f0ff\]/);
-    await expect(workbench.getByText('Protobuf', { exact: true })).toBeVisible();
+    await expect(workbench.locator('span', { hasText: /^Protobuf$/ })).toBeVisible();
 
     // Switch to TypeScript
     const tsTab = page.getByTestId('workbench-lang-tab-typescript');
