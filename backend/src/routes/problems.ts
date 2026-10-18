@@ -15,6 +15,7 @@ import {
 import { SEED_INTERVIEW_PROBLEMS } from '../data/seedProblems.js';
 import { query } from '../db.js';
 import { ProblemRow } from '../types.js';
+import { gradeSystemDesignArchitecture } from '../services/systemDesignGrader.js';
 
 const router = Router();
 
@@ -201,6 +202,90 @@ router.post('/:id/follow-ups/:followUpId/response', async (req: Request, res: Re
     return res.status(200).json(saved);
   } catch (error) {
     return handleDatabaseError(res, error, 'Failed to save follow-up response');
+  }
+});
+
+// POST /api/problems/grade-system-design - Direct System Design Architecture Grading
+router.post('/grade-system-design', async (req: Request, res: Response) => {
+  try {
+    const { problemId, followUpId, prompt, rubric, responseText, diagramData } = req.body || {};
+
+    let problemPrompt = prompt;
+    let problemRubric = rubric;
+    let problemTitle = 'System Design Challenge';
+
+    if (problemId) {
+      const problem = await getProblemById(problemId);
+      if (problem) {
+        problemTitle = problem.title;
+        if (followUpId && problem.followUps) {
+          const fu = problem.followUps.find((f) => f.id === followUpId);
+          if (fu) {
+            problemPrompt = problemPrompt || fu.prompt;
+            problemRubric = problemRubric || fu.rubric;
+          }
+        }
+      }
+    }
+
+    const evaluation = await gradeSystemDesignArchitecture({
+      problemTitle,
+      prompt: problemPrompt || 'Distributed Architecture System Design',
+      rubric: problemRubric,
+      responseText: responseText || '',
+      diagramData
+    });
+
+    let savedResponse = null;
+    if (problemId && followUpId) {
+      savedResponse = await saveFollowUpResponse(problemId, followUpId, {
+        responseText: responseText || '',
+        diagramData,
+        score: evaluation.score,
+        feedback: JSON.stringify(evaluation)
+      });
+    }
+
+    return res.status(200).json({ evaluation, savedResponse });
+  } catch (error) {
+    return handleDatabaseError(res, error, 'Failed to grade system design architecture');
+  }
+});
+
+// POST /api/problems/:id/follow-ups/:followUpId/grade - Grade candidate architecture response
+router.post('/:id/follow-ups/:followUpId/grade', async (req: Request, res: Response) => {
+  try {
+    const { id, followUpId } = req.params;
+    const { responseText, diagramData } = req.body || {};
+
+    const problem = await getProblemById(id);
+    if (!problem) {
+      return res.status(404).json({ error: `Problem with id '${id}' not found` });
+    }
+
+    const followUp = (problem.followUps || []).find((f) => f.id === followUpId);
+    if (!followUp) {
+      return res.status(404).json({ error: `Follow-up '${followUpId}' not found for problem '${id}'` });
+    }
+
+    const evaluation = await gradeSystemDesignArchitecture({
+      problemTitle: problem.title,
+      prompt: followUp.prompt,
+      rubric: followUp.rubric,
+      responseText: responseText || '',
+      diagramData
+    });
+
+    const savedResponse = await saveFollowUpResponse(id, followUpId, {
+      responseText: responseText || '',
+      diagramData,
+      score: evaluation.score,
+      feedback: JSON.stringify(evaluation)
+    });
+
+    return res.status(200).json({ evaluation, savedResponse });
+  } catch (error) {
+    return handleDatabaseError(res, error, 'Failed to grade follow-up architecture response');
   }
 });
 

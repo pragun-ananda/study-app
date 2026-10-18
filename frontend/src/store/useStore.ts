@@ -267,6 +267,7 @@ export const INITIAL_STATE: TelemetryState = {
   isSubmittingCode: false,
   followUpResponses: {},
   isSavingFollowUp: false,
+  isGradingFollowUp: false,
 
   // Review & Diff Updates (FRO-11)
   graphUpdates: INITIAL_UPDATES,
@@ -534,6 +535,38 @@ export const useStore = create<TelemetryStore>((set, get) => ({
       return saved;
     } catch (err: any) {
       set({ isSavingFollowUp: false, error: err.message || 'Failed to save follow-up response' });
+      throw err;
+    }
+  },
+  gradeFollowUpResponse: async (
+    problemId: string,
+    followUpId: string,
+    payload: { responseText: string; diagramData?: any }
+  ) => {
+    set({ isGradingFollowUp: true });
+    try {
+      const result = await api.gradeSystemDesignFollowUp(problemId, followUpId, payload);
+      set((state) => {
+        const existingList = state.followUpResponses[problemId] || [];
+        const index = existingList.findIndex((r) => r.followUpId === followUpId);
+        let updatedList: any[];
+        if (index >= 0) {
+          updatedList = existingList.map((item, i) => (i === index ? result.savedResponse : item));
+        } else {
+          updatedList = [result.savedResponse, ...existingList];
+        }
+        return {
+          followUpResponses: {
+            ...state.followUpResponses,
+            [problemId]: updatedList
+          },
+          isGradingFollowUp: false,
+          error: null
+        };
+      });
+      return result;
+    } catch (err: any) {
+      set({ isGradingFollowUp: false, error: err.message || 'Failed to grade system design follow-up' });
       throw err;
     }
   },

@@ -13,7 +13,7 @@ describe('Integration: Problem Bank REST API (/api/problems - BAC-38)', () => {
     db.public.none(`
       INSERT INTO problems (
         id, title, type, difficulty, domain, summary, prompt, solution,
-        hints, starter_code, test_cases, rubric, target_companies, time_limit_minutes
+        hints, starter_code, test_cases, rubric, follow_ups, target_companies, time_limit_minutes
       ) VALUES (
         'PROB-TEST-1',
         'Design a High-Throughput Distributed Rate Limiter',
@@ -27,6 +27,7 @@ describe('Integration: Problem Bank REST API (/api/problems - BAC-38)', () => {
         '{"python": "class RateLimiter:\\n    pass"}'::jsonb,
         '[{"input": "client_1", "expected": true}]'::jsonb,
         '{"architecture": 50, "concurrency": 50}'::jsonb,
+        '[{"id": "FU-TEST-1", "title": "Scaling Flood Telemetry", "prompt": "How to scale to 10M events/sec?", "rubric": {"partitioning": 50, "reliability": 50}, "hints": ["Use Kafka partitioning"]}]'::jsonb,
         ARRAY['Stripe', 'Netflix'],
         45
       );
@@ -341,6 +342,80 @@ describe('Integration: Problem Bank REST API (/api/problems - BAC-38)', () => {
         .send({});
       expect(res.status).toBe(400);
       expect(res.body.error).toContain('responseText is required');
+    });
+
+    it('returns 404 when grading for non-existent problem or follow-up', async () => {
+      const res1 = await request(app)
+        .post('/api/problems/PROB-GHOST/follow-ups/FU-TEST-1/grade')
+        .send({ responseText: 'Some architecture' });
+      expect(res1.status).toBe(404);
+
+      const res2 = await request(app)
+        .post('/api/problems/PROB-TEST-1/follow-ups/FU-GHOST/grade')
+        .send({ responseText: 'Some architecture' });
+      expect(res2.status).toBe(404);
+    });
+
+    it('grades follow-up architecture response, returns evaluation report, and saves score to DB', async () => {
+      const gradeRes = await request(app)
+        .post('/api/problems/PROB-TEST-1/follow-ups/FU-TEST-1/grade')
+        .send({
+          responseText:
+            'Kafka stream partitioned by WatershedID. Flink stateful tumbling windows with RocksDB checkpoint replicas for HA.',
+          diagramData: {
+            elements: [
+              { id: '1', type: 'rectangle', text: 'Kafka Broker', isDeleted: false },
+              { id: '2', type: 'arrow', isDeleted: false },
+              { id: '3', type: 'rectangle', text: 'Flink Worker Cluster', isDeleted: false }
+            ]
+          }
+        });
+
+      expect(gradeRes.status).toBe(200);
+      expect(gradeRes.body.evaluation).toBeDefined();
+      expect(gradeRes.body.evaluation.score).toBeGreaterThanOrEqual(0);
+      expect(gradeRes.body.evaluation.score).toBeLessThanOrEqual(100);
+      expect(gradeRes.body.evaluation.rubricScores).toBeDefined();
+      expect(gradeRes.body.evaluation.scalabilityAssessment).toBeDefined();
+      expect(Array.isArray(gradeRes.body.evaluation.singlePointsOfFailure)).toBe(true);
+      expect(Array.isArray(gradeRes.body.evaluation.actionableImprovements)).toBe(true);
+
+      // Verify saved response was persisted in database
+      expect(gradeRes.body.savedResponse).toBeDefined();
+      expect(gradeRes.body.savedResponse.score).toBe(gradeRes.body.evaluation.score);
+      expect(gradeRes.body.savedResponse.feedback).toContain('scalabilityAssessment');
+
+      // Verify retrieving responses returns the newly graded response
+      const getRes = await request(app).get('/api/problems/PROB-TEST-1/follow-ups/responses');
+      expect(getRes.status).toBe(200);
+      const matched = getRes.body.find((r: any) => r.followUpId === 'FU-TEST-1');
+      expect(matched).toBeDefined();
+      expect(matched.score).toBe(gradeRes.body.evaluation.score);
+    });
+
+    it('grades ad-hoc system design via direct endpoint POST /api/problems/grade-system-design', async () => {
+      const res = await request(app)
+        .post('/api/problems/grade-system-design')
+        .send({
+          prompt: 'Design a distributed rate limiter supporting 1M RPS.',
+          rubric: {
+            token_bucket: 50,
+            redis_sliding_window: 50
+          },
+          responseText: 'Redis cluster with sliding window counter using Redis hashes and Lua scripts.',
+          diagramData: {
+            elements: [
+              { id: '1', type: 'rectangle', text: 'API Gateway', isDeleted: false },
+              { id: '2', type: 'rectangle', text: 'Redis Cluster', isDeleted: false }
+            ]
+          }
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.evaluation).toBeDefined();
+      expect(res.body.evaluation.score).toBeGreaterThanOrEqual(0);
+      expect(res.body.evaluation.rubricScores.token_bucket).toBeDefined();
+      expect(res.body.evaluation.rubricScores.redis_sliding_window).toBeDefined();
     });
   });
 });
