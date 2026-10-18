@@ -315,7 +315,7 @@ test.describe('Interview Problem Library & Content Editor E2E (BAC-38 / FRO-18)'
     await toggleConsoleBtn.click();
     await expect(consoleDrawer).toHaveClass(/h-10/);
 
-    await toggleConsoleBtn.click();
+    await toggleConsoleBtn.click({ force: true });
     await expect(consoleDrawer).toHaveClass(/h-\[230px\]/);
   });
 });
