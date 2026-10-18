@@ -40,13 +40,13 @@ describe('TopologicalSubgraph Component', () => {
     );
 
     expect(screen.getByTestId('topological-subgraph-container')).toBeInTheDocument();
-    expect(screen.getByText(/Topological Flow/i)).toBeInTheDocument();
+    expect(screen.getByText('Topological Flow', { exact: true })).toBeInTheDocument();
     expect(screen.getByTestId('topological-mode-flow-btn')).toBeInTheDocument();
     expect(screen.getByTestId('topological-mode-list-btn')).toBeInTheDocument();
 
     // Check legend items
     expect(screen.getByText(/Needs \(1\)/i)).toBeInTheDocument();
-    expect(screen.getByText(/Current/i)).toBeInTheDocument();
+    expect(screen.getByText('Current', { exact: true })).toBeInTheDocument();
     expect(screen.getByText(/Parents \(1\)/i)).toBeInTheDocument();
 
     // SVG elements
@@ -94,7 +94,7 @@ describe('TopologicalSubgraph Component', () => {
 
     // Items present in list
     expect(screen.getByText('Foundations A')).toBeInTheDocument();
-    expect(screen.getByText('INTERMEDIATE B')).toBeInTheDocument();
+    expect(screen.getByText(/Intermediate B/i)).toBeInTheDocument();
     expect(screen.getByText('Advanced C')).toBeInTheDocument();
 
     // Clicking prerequisite in list mode selects it
