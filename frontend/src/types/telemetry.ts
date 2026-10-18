@@ -92,6 +92,43 @@ export interface ProblemItem {
   updatedAt?: string;
 }
 
+export type SubmissionStatus = 'ACCEPTED' | 'WRONG_ANSWER' | 'TIME_LIMIT_EXCEEDED' | 'RUNTIME_ERROR' | 'PENDING';
+
+export interface ProblemSubmission {
+  id: string;
+  problemId: string;
+  language: string;
+  code: string;
+  status: SubmissionStatus;
+  passedCount: number;
+  totalCount: number;
+  runtimeMs: number;
+  memoryKb: number;
+  failedTestCase?: {
+    input: any;
+    expected: any;
+    actual?: any;
+    stdout?: string;
+    error?: string;
+    explanation?: string;
+    testCaseIndex?: number;
+  } | null;
+  stdout?: string | null;
+  createdAt: string;
+}
+
+export interface SubmitProblemPayload {
+  language: string;
+  code: string;
+  status?: SubmissionStatus;
+  passedCount?: number;
+  totalCount?: number;
+  runtimeMs?: number;
+  memoryKb?: number;
+  failedTestCase?: any;
+  stdout?: string;
+}
+
 export interface TopicNode {
   id: string;
   name: string;
@@ -267,6 +304,8 @@ export interface TelemetryState {
   // Interview Problem Bank (Coding & System Design - BAC-38)
   problems: ProblemItem[];
   activeProblem: ProblemItem | null;
+  problemSubmissions: Record<string, ProblemSubmission[]>;
+  isSubmittingCode: boolean;
 
   // Review & Diff Updates (FRO-11)
   graphUpdates: GraphUpdate[];
@@ -349,6 +388,8 @@ export interface TelemetryActions {
   updateProblem: (id: string, updates: Partial<ProblemItem>) => Promise<ProblemItem | void>;
   createProblem: (payload: Partial<ProblemItem>) => Promise<ProblemItem | void>;
   deleteProblem: (id: string) => Promise<void>;
+  submitProblem: (problemId: string, payload: SubmitProblemPayload) => Promise<ProblemSubmission | void>;
+  fetchProblemSubmissions: (problemId: string) => Promise<ProblemSubmission[]>;
 
   // Diff Review Actions (FRO-11)
   setIsNotificationsOpen: (open: boolean) => void;

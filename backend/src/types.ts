@@ -222,6 +222,57 @@ export interface CreateProblemPayload {
   quizIds?: string[];
 }
 
+export type SubmissionStatus = 'ACCEPTED' | 'WRONG_ANSWER' | 'TIME_LIMIT_EXCEEDED' | 'RUNTIME_ERROR' | 'PENDING';
+
+export interface ProblemSubmissionRow {
+  id: string;
+  problem_id: string;
+  language: string;
+  code: string;
+  status: SubmissionStatus;
+  passed_count: number;
+  total_count: number;
+  runtime_ms: number | string;
+  memory_kb: number;
+  failed_test_case: any;
+  stdout: string | null;
+  created_at: string | Date;
+}
+
+export interface ProblemSubmissionDTO {
+  id: string;
+  problemId: string;
+  language: string;
+  code: string;
+  status: SubmissionStatus;
+  passedCount: number;
+  totalCount: number;
+  runtimeMs: number;
+  memoryKb: number;
+  failedTestCase?: {
+    input: any;
+    expected: any;
+    actual?: any;
+    stdout?: string;
+    error?: string;
+    explanation?: string;
+  } | null;
+  stdout?: string | null;
+  createdAt: string;
+}
+
+export interface SubmitProblemPayload {
+  language: string;
+  code: string;
+  status?: SubmissionStatus;
+  passedCount?: number;
+  totalCount?: number;
+  runtimeMs?: number;
+  memoryKb?: number;
+  failedTestCase?: any;
+  stdout?: string;
+}
+
 // API DTOs (Data Transfer Objects) matching Frontend Types
 export interface TopicDTO {
   id: string;

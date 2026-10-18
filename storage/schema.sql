@@ -184,5 +184,25 @@ CREATE TABLE IF NOT EXISTS problem_quizzes (
 
 CREATE INDEX IF NOT EXISTS idx_problem_quizzes_quiz ON problem_quizzes(quiz_id);
 
+-- 12. Problem Submissions (Coding & System Design submissions and test suite execution telemetry)
+CREATE TABLE IF NOT EXISTS problem_submissions (
+    id VARCHAR(64) PRIMARY KEY,
+    problem_id VARCHAR(64) NOT NULL REFERENCES problems(id) ON DELETE CASCADE,
+    language VARCHAR(32) NOT NULL,
+    code TEXT NOT NULL,
+    status VARCHAR(32) NOT NULL CHECK (status IN ('ACCEPTED', 'WRONG_ANSWER', 'TIME_LIMIT_EXCEEDED', 'RUNTIME_ERROR', 'PENDING')),
+    passed_count INTEGER NOT NULL DEFAULT 0,
+    total_count INTEGER NOT NULL DEFAULT 0,
+    runtime_ms NUMERIC(8,2) NOT NULL DEFAULT 0.00,
+    memory_kb INTEGER NOT NULL DEFAULT 0,
+    failed_test_case JSONB,
+    stdout TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_problem_submissions_problem_id ON problem_submissions(problem_id);
+CREATE INDEX IF NOT EXISTS idx_problem_submissions_created_at ON problem_submissions(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_problem_submissions_status ON problem_submissions(status);
+
 
 

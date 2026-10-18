@@ -416,5 +416,84 @@ Design a high-throughput, low-latency rate limiter service across multiple regio
     fireEvent.click(toggleBtn);
     expect(drawer).toHaveClass('h-[230px]');
   });
+
+  it('handles code submission and displays submission result overlay with telemetry', async () => {
+    const mockSubmission = {
+      id: 'SUB-123',
+      problemId: mockProblem.id,
+      language: 'typescript',
+      code: 'export function solve() { return true; }',
+      status: 'ACCEPTED' as const,
+      passedCount: 2,
+      totalCount: 2,
+      runtimeMs: 0.45,
+      memoryKb: 37200,
+      stdout: 'All 2 cases passed',
+      createdAt: new Date().toISOString()
+    };
+
+    const submitSpy = vi.fn().mockResolvedValue(mockSubmission);
+    useStore.setState({ submitProblem: submitSpy as any });
+    useStore.getState().setActiveProblem(mockProblem);
+    render(<ProblemViewerModal />);
+
+    // Click Submit button
+    const submitBtn = screen.getByTestId('submit-solution-btn');
+    expect(submitBtn).toBeInTheDocument();
+    fireEvent.click(submitBtn);
+
+    // Submission result modal opens
+    await waitFor(() => {
+      expect(screen.getByTestId('submission-result-modal')).toBeInTheDocument();
+      expect(screen.getByTestId('submission-verdict-title')).toHaveTextContent(/Accepted/i);
+      expect(screen.getByTestId('submission-runtime-stat')).toHaveTextContent(/ms/i);
+      expect(screen.getByTestId('submission-memory-stat')).toHaveTextContent(/MB/i);
+      expect(screen.getByTestId('submission-passed-stat')).toHaveTextContent('2 / 2');
+    });
+
+    // Close submission modal via Back to Code button
+    const closeBtn = screen.getByTestId('back-to-code-btn');
+    fireEvent.click(closeBtn);
+    expect(screen.queryByTestId('submission-result-modal')).not.toBeInTheDocument();
+  });
+
+  it('switches to SUBMISSIONS tab and renders submission history table', async () => {
+    const mockSubmission = {
+      id: 'SUB-456',
+      problemId: mockProblem.id,
+      language: 'python',
+      code: 'class Solution:\n    pass',
+      status: 'ACCEPTED' as const,
+      passedCount: 3,
+      totalCount: 3,
+      runtimeMs: 1.2,
+      memoryKb: 38000,
+      createdAt: new Date().toISOString()
+    };
+
+    const fetchSpy = vi.fn().mockResolvedValue([mockSubmission]);
+    useStore.setState({
+      fetchProblemSubmissions: fetchSpy as any,
+      problemSubmissions: {
+        [mockProblem.id]: [mockSubmission]
+      }
+    });
+    useStore.getState().setActiveProblem(mockProblem);
+    render(<ProblemViewerModal />);
+
+    // Switch to SUBMISSIONS tab
+    const submissionsTab = screen.getByTestId('problem-tab-submissions');
+    expect(submissionsTab).toBeInTheDocument();
+    fireEvent.click(submissionsTab);
+
+    // Section and table are visible
+    await waitFor(() => {
+      expect(screen.getByTestId('problem-submissions-section')).toBeInTheDocument();
+      expect(screen.getByTestId('submissions-table')).toBeInTheDocument();
+      expect(screen.getByTestId('submission-history-row')).toBeInTheDocument();
+      expect(screen.getByText('python')).toBeInTheDocument();
+    });
+  });
 });
+
 

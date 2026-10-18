@@ -603,6 +603,40 @@ describe('PostgreSQL Storage Schema (storage/schema.sql)', () => {
       const remaining = db.public.many("SELECT * FROM problem_quizzes WHERE problem_id = 'PROB-QUIZ-TEST'");
       expect(remaining.length).toBe(0);
     });
+
+    it('inserts problem submission records, enforces status check, and cascades on problem deletion', () => {
+      db.public.none(`
+        INSERT INTO problems (id, title, type, difficulty, domain, summary, prompt, solution)
+        VALUES ('PROB-SUB-TEST', 'Trapping Rain Water', 'CODING', 'HARD', 'CS', 'Summary', 'Prompt', 'Sol');
+
+        INSERT INTO problem_submissions (
+          id, problem_id, language, code, status, passed_count, total_count, runtime_ms, memory_kb, stdout
+        ) VALUES (
+          'SUB-001', 'PROB-SUB-TEST', 'typescript', 'export function trap() { return 6; }',
+          'ACCEPTED', 2, 2, 0.45, 36240, 'Computed trapped water: 6 units.'
+        );
+      `);
+
+      const sub = db.public.one("SELECT * FROM problem_submissions WHERE id = 'SUB-001'");
+      expect(sub.problem_id).toBe('PROB-SUB-TEST');
+      expect(sub.language).toBe('typescript');
+      expect(sub.status).toBe('ACCEPTED');
+      expect(sub.passed_count).toBe(2);
+      expect(Number(sub.runtime_ms)).toBe(0.45);
+
+      // Verify status constraint rejects invalid status
+      expect(() => {
+        db.public.none(`
+          INSERT INTO problem_submissions (id, problem_id, language, code, status)
+          VALUES ('SUB-002', 'PROB-SUB-TEST', 'python', 'code', 'INVALID_STATUS');
+        `);
+      }).toThrow();
+
+      // Verify cascade delete
+      db.public.none("DELETE FROM problems WHERE id = 'PROB-SUB-TEST'");
+      const remaining = db.public.many("SELECT * FROM problem_submissions WHERE problem_id = 'PROB-SUB-TEST'");
+      expect(remaining.length).toBe(0);
+    });
   });
 });
 

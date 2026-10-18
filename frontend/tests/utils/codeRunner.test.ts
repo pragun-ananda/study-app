@@ -9,6 +9,7 @@ import {
   runSQL,
   runGenericCompiled,
   runCode,
+  runSubmissionSuite,
   TestCaseItem
 } from '../../src/utils/codeRunner';
 
@@ -297,4 +298,47 @@ class Solution:
       expect(result.actual).toBe(3);
     });
   });
+
+  describe('runSubmissionSuite full test suite execution', () => {
+    const testCases: TestCaseItem[] = [
+      { id: 'tc-1', input: [1, 2], expected: 3 },
+      { id: 'tc-2', input: [5, 5], expected: 10 }
+    ];
+
+    it('returns ACCEPTED when all test cases pass', async () => {
+      const code = `export function add(arr) { return arr[0] + arr[1]; }`;
+      const result = await runSubmissionSuite('typescript', code, testCases);
+
+      expect(result.status).toBe('ACCEPTED');
+      expect(result.passedCount).toBe(2);
+      expect(result.totalCount).toBe(2);
+      expect(result.failedTestCase).toBeUndefined();
+      expect(result.runtimeMs).toBeGreaterThanOrEqual(0);
+      expect(result.memoryKb).toBeGreaterThan(0);
+    });
+
+    it('returns WRONG_ANSWER and diff for first failing test case', async () => {
+      const code = `export function add(arr) { return 3; }`;
+      const result = await runSubmissionSuite('typescript', code, testCases);
+
+      expect(result.status).toBe('WRONG_ANSWER');
+      expect(result.passedCount).toBe(1);
+      expect(result.totalCount).toBe(2);
+      expect(result.failedTestCase).toBeDefined();
+      expect(result.failedTestCase?.testCaseIndex).toBe(1);
+      expect(result.failedTestCase?.expected).toBe(10);
+      expect(result.failedTestCase?.actual).toBe(3);
+    });
+
+    it('returns RUNTIME_ERROR when code throws an unhandled exception', async () => {
+      const code = `export function add(arr) { throw new Error('Segmentation fault simulation'); }`;
+      const result = await runSubmissionSuite('typescript', code, testCases);
+
+      expect(result.status).toBe('RUNTIME_ERROR');
+      expect(result.passedCount).toBe(0);
+      expect(result.failedTestCase).toBeDefined();
+      expect(result.failedTestCase?.error).toContain('Segmentation fault');
+    });
+  });
 });
+

@@ -12,6 +12,8 @@ export default function SolCompanion() {
   const hasUnreadGreeting = useSolStore((state) => state.hasUnreadGreeting);
   const dismissGreeting = useSolStore((state) => state.dismissGreeting);
   const theme = useStore((state) => state.theme);
+  const activeProblem = useStore((state) => state.activeProblem);
+  const isModalOpen = Boolean(activeProblem);
 
   const [isHovered, setIsHovered] = useState(false);
   const [topicGreeting, setTopicGreeting] = useState<string | null>(null);
@@ -97,6 +99,8 @@ export default function SolCompanion() {
   };
 
   const bubbleText = topicGreeting || (hasUnreadGreeting ? "Hi, I'm Sol! Click to chat ✨" : null);
+
+  if (isModalOpen) return null;
 
   return (
     <div
