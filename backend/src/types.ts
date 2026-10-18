@@ -316,6 +316,35 @@ export interface SaveFollowUpResponsePayload {
   feedback?: string;
 }
 
+export interface RubricCriterionScore {
+  score: number;
+  maxWeight: number;
+  feedback: string;
+}
+
+export interface SystemDesignGradingResult {
+  score: number;
+  rubricScores: Record<string, RubricCriterionScore>;
+  scalabilityAssessment: string;
+  singlePointsOfFailure: string[];
+  tradeOffCritique: string;
+  actionableImprovements: string[];
+}
+
+export interface GradeFollowUpResponseResult {
+  evaluation: SystemDesignGradingResult;
+  savedResponse: ProblemFollowUpResponseDTO;
+}
+
+export interface GradeSystemDesignPayload {
+  problemId?: string;
+  followUpId?: string;
+  prompt?: string;
+  rubric?: Record<string, number>;
+  responseText: string;
+  diagramData?: any;
+}
+
 // API DTOs (Data Transfer Objects) matching Frontend Types
 export interface TopicDTO {
   id: string;

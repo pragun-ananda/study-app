@@ -626,6 +626,94 @@ Design a high-throughput, low-latency rate limiter service across multiple regio
       expect(screen.getByTestId('no-followups-message')).toBeInTheDocument();
       expect(screen.getByText('No System Design Follow-Ups')).toBeInTheDocument();
     });
+
+    it('switches between Diagram, Split, and Written workbench modes', async () => {
+      useStore.getState().setActiveProblem(mockProblemWithFollowUps);
+      render(<ProblemViewerModal />);
+
+      fireEvent.click(screen.getByTestId('problem-tab-system-design'));
+
+      // Default is SPLIT: both Excalidraw canvas and textarea are present
+      expect(screen.getByTestId('workbench-mode-split')).toBeInTheDocument();
+      expect(screen.getByTestId('excalidraw-canvas-wrapper')).toBeInTheDocument();
+      expect(screen.getByTestId('followup-response-textarea')).toBeInTheDocument();
+
+      // Switch to DIAGRAM only
+      fireEvent.click(screen.getByTestId('workbench-mode-diagram'));
+      expect(screen.getByTestId('excalidraw-canvas-wrapper')).toBeInTheDocument();
+      expect(screen.queryByTestId('followup-response-textarea')).not.toBeInTheDocument();
+
+      // Switch to WRITTEN only
+      fireEvent.click(screen.getByTestId('workbench-mode-written'));
+      expect(screen.queryByTestId('excalidraw-canvas-wrapper')).not.toBeInTheDocument();
+      expect(screen.getByTestId('followup-response-textarea')).toBeInTheDocument();
+    });
+
+    it('triggers Grade Architecture with AI and renders evaluation report cards', async () => {
+      const mockEvaluation: SystemDesignGradingResult = {
+        score: 88,
+        rubricScores: {
+          stream_partitioning: { score: 26, maxWeight: 30, feedback: 'Strong partition key choice' },
+          stateful_sliding_windows: { score: 35, maxWeight: 40, feedback: 'Flink stateful windows well specified' },
+          fault_tolerance_ha: { score: 27, maxWeight: 30, feedback: 'RocksDB checkpoint replicas adequate' }
+        },
+        scalabilityAssessment: 'The architecture proposal demonstrates sound horizontal scalability across compute and state storage tiers.',
+        singlePointsOfFailure: [
+          'Single primary Kafka broker controller without Raft quorum failover',
+          'Direct synchronous downstream worker calls without circuit breaker'
+        ],
+        tradeOffCritique: 'Favors eventual consistency and low write latency over strict linearizability.',
+        actionableImprovements: [
+          'Implement client-side consistent hashing to prevent partition skew',
+          'Add distributed tracing headers (OpenTelemetry) across the event stream pipeline'
+        ]
+      };
+
+      const gradeSpy = vi.fn().mockResolvedValue({
+        evaluation: mockEvaluation,
+        savedResponse: {
+          id: 'RESP-GRADED-1',
+          problemId: mockProblemWithFollowUps.id,
+          followUpId: 'FU-STREAM-1',
+          responseText: 'Kafka stream with Flink workers.',
+          score: 88,
+          feedback: JSON.stringify(mockEvaluation),
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }
+      });
+
+      useStore.setState({ gradeFollowUpResponse: gradeSpy as any });
+      useStore.getState().setActiveProblem(mockProblemWithFollowUps);
+      render(<ProblemViewerModal />);
+
+      fireEvent.click(screen.getByTestId('problem-tab-system-design'));
+
+      const gradeBtn = screen.getByTestId('grade-architecture-btn');
+      expect(gradeBtn).toHaveTextContent('Grade Architecture with AI');
+
+      fireEvent.click(gradeBtn);
+
+      await waitFor(() => {
+        expect(gradeSpy).toHaveBeenCalledWith(
+          mockProblemWithFollowUps.id,
+          'FU-STREAM-1',
+          expect.any(Object)
+        );
+      });
+
+      // Verify Evaluation Report Card
+      await waitFor(() => {
+        expect(screen.getByTestId('system-design-grading-report')).toBeInTheDocument();
+        expect(screen.getByTestId('grading-overall-score')).toHaveTextContent('88 / 100');
+        expect(screen.getByTestId('grading-rubric-breakdown')).toHaveTextContent('stream partitioning');
+        expect(screen.getByTestId('grading-rubric-breakdown')).toHaveTextContent('26 / 30');
+        expect(screen.getByTestId('grading-scalability-assessment')).toHaveTextContent(/sound horizontal scalability/i);
+        expect(screen.getByTestId('grading-spofs-container')).toHaveTextContent('Single primary Kafka broker controller');
+        expect(screen.getByTestId('grading-tradeoffs-critique')).toHaveTextContent(/Favors eventual consistency/i);
+        expect(screen.getByTestId('grading-improvements-container')).toHaveTextContent('Implement client-side consistent hashing');
+      });
+    });
   });
 });
 

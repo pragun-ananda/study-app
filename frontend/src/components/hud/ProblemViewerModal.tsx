@@ -33,7 +33,11 @@ import {
   Trophy,
   AlertOctagon,
   XCircle,
-  History
+  History,
+  Bot,
+  Layout,
+  TrendingUp,
+  AlertTriangle
 } from 'lucide-react';
 import Editor from '@monaco-editor/react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
@@ -42,7 +46,16 @@ import { useStore } from '../../store/useStore';
 import { getCategoryShade, getDomainBaseColor } from '../../utils/theme';
 import { MarkdownContent } from './MarkdownContent';
 import { QuizViewer } from './QuizViewer';
-import { ProblemDifficulty, ProblemType, TopicNode, ProblemItem, DomainCategory, ProblemSubmission } from '../../types/telemetry';
+import { ExcalidrawCanvas } from './ExcalidrawCanvas';
+import {
+  ProblemDifficulty,
+  ProblemType,
+  TopicNode,
+  ProblemItem,
+  DomainCategory,
+  ProblemSubmission,
+  SystemDesignGradingResult
+} from '../../types/telemetry';
 import {
   runCode,
   runSubmissionSuite,
@@ -147,17 +160,22 @@ export default function ProblemViewerModal() {
   const problemSubmissions = useStore((state) => state.problemSubmissions);
   const submissions = activeProblem ? problemSubmissions[activeProblem.id] || [] : [];
 
-  // Stage 5 System Design Follow-Ups Store Hooks & State
+  // Stage 5 & 6 System Design Follow-Ups & Excalidraw AI Grader
   const fetchFollowUpResponses = useStore((state) => state.fetchFollowUpResponses);
   const saveFollowUpResponse = useStore((state) => state.saveFollowUpResponse);
-  const followUpResponsesMap = useStore((state) => state.followUpResponses);
+  const gradeFollowUpResponse = useStore((state) => state.gradeFollowUpResponse);
   const isSavingFollowUp = useStore((state) => state.isSavingFollowUp);
+  const isGradingFollowUp = useStore((state) => state.isGradingFollowUp);
+  const followUpResponsesMap = useStore((state) => state.followUpResponses);
   const followUpResponses = activeProblem ? followUpResponsesMap[activeProblem.id] || [] : [];
   const followUps = activeProblem?.followUps || [];
 
   const [activeTab, setActiveTab] = useState<'PROMPT' | 'SOLUTION' | 'QUIZ' | 'SUBMISSIONS' | 'SYSTEM_DESIGN'>('PROMPT');
   const [selectedFollowUpIndex, setSelectedFollowUpIndex] = useState<number>(0);
   const [followUpResponseText, setFollowUpResponseText] = useState<string>('');
+  const [followUpDiagramData, setFollowUpDiagramData] = useState<any>(null);
+  const [followUpWorkbenchMode, setFollowUpWorkbenchMode] = useState<'SPLIT' | 'DIAGRAM' | 'WRITTEN'>('SPLIT');
+  const [gradingEvaluation, setGradingEvaluation] = useState<SystemDesignGradingResult | null>(null);
   const [revealedFollowUpHints, setRevealedFollowUpHints] = useState<number[]>([]);
   const [showSampleArchitecture, setShowSampleArchitecture] = useState<boolean>(false);
   const [followUpSavedSuccess, setFollowUpSavedSuccess] = useState<boolean>(false);
@@ -289,24 +307,58 @@ export default function ProblemViewerModal() {
     if (activeFollowUp && activeProblem?.id) {
       const existing = followUpResponses.find((r) => r.followUpId === activeFollowUp.id);
       setFollowUpResponseText(existing?.responseText || '');
+      setFollowUpDiagramData(existing?.diagramData || null);
+      if (existing?.feedback) {
+        try {
+          const parsed = typeof existing.feedback === 'string' ? JSON.parse(existing.feedback) : existing.feedback;
+          if (parsed && typeof parsed.score === 'number') {
+            setGradingEvaluation(parsed);
+          } else {
+            setGradingEvaluation(null);
+          }
+        } catch {
+          setGradingEvaluation(null);
+        }
+      } else {
+        setGradingEvaluation(null);
+      }
       setRevealedFollowUpHints([]);
       setShowSampleArchitecture(false);
       setFollowUpSavedSuccess(false);
     } else {
       setFollowUpResponseText('');
+      setFollowUpDiagramData(null);
+      setGradingEvaluation(null);
     }
   }, [selectedFollowUpIndex, activeProblem?.id, followUpResponses.length]);
 
   const handleSaveFollowUpResponse = async () => {
     if (!activeProblem?.id || !activeFollowUp) return;
     try {
-      await saveFollowUpResponse(activeProblem.id, activeFollowUp.id, {
-        responseText: followUpResponseText
-      });
+      const payload: any = { responseText: followUpResponseText };
+      if (followUpDiagramData) {
+        payload.diagramData = followUpDiagramData;
+      }
+      await saveFollowUpResponse(activeProblem.id, activeFollowUp.id, payload);
       setFollowUpSavedSuccess(true);
       setTimeout(() => setFollowUpSavedSuccess(false), 3000);
     } catch (err) {
       console.error('Failed to save follow-up response', err);
+    }
+  };
+
+  const handleGradeArchitecture = async () => {
+    if (!activeProblem?.id || !activeFollowUp) return;
+    try {
+      const result = await gradeFollowUpResponse(activeProblem.id, activeFollowUp.id, {
+        responseText: followUpResponseText,
+        diagramData: followUpDiagramData
+      });
+      if (result && result.evaluation) {
+        setGradingEvaluation(result.evaluation);
+      }
+    } catch (err) {
+      console.error('Failed to grade architecture follow-up', err);
     }
   };
 
@@ -2589,7 +2641,7 @@ export default function ProblemViewerModal() {
                     {activeFollowUp && (
                       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
                         {/* LEFT COLUMN: PROMPT, RUBRIC & HINTS */}
-                        <div className="lg:col-span-7 space-y-6">
+                        <div className={`space-y-6 ${followUpWorkbenchMode === 'DIAGRAM' ? 'lg:col-span-4' : 'lg:col-span-5'}`}>
                           {/* Prompt & Requirements Card */}
                           <div
                             className={`p-5 rounded-xl border ${
@@ -2745,64 +2797,193 @@ export default function ProblemViewerModal() {
                           )}
                         </div>
 
-                        {/* RIGHT COLUMN: WRITTEN ARCHITECTURE RESPONSE WORKBENCH */}
-                        <div className="lg:col-span-5 space-y-4 flex flex-col">
+                        {/* RIGHT COLUMN: INTEGRATED ARCHITECTURE WORKBENCH & EXCALIDRAW CANVAS */}
+                        <div className={`space-y-6 flex flex-col ${followUpWorkbenchMode === 'DIAGRAM' ? 'lg:col-span-8' : 'lg:col-span-7'}`}>
                           <div
                             className={`p-5 rounded-xl border flex-1 flex flex-col ${
                               isLight ? 'bg-white border-slate-200 shadow-sm' : 'bg-slate-900/60 border-slate-800'
                             }`}
                             data-testid="followup-response-editor-card"
                           >
-                            <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-800/60">
+                            {/* Workbench Header & Mode Switcher */}
+                            <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-800/60 gap-3 flex-wrap">
                               <div>
-                                <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                                <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-200 flex items-center gap-1.5">
                                   <Edit3 size={13} className="text-purple-400" />
-                                  Your Architecture Response
+                                  Your Architecture Solution & Whiteboard
                                 </h4>
                                 <span className="text-[10px] text-slate-400">
-                                  Write your capacity math, partition keys, component breakdown, and trade-offs.
+                                  Draft system components, streaming topologies, and written capacity math.
                                 </span>
                               </div>
 
-                              {/* Status Indicator */}
-                              {followUpSavedSuccess ? (
-                                <span className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold font-mono bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 animate-pulse">
-                                  <Check size={11} /> Saved
-                                </span>
-                              ) : (
-                                <span className="text-[10px] font-mono text-slate-500">
-                                  {followUpResponseText.length} chars
-                                </span>
+                              <div className="flex items-center gap-2">
+                                {/* Mode Switcher Pills */}
+                                <div
+                                  className={`p-0.5 rounded-lg border flex items-center gap-1 text-[11px] font-mono font-bold ${
+                                    isLight ? 'bg-slate-100 border-slate-200' : 'bg-slate-950 border-slate-800'
+                                  }`}
+                                  data-testid="workbench-mode-switcher"
+                                >
+                                  <button
+                                    type="button"
+                                    onClick={() => setFollowUpWorkbenchMode('DIAGRAM')}
+                                    data-testid="workbench-mode-diagram"
+                                    title="Full diagram canvas"
+                                    className={`px-2.5 py-1 rounded-md transition-all flex items-center gap-1 cursor-pointer ${
+                                      followUpWorkbenchMode === 'DIAGRAM'
+                                        ? isLight
+                                          ? 'bg-white text-purple-700 shadow-xs'
+                                          : 'bg-purple-900/60 text-purple-300 shadow-xs'
+                                        : 'text-slate-400 hover:text-slate-200'
+                                    }`}
+                                  >
+                                    <Layout size={12} />
+                                    <span>Diagram</span>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => setFollowUpWorkbenchMode('SPLIT')}
+                                    data-testid="workbench-mode-split"
+                                    title="Side-by-side diagram & written response"
+                                    className={`px-2.5 py-1 rounded-md transition-all flex items-center gap-1 cursor-pointer ${
+                                      followUpWorkbenchMode === 'SPLIT'
+                                        ? isLight
+                                          ? 'bg-white text-purple-700 shadow-xs'
+                                          : 'bg-purple-900/60 text-purple-300 shadow-xs'
+                                        : 'text-slate-400 hover:text-slate-200'
+                                    }`}
+                                  >
+                                    <Columns size={12} />
+                                    <span>Split</span>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => setFollowUpWorkbenchMode('WRITTEN')}
+                                    data-testid="workbench-mode-written"
+                                    title="Full written response text editor"
+                                    className={`px-2.5 py-1 rounded-md transition-all flex items-center gap-1 cursor-pointer ${
+                                      followUpWorkbenchMode === 'WRITTEN'
+                                        ? isLight
+                                          ? 'bg-white text-purple-700 shadow-xs'
+                                          : 'bg-purple-900/60 text-purple-300 shadow-xs'
+                                        : 'text-slate-400 hover:text-slate-200'
+                                    }`}
+                                  >
+                                    <Edit3 size={12} />
+                                    <span>Written</span>
+                                  </button>
+                                </div>
+
+                                {/* Status / Score Indicator */}
+                                {gradingEvaluation ? (
+                                  <span
+                                    className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold font-mono bg-purple-500/20 text-purple-300 border border-purple-500/30"
+                                    data-testid="current-followup-score-badge"
+                                  >
+                                    Score: {gradingEvaluation.score}/100
+                                  </span>
+                                ) : followUpSavedSuccess ? (
+                                  <span className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold font-mono bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 animate-pulse">
+                                    <Check size={11} /> Saved
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] font-mono text-slate-500">
+                                    {followUpResponseText.length} chars
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* WORKBENCH BODY: MODE-DRIVEN RENDERING */}
+                            <div className="flex-1 flex flex-col space-y-4">
+                              {/* DIAGRAM ONLY MODE */}
+                              {followUpWorkbenchMode === 'DIAGRAM' && (
+                                <div className="space-y-2">
+                                  <ExcalidrawCanvas
+                                    initialData={followUpDiagramData}
+                                    onChange={setFollowUpDiagramData}
+                                    isLight={isLight}
+                                    height="540px"
+                                  />
+                                </div>
+                              )}
+
+                              {/* WRITTEN ONLY MODE */}
+                              {followUpWorkbenchMode === 'WRITTEN' && (
+                                <textarea
+                                  value={followUpResponseText}
+                                  onChange={(e) => setFollowUpResponseText(e.target.value)}
+                                  placeholder={`# High-Level Architecture\n\n### 1. Ingestion & Partitioning\n- Kafka partitions keyed by WatershedID...\n\n### 2. Stream Processing Topology\n- Apache Flink stateful tumbling windows...\n\n### 3. Fault Tolerance & Out-of-Order Events\n- RocksDB checkpoints + watermark heuristics...`}
+                                  data-testid="followup-response-textarea"
+                                  className={`w-full flex-1 min-h-[460px] p-4 rounded-lg font-mono text-xs leading-relaxed resize-y focus:outline-none focus:ring-1 ${
+                                    isLight
+                                      ? 'bg-slate-50 border border-slate-200 text-slate-900 focus:ring-purple-500'
+                                      : 'bg-slate-950/80 border border-slate-800 text-slate-100 focus:ring-purple-400'
+                                  }`}
+                                />
+                              )}
+
+                              {/* SPLIT VIEW MODE (DEFAULT) */}
+                              {followUpWorkbenchMode === 'SPLIT' && (
+                                <div className="space-y-4 flex flex-col">
+                                  <div>
+                                    <div className="text-[11px] font-mono font-bold uppercase tracking-wider text-slate-400 mb-1.5 flex items-center justify-between">
+                                      <span className="flex items-center gap-1.5">
+                                        <Layers size={13} className="text-purple-400" />
+                                        Visual Architecture Whiteboard
+                                      </span>
+                                      <span className="text-[10px] text-slate-500 lowercase">
+                                        drag, connect, or use quick presets
+                                      </span>
+                                    </div>
+                                    <ExcalidrawCanvas
+                                      initialData={followUpDiagramData}
+                                      onChange={setFollowUpDiagramData}
+                                      isLight={isLight}
+                                      height="380px"
+                                    />
+                                  </div>
+
+                                  <div className="flex flex-col flex-1">
+                                    <div className="text-[11px] font-mono font-bold uppercase tracking-wider text-slate-400 mb-1.5 flex items-center gap-1.5">
+                                      <Edit3 size={13} className="text-purple-400" />
+                                      Written Specifications & Capacity Math
+                                    </div>
+                                    <textarea
+                                      value={followUpResponseText}
+                                      onChange={(e) => setFollowUpResponseText(e.target.value)}
+                                      placeholder={`# High-Level Architecture\n\n### 1. Ingestion & Partitioning\n- Kafka partitions keyed by WatershedID...\n\n### 2. Stream Processing Topology\n- Apache Flink stateful tumbling windows...\n\n### 3. Fault Tolerance & Out-of-Order Events\n- RocksDB checkpoints + watermark heuristics...`}
+                                      data-testid="followup-response-textarea"
+                                      className={`w-full p-4 rounded-lg font-mono text-xs leading-relaxed min-h-[220px] resize-y focus:outline-none focus:ring-1 ${
+                                        isLight
+                                          ? 'bg-slate-50 border border-slate-200 text-slate-900 focus:ring-purple-500'
+                                          : 'bg-slate-950/80 border border-slate-800 text-slate-100 focus:ring-purple-400'
+                                      }`}
+                                    />
+                                  </div>
+                                </div>
                               )}
                             </div>
 
-                            <textarea
-                              value={followUpResponseText}
-                              onChange={(e) => setFollowUpResponseText(e.target.value)}
-                              placeholder={`# High-Level Architecture\n\n### 1. Ingestion & Partitioning\n- Kafka partitions keyed by WatershedID...\n\n### 2. Stream Processing Topology\n- Apache Flink stateful tumbling windows...\n\n### 3. Fault Tolerance & Out-of-Order Events\n- RocksDB checkpoints + watermark heuristics...`}
-                              data-testid="followup-response-textarea"
-                              className={`w-full flex-1 min-h-[340px] p-4 rounded-lg font-mono text-xs leading-relaxed resize-y focus:outline-none focus:ring-1 ${
-                                isLight
-                                  ? 'bg-slate-50 border border-slate-200 text-slate-900 focus:ring-purple-500'
-                                  : 'bg-slate-950/80 border border-slate-800 text-slate-100 focus:ring-purple-400'
-                              }`}
-                            />
-
-                            <div className="mt-4 flex items-center justify-between pt-3 border-t border-slate-800/60">
+                            {/* WORKBENCH FOOTER & ACTION BUTTONS */}
+                            <div className="mt-4 flex items-center justify-between pt-3 border-t border-slate-800/60 flex-wrap gap-3">
                               <span className="text-[10px] text-slate-400 font-mono">
-                                Markdown syntax supported
+                                Markdown syntax and visual Excalidraw topology synchronized
                               </span>
 
                               <div className="flex items-center gap-2">
                                 <button
                                   type="button"
                                   onClick={handleSaveFollowUpResponse}
-                                  disabled={isSavingFollowUp}
+                                  disabled={isSavingFollowUp || isGradingFollowUp}
                                   data-testid="save-followup-response-btn"
-                                  className={`px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider flex items-center gap-2 cursor-pointer transition-all ${
-                                    isSavingFollowUp
-                                      ? 'bg-purple-800 text-slate-300 cursor-not-allowed'
-                                      : 'bg-purple-600 hover:bg-purple-500 text-white shadow-[0_0_15px_rgba(168,85,247,0.3)]'
+                                  className={`px-3.5 py-2 rounded-lg text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer transition-all border ${
+                                    isLight
+                                      ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300'
+                                      : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
                                   }`}
                                 >
                                   {isSavingFollowUp ? (
@@ -2817,13 +2998,225 @@ export default function ProblemViewerModal() {
                                     </>
                                   )}
                                 </button>
+
+                                <button
+                                  type="button"
+                                  onClick={handleGradeArchitecture}
+                                  disabled={isGradingFollowUp || isSavingFollowUp}
+                                  data-testid="grade-architecture-btn"
+                                  className={`px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider flex items-center gap-2 cursor-pointer transition-all border ${
+                                    isGradingFollowUp
+                                      ? 'bg-purple-900/60 border-purple-500 text-purple-200 cursor-not-allowed'
+                                      : 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white border-purple-400/30 shadow-[0_0_20px_rgba(168,85,247,0.4)]'
+                                  }`}
+                                >
+                                  {isGradingFollowUp ? (
+                                    <>
+                                      <Loader2 size={13} className="animate-spin text-purple-300" />
+                                      <span>Grading Architecture...</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Bot size={14} className="text-purple-200" />
+                                      <span>Grade Architecture with AI</span>
+                                    </>
+                                  )}
+                                </button>
                               </div>
                             </div>
                           </div>
+
+                          {/* INTERACTIVE AI GRADING REPORT CARD */}
+                          {gradingEvaluation && (
+                            <div
+                              className={`p-6 rounded-xl border space-y-5 transition-all ${
+                                isLight
+                                  ? 'bg-purple-50/50 border-purple-200 shadow-sm'
+                                  : 'bg-[#0f1424] border-purple-900/60 shadow-[0_0_30px_rgba(168,85,247,0.15)]'
+                              }`}
+                              data-testid="system-design-grading-report"
+                            >
+                              {/* Overall Evaluation Header */}
+                              <div className="flex items-start justify-between pb-4 border-b border-purple-800/30 gap-4 flex-wrap">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-10 h-10 rounded-xl bg-purple-500/20 text-purple-400 border border-purple-500/40 flex items-center justify-center">
+                                    <Bot size={22} />
+                                  </div>
+                                  <div>
+                                    <div className="flex items-center gap-2">
+                                      <h4 className="text-sm font-bold text-slate-100">
+                                        Staff+ AI Architectural Review & Bar Raiser Report
+                                      </h4>
+                                      <span className="text-[10px] font-mono px-2 py-0.5 rounded uppercase font-bold bg-purple-500/10 text-purple-300 border border-purple-500/20">
+                                        Verified Rubric
+                                      </span>
+                                    </div>
+                                    <p className="text-xs text-slate-400 mt-0.5">
+                                      Evaluation computed across visual whiteboard diagram elements, component boundaries, and written capacity math.
+                                    </p>
+                                  </div>
+                                </div>
+
+                                {/* Overall Score Badge */}
+                                <div
+                                  className={`px-4 py-2 rounded-xl border flex flex-col items-center justify-center ${
+                                    gradingEvaluation.score >= 85
+                                      ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.2)]'
+                                      : gradingEvaluation.score >= 70
+                                      ? 'bg-purple-500/10 text-purple-300 border-purple-500/30 shadow-[0_0_15px_rgba(168,85,247,0.2)]'
+                                      : 'bg-amber-500/10 text-amber-400 border-amber-500/30 shadow-[0_0_15px_rgba(245,158,11,0.2)]'
+                                  }`}
+                                  data-testid="grading-overall-score"
+                                >
+                                  <span className="text-[10px] uppercase font-bold font-mono tracking-wider text-slate-400">
+                                    Overall Score
+                                  </span>
+                                  <span className="text-2xl font-black font-mono">
+                                    {gradingEvaluation.score} / 100
+                                  </span>
+                                  <span className="text-[9px] font-bold uppercase tracking-tight">
+                                    {gradingEvaluation.score >= 85
+                                      ? 'Exceeds Bar (Staff)'
+                                      : gradingEvaluation.score >= 70
+                                      ? 'Meets Bar (Senior)'
+                                      : 'Revisions Needed'}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Rubric Breakdown Grid */}
+                              {gradingEvaluation.rubricScores && Object.keys(gradingEvaluation.rubricScores).length > 0 && (
+                                <div className="space-y-2.5" data-testid="grading-rubric-breakdown">
+                                  <h5 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                                    <Award size={13} className="text-amber-400" />
+                                    Rubric Criteria Breakdown
+                                  </h5>
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    {Object.entries(gradingEvaluation.rubricScores).map(([key, item]) => {
+                                      const pct = item.maxWeight > 0 ? Math.round((item.score / item.maxWeight) * 100) : 0;
+                                      return (
+                                        <div
+                                          key={key}
+                                          className={`p-3 rounded-lg border flex flex-col justify-between ${
+                                            isLight ? 'bg-white border-slate-200' : 'bg-slate-900/60 border-slate-800'
+                                          }`}
+                                        >
+                                          <div>
+                                            <div className="flex items-center justify-between text-xs mb-1">
+                                              <span className="font-semibold capitalize text-slate-200">
+                                                {key.replace(/_/g, ' ')}
+                                              </span>
+                                              <span className="font-mono font-bold text-purple-400">
+                                                {item.score} / {item.maxWeight}
+                                              </span>
+                                            </div>
+                                            <div className="w-full h-1.5 rounded-full bg-slate-800 overflow-hidden mb-2">
+                                              <div
+                                                className="h-full bg-gradient-to-r from-purple-500 to-emerald-400 rounded-full"
+                                                style={{ width: `${Math.min(pct, 100)}%` }}
+                                              />
+                                            </div>
+                                          </div>
+                                          <p className="text-[11px] text-slate-400 leading-tight">
+                                            {item.feedback}
+                                          </p>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Scalability Assessment Card */}
+                              {gradingEvaluation.scalabilityAssessment && (
+                                <div
+                                  className={`p-4 rounded-lg border ${
+                                    isLight ? 'bg-white border-slate-200 text-slate-700' : 'bg-slate-900/60 border-slate-800 text-slate-300'
+                                  }`}
+                                  data-testid="grading-scalability-assessment"
+                                >
+                                  <h5 className="text-xs font-mono font-bold uppercase tracking-wider text-emerald-400 mb-1.5 flex items-center gap-1.5">
+                                    <TrendingUp size={14} />
+                                    Scalability & Throughput Assessment
+                                  </h5>
+                                  <p className="text-xs leading-relaxed font-sans">
+                                    {gradingEvaluation.scalabilityAssessment}
+                                  </p>
+                                </div>
+                              )}
+
+                              {/* Single Points of Failure (SPOFs) */}
+                              {gradingEvaluation.singlePointsOfFailure && gradingEvaluation.singlePointsOfFailure.length > 0 && (
+                                <div
+                                  className={`p-4 rounded-lg border ${
+                                    isLight ? 'bg-rose-50 border-rose-200 text-rose-900' : 'bg-rose-950/20 border-rose-900/50 text-rose-200'
+                                  }`}
+                                  data-testid="grading-spofs-container"
+                                >
+                                  <h5 className="text-xs font-mono font-bold uppercase tracking-wider text-rose-400 mb-2 flex items-center gap-1.5">
+                                    <AlertTriangle size={14} />
+                                    Single Points of Failure (SPOFs) Identified ({gradingEvaluation.singlePointsOfFailure.length})
+                                  </h5>
+                                  <ul className="space-y-1.5 text-xs">
+                                    {gradingEvaluation.singlePointsOfFailure.map((spof, idx) => (
+                                      <li key={idx} className="flex items-start gap-2">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-rose-400 mt-1.5 shrink-0" />
+                                        <span>{spof}</span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+
+                              {/* Trade-Off Critique */}
+                              {gradingEvaluation.tradeOffCritique && (
+                                <div
+                                  className={`p-4 rounded-lg border ${
+                                    isLight ? 'bg-white border-slate-200 text-slate-700' : 'bg-slate-900/60 border-slate-800 text-slate-300'
+                                  }`}
+                                  data-testid="grading-tradeoffs-critique"
+                                >
+                                  <h5 className="text-xs font-mono font-bold uppercase tracking-wider text-sky-400 mb-1.5 flex items-center gap-1.5">
+                                    <Layers size={14} />
+                                    Distributed Systems Trade-Off Critique
+                                  </h5>
+                                  <p className="text-xs leading-relaxed font-sans">
+                                    {gradingEvaluation.tradeOffCritique}
+                                  </p>
+                                </div>
+                              )}
+
+                              {/* Actionable Staff-Level Improvements */}
+                              {gradingEvaluation.actionableImprovements && gradingEvaluation.actionableImprovements.length > 0 && (
+                                <div
+                                  className={`p-4 rounded-lg border ${
+                                    isLight ? 'bg-amber-50 border-amber-200 text-amber-900' : 'bg-amber-950/20 border-amber-900/50 text-amber-200'
+                                  }`}
+                                  data-testid="grading-improvements-container"
+                                >
+                                  <h5 className="text-xs font-mono font-bold uppercase tracking-wider text-amber-400 mb-2 flex items-center gap-1.5">
+                                    <Sparkles size={14} />
+                                    Staff+ Architectural Recommendations ({gradingEvaluation.actionableImprovements.length})
+                                  </h5>
+                                  <div className="space-y-2 text-xs">
+                                    {gradingEvaluation.actionableImprovements.map((imp, idx) => (
+                                      <div key={idx} className="flex items-start gap-2">
+                                        <span className="w-4 h-4 rounded-full bg-amber-500/20 text-amber-400 font-mono text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">
+                                          {idx + 1}
+                                        </span>
+                                        <span className="leading-relaxed">{imp}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
                     )}
                   </div>
+
                 )}
               </div>
             )}

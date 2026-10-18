@@ -91,6 +91,35 @@ export interface ProblemFollowUpResponseDTO {
   updatedAt: string;
 }
 
+export interface RubricCriterionScore {
+  score: number;
+  maxWeight: number;
+  feedback: string;
+}
+
+export interface SystemDesignGradingResult {
+  score: number;
+  rubricScores: Record<string, RubricCriterionScore>;
+  scalabilityAssessment: string;
+  singlePointsOfFailure: string[];
+  tradeOffCritique: string;
+  actionableImprovements: string[];
+}
+
+export interface GradeFollowUpResponseResult {
+  evaluation: SystemDesignGradingResult;
+  savedResponse: ProblemFollowUpResponseDTO;
+}
+
+export interface GradeSystemDesignPayload {
+  problemId?: string;
+  followUpId?: string;
+  prompt?: string;
+  rubric?: Record<string, number>;
+  responseText: string;
+  diagramData?: any;
+}
+
 export interface ProblemItem {
   id: string;
   title: string;
@@ -330,6 +359,7 @@ export interface TelemetryState {
   isSubmittingCode: boolean;
   followUpResponses: Record<string, ProblemFollowUpResponseDTO[]>;
   isSavingFollowUp: boolean;
+  isGradingFollowUp: boolean;
 
   // Review & Diff Updates (FRO-11)
   graphUpdates: GraphUpdate[];
@@ -420,6 +450,11 @@ export interface TelemetryActions {
     followUpId: string,
     payload: { responseText: string; diagramData?: any; score?: number; feedback?: string }
   ) => Promise<ProblemFollowUpResponseDTO | void>;
+  gradeFollowUpResponse: (
+    problemId: string,
+    followUpId: string,
+    payload: { responseText: string; diagramData?: any }
+  ) => Promise<GradeFollowUpResponseResult>;
 
   // Diff Review Actions (FRO-11)
   setIsNotificationsOpen: (open: boolean) => void;

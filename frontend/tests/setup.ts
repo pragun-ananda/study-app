@@ -273,6 +273,65 @@ const mockFetch: typeof fetch = async (input: RequestInfo | URL, init?: RequestI
     });
   }
 
+  // POST /api/problems/:id/follow-ups/:followUpId/grade
+  if (url.match(/\/api\/problems\/[^/]+\/follow-ups\/[^/]+\/grade$/) && method === 'POST') {
+    const parts = url.split('/');
+    const problemId = parts[3];
+    const followUpId = parts[5];
+    const evaluation = {
+      score: 88,
+      rubricScores: {
+        stream_partitioning: { score: 26, maxWeight: 30, feedback: 'Strong partition key choice' },
+        stateful_sliding_windows: { score: 35, maxWeight: 40, feedback: 'Flink stateful windows well specified' },
+        fault_tolerance_ha: { score: 27, maxWeight: 30, feedback: 'RocksDB checkpoint replicas adequate' }
+      },
+      scalabilityAssessment: 'The architecture proposal demonstrates sound horizontal scalability across compute and state storage tiers.',
+      singlePointsOfFailure: [
+        'Single primary Kafka broker controller without Raft quorum failover',
+        'Direct synchronous downstream worker calls without circuit breaker'
+      ],
+      tradeOffCritique: 'Favors eventual consistency and low write latency over strict linearizability.',
+      actionableImprovements: [
+        'Implement client-side consistent hashing to prevent partition skew',
+        'Add distributed tracing headers (OpenTelemetry) across the event stream pipeline'
+      ]
+    };
+    const savedResponse = {
+      id: `RESP-${Date.now()}`,
+      problemId,
+      followUpId,
+      responseText: body.responseText || '',
+      diagramData: body.diagramData || null,
+      score: evaluation.score,
+      feedback: JSON.stringify(evaluation),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    return new Response(JSON.stringify({ evaluation, savedResponse }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
+  // POST /api/problems/grade-system-design
+  if (url === '/api/problems/grade-system-design' && method === 'POST') {
+    const evaluation = {
+      score: 85,
+      rubricScores: {
+        architecture: { score: 42, maxWeight: 50, feedback: 'Clean separation of concerns' },
+        scalability: { score: 43, maxWeight: 50, feedback: 'Horizontal scaling verified' }
+      },
+      scalabilityAssessment: 'Architecture supports horizontal scaling.',
+      singlePointsOfFailure: ['Single primary database instance'],
+      tradeOffCritique: 'Asynchronous replication prioritizes availability.',
+      actionableImprovements: ['Add multi-AZ database read replicas']
+    };
+    return new Response(JSON.stringify({ evaluation, savedResponse: null }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
   // GET /api/problems
   if (url.startsWith('/api/problems') && method === 'GET') {
     return new Response(JSON.stringify(useStore.getState().problems || []), {
@@ -337,5 +396,62 @@ vi.mock('@monaco-editor/react', async () => {
     Editor: mockEditor,
     useMonaco: () => null,
     loader: { config: vi.fn(), init: vi.fn() }
+  };
+});
+
+// 8. Mock @excalidraw/excalidraw for jsdom unit testing
+vi.mock('@excalidraw/excalidraw', async () => {
+  const React = await import('react');
+  const mockApi = {
+    updateScene: vi.fn(),
+    resetScene: vi.fn(),
+    getSceneElements: vi.fn(() => [
+      { id: '1', type: 'rectangle', text: 'Load Balancer', isDeleted: false }
+    ]),
+    getAppState: vi.fn(() => ({ viewBackgroundColor: '#ffffff' })),
+    getFiles: vi.fn(() => ({})),
+    scrollToContent: vi.fn()
+  };
+
+  const MockExcalidraw = (props: any) => {
+    React.useEffect(() => {
+      if (props.excalidrawAPI) {
+        props.excalidrawAPI(mockApi);
+      }
+    }, [props.excalidrawAPI]);
+
+    return React.createElement(
+      'div',
+      {
+        'data-testid': 'mock-excalidraw-container',
+        className: 'excalidraw-mock'
+      },
+      React.createElement(
+        'div',
+        {
+          'data-testid': 'mock-excalidraw-canvas',
+          className: 'canvas-mock'
+        },
+        'Excalidraw Architecture Canvas'
+      )
+    );
+  };
+
+  return {
+    __esModule: true,
+    Excalidraw: MockExcalidraw,
+    convertToExcalidrawElements: (elements: any[]) =>
+      elements.map((el, i) => ({
+        id: el.id || `mock-${i}`,
+        type: el.type || 'rectangle',
+        text: el.label?.text || el.text || '',
+        x: el.x || 0,
+        y: el.y || 0,
+        width: el.width || 100,
+        height: el.height || 60,
+        isDeleted: false
+      })),
+    exportToBlob: vi.fn(),
+    exportToSvg: vi.fn()
   };
 });

@@ -11,7 +11,9 @@ import {
   ProblemSubmission,
   SubmitProblemPayload,
   SystemDesignFollowUp,
-  ProblemFollowUpResponseDTO
+  ProblemFollowUpResponseDTO,
+  GradeFollowUpResponseResult,
+  GradeSystemDesignPayload
 } from '../types/telemetry';
 
 export class ApiError extends Error {
@@ -375,6 +377,31 @@ export async function saveProblemFollowUpResponse(
       body: JSON.stringify(payload)
     }
   );
+}
+
+export async function gradeSystemDesignFollowUp(
+  id: string,
+  followUpId: string,
+  payload: { responseText: string; diagramData?: any }
+): Promise<GradeFollowUpResponseResult> {
+  return request<GradeFollowUpResponseResult>(
+    `/api/problems/${encodeURIComponent(id)}/follow-ups/${encodeURIComponent(followUpId)}/grade`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }
+  );
+}
+
+export async function gradeSystemDesignDirect(
+  payload: GradeSystemDesignPayload
+): Promise<{ evaluation: any; savedResponse?: any }> {
+  return request<{ evaluation: any; savedResponse?: any }>('/api/problems/grade-system-design', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
 }
 
 

@@ -467,6 +467,118 @@ test.describe('Interview Problem Library & Content Editor E2E (BAC-38 / FRO-18)'
       path: '/Users/cheese/.gemini/antigravity/brain/fed3126a-a4b9-406d-97d7-77339209d8ec/system_design_followup_response_editor.png'
     });
   });
+
+  test('interacts with Excalidraw architecture canvas, switches modes, and evaluates design with AI Grader', async ({ page }) => {
+    // Open left sidebar drawer and open problem
+    await page.getByLabel('Toggle study panel').click();
+    await page.getByTestId('sidebar-tab-problems').click();
+
+    const problemCards = page.getByTestId('sidebar-problem-card');
+    await expect(problemCards.first()).toBeVisible({ timeout: 10000 });
+    const targetCard = problemCards.filter({ hasText: /Trapping Rain Water|Rate Limiter|LRU Cache/i }).first();
+    if (await targetCard.count() > 0) {
+      await targetCard.click();
+    } else {
+      await problemCards.first().click();
+    }
+
+    const modal = page.getByTestId('problem-viewer-modal');
+    await expect(modal).toBeVisible();
+
+    // Switch to SYSTEM DESIGN tab
+    const systemDesignTab = page.getByTestId('problem-tab-system-design');
+    await expect(systemDesignTab).toBeVisible();
+    await systemDesignTab.click();
+
+    // Verify workbench mode switcher is present
+    await expect(page.getByTestId('workbench-mode-switcher')).toBeVisible();
+    const diagramModeBtn = page.getByTestId('workbench-mode-diagram');
+    const splitModeBtn = page.getByTestId('workbench-mode-split');
+    const writtenModeBtn = page.getByTestId('workbench-mode-written');
+
+    await expect(diagramModeBtn).toBeVisible();
+    await expect(splitModeBtn).toBeVisible();
+    await expect(writtenModeBtn).toBeVisible();
+
+    // Switch to DIAGRAM only mode
+    await diagramModeBtn.click();
+    const canvasWrapper = page.getByTestId('excalidraw-canvas-wrapper');
+    await expect(canvasWrapper).toBeVisible();
+    await expect(page.getByTestId('followup-response-textarea')).not.toBeVisible();
+
+    // Verify preset toolbar buttons
+    const presetToolbar = page.getByTestId('excalidraw-preset-toolbar');
+    await expect(presetToolbar).toBeVisible();
+
+    // Add architectural components via quick presets
+    await page.getByTestId('add-preset-load_balancer').click();
+    await page.getByTestId('add-preset-api_gateway').click();
+    await page.getByTestId('add-preset-microservice').click();
+    await page.getByTestId('add-preset-stream').click();
+    await page.getByTestId('add-preset-database').click();
+
+    // Fit canvas view
+    await page.getByTestId('canvas-zoom-to-fit-btn').click();
+    await page.waitForTimeout(600);
+
+    // Capture visual screenshot artifact of interactive Excalidraw session
+    await modal.screenshot({
+      path: '/Users/cheese/.gemini/antigravity/brain/fed3126a-a4b9-406d-97d7-77339209d8ec/system_design_excalidraw_canvas.png'
+    });
+
+    // Switch back to SPLIT mode
+    await splitModeBtn.click();
+    await expect(page.getByTestId('excalidraw-canvas-wrapper')).toBeVisible();
+    const responseTextarea = page.getByTestId('followup-response-textarea');
+    await expect(responseTextarea).toBeVisible();
+
+    // Write comprehensive distributed architecture explanation
+    const architectureSolution =
+      '### High-Throughput Distributed Stream Architecture\n\n' +
+      '1. **Ingestion Tier**: Edge Load Balancers distribute traffic across Envoy API Gateways with TLS offloading and rate limiting.\n' +
+      '2. **Stream Partitioning**: Apache Kafka cluster partitioned by WatershedID and SensorCell ID ensuring ordered sequential replay.\n' +
+      '3. **Stateful Stream Processing**: Apache Flink workers compute 5-minute tumbling windows and sliding percentile water levels. RocksDB state checkpoints allow rapid node failover without state loss.\n' +
+      '4. **Storage Tiering**: CockroachDB distributed relational tier stores real-time sensor states. S3 Parquet columnar archive handles cold analytical queries.\n' +
+      '5. **Trade-offs**: Prioritizes sub-second ingestion write throughput and eventual consistency over strict linearizability using idempotent consumer deduplication.';
+
+    await responseTextarea.fill(architectureSolution);
+
+    // Save Architecture Draft
+    const saveBtn = page.getByTestId('save-followup-response-btn');
+    await expect(saveBtn).toBeVisible();
+    await saveBtn.click();
+    await expect(page.getByText('Saved')).toBeVisible({ timeout: 5000 });
+
+    // Trigger AI Architecture Grader
+    const gradeBtn = page.getByTestId('grade-architecture-btn');
+    await expect(gradeBtn).toBeVisible();
+    await gradeBtn.click();
+
+    // Verify AI Grading Report Card renders with all evaluation sections
+    const gradingReport = page.getByTestId('system-design-grading-report');
+    await expect(gradingReport).toBeVisible({ timeout: 15000 });
+
+    // Verify overall score badge
+    const overallScore = page.getByTestId('grading-overall-score');
+    await expect(overallScore).toBeVisible();
+    await expect(overallScore).toContainText(/\/ 100/);
+
+    // Verify rubric breakdown, scalability assessment, SPOFs, trade-offs, and actionable improvements
+    await expect(page.getByTestId('grading-rubric-breakdown')).toBeVisible();
+    await expect(page.getByTestId('grading-scalability-assessment')).toBeVisible();
+    await expect(page.getByTestId('grading-spofs-container')).toBeVisible();
+    await expect(page.getByTestId('grading-tradeoffs-critique')).toBeVisible();
+    await expect(page.getByTestId('grading-improvements-container')).toBeVisible();
+
+    // Verify current score pill in workbench header
+    await expect(page.getByTestId('current-followup-score-badge')).toBeVisible();
+
+    // Capture visual screenshot artifact of resulting LLM grading report
+    await page.waitForTimeout(600);
+    await modal.screenshot({
+      path: '/Users/cheese/.gemini/antigravity/brain/fed3126a-a4b9-406d-97d7-77339209d8ec/system_design_llm_grader_report.png'
+    });
+  });
 });
 
 
