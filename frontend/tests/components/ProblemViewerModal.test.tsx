@@ -77,9 +77,19 @@ Design a high-throughput, low-latency rate limiter service across multiple regio
     // Prompt content
     expect(screen.getByText(/Design a high-throughput, low-latency rate limiter service/i)).toBeInTheDocument();
 
-    // Starter code tabs
-    expect(screen.getByText('python')).toBeInTheDocument();
-    expect(screen.getByText('typescript')).toBeInTheDocument();
+    // Starter code tabs (8 languages)
+    const expectedLangs = ['python', 'typescript', 'java', 'cpp', 'go', 'rust', 'sql', 'protobuf'];
+    expectedLangs.forEach((lang) => {
+      expect(screen.getByTestId(`starter-lang-tab-${lang}`)).toBeInTheDocument();
+    });
+
+    // Split Monaco Workbench
+    expect(screen.getByTestId('problem-code-workbench')).toBeInTheDocument();
+    expectedLangs.forEach((lang) => {
+      expect(screen.getByTestId(`workbench-lang-tab-${lang}`)).toBeInTheDocument();
+    });
+    expect(screen.getByTestId('run-code-btn')).toBeInTheDocument();
+    expect(screen.getByTestId('submit-solution-btn')).toBeInTheDocument();
   });
 
   it('toggles hints drawer and reveals hints progressively', () => {
@@ -208,4 +218,110 @@ Design a high-throughput, low-latency rate limiter service across multiple regio
     expect(screen.getByText('Distributed Rate Limiter')).toBeInTheDocument();
     expect(screen.queryByTestId('problem-edit-title-input')).not.toBeInTheDocument();
   });
+
+  it('switches starter code language tab and supports code copy', () => {
+    useStore.getState().setActiveProblem(mockProblem);
+    render(<ProblemViewerModal />);
+
+    // Starter code box is rendered with test ID
+    const box = screen.getByTestId('problem-starter-code-box');
+    expect(box).toBeInTheDocument();
+
+    // Default language is python
+    expect(box).toHaveTextContent(/def allow_request/i);
+
+    // Switch to typescript tab
+    const tsTab = screen.getByTestId('starter-lang-tab-typescript');
+    fireEvent.click(tsTab);
+
+    // Typescript code is now rendered
+    expect(box).toHaveTextContent(/export class RateLimiter/i);
+
+    // Copy starter code button exists
+    expect(screen.getByTestId('copy-starter-code-btn')).toBeInTheDocument();
+  });
+
+  it('adapts syntax highlighting and layout tokens in Light Mode and Dark Mode', () => {
+    // 1. Dark Mode
+    useStore.getState().setTheme('dark');
+    useStore.getState().setActiveProblem(mockProblem);
+    const { unmount } = render(<ProblemViewerModal />);
+    expect(screen.getByTestId('problem-starter-code-box')).toHaveClass('bg-[#060a14]');
+    unmount();
+
+    // 2. Light Mode
+    useStore.getState().setTheme('light');
+    render(<ProblemViewerModal />);
+    expect(screen.getByTestId('problem-starter-code-box')).toHaveClass('bg-slate-50');
+  });
+
+  it('supports toggling workbench layout, switching workbench language, adjusting font size, and resetting code', () => {
+    useStore.getState().setActiveProblem(mockProblem);
+    render(<ProblemViewerModal />);
+
+    // In default split view, both left pane and workbench are visible
+    expect(screen.getByTestId('problem-prompt-left-pane')).toBeInTheDocument();
+    expect(screen.getByTestId('problem-code-workbench')).toBeInTheDocument();
+
+    // Font size controls
+    expect(screen.getByText('13px')).toBeInTheDocument();
+    const increaseBtn = screen.getByTestId('increase-font-btn');
+    fireEvent.click(increaseBtn);
+    expect(screen.getByText('14px')).toBeInTheDocument();
+
+    const decreaseBtn = screen.getByTestId('decrease-font-btn');
+    fireEvent.click(decreaseBtn);
+    expect(screen.getByText('13px')).toBeInTheDocument();
+
+    // Switch workbench language tab to typescript
+    const wbTsTab = screen.getByTestId('workbench-lang-tab-typescript');
+    fireEvent.click(wbTsTab);
+
+    // Reset code button is clickable
+    const resetBtn = screen.getByTestId('reset-code-btn');
+    fireEvent.click(resetBtn);
+
+    // Toggle to full layout and back
+    const layoutToggleBtn = screen.getByTestId('toggle-workbench-layout-btn');
+    fireEvent.click(layoutToggleBtn);
+    // In full layout, split workbench is hidden and full prompt is displayed
+    expect(screen.queryByTestId('problem-code-workbench')).not.toBeInTheDocument();
+    expect(screen.getByTestId('problem-starter-code-box')).toBeInTheDocument();
+
+    // Toggle back to split layout
+    fireEvent.click(layoutToggleBtn);
+    expect(screen.getByTestId('problem-code-workbench')).toBeInTheDocument();
+  });
+
+  it('supports switching between all 8 languages in workbench and starter code tabs', () => {
+    useStore.getState().setActiveProblem(mockProblem);
+    render(<ProblemViewerModal />);
+
+    const langExpectations = [
+      { id: 'python', label: 'Python' },
+      { id: 'typescript', label: 'TypeScript' },
+      { id: 'java', label: 'Java' },
+      { id: 'cpp', label: 'C++' },
+      { id: 'go', label: 'Go' },
+      { id: 'rust', label: 'Rust' },
+      { id: 'sql', label: 'SQL' },
+      { id: 'protobuf', label: 'Protobuf' }
+    ];
+
+    // Workbench tabs
+    for (const { id, label } of langExpectations) {
+      const tab = screen.getByTestId(`workbench-lang-tab-${id}`);
+      fireEvent.click(tab);
+      // Status bar displays active language label
+      expect(screen.getByText(label, { selector: 'span' })).toBeInTheDocument();
+    }
+
+    // Starter tabs in left pane
+    for (const { id } of langExpectations) {
+      const starterTab = screen.getByTestId(`starter-lang-tab-${id}`);
+      fireEvent.click(starterTab);
+      expect(screen.getByTestId('problem-starter-code-box')).toBeInTheDocument();
+    }
+  });
 });
+

@@ -137,7 +137,7 @@ test.describe('Applied Content Dual-Panel Viewer E2E', () => {
     // Click Explore button to open Inspector
     const exploreBtn = page.getByTestId('explore-topic-btn');
     await expect(exploreBtn).toBeVisible();
-    await exploreBtn.click();
+    await exploreBtn.click({ position: { x: 40, y: 15 } });
 
     // Verify Real-World Applications section exists in Inspector
     await expect(page.getByText(/REAL-WORLD APPLICATIONS/i)).toBeVisible();

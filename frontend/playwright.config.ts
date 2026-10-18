@@ -41,13 +41,13 @@ export default defineConfig({
     {
       command: 'npm --prefix ../backend run dev:test',
       url: 'http://127.0.0.1:4000/health',
-      reuseExistingServer: !process.env.CI,
+      reuseExistingServer: true,
       timeout: 120000
     },
     {
       command: 'npm run dev',
       url: 'http://127.0.0.1:3000',
-      reuseExistingServer: !process.env.CI,
+      reuseExistingServer: true,
       timeout: 120000
     }
   ]

@@ -24,13 +24,100 @@ import {
   Plus,
   Trash2,
   Check,
-  Loader2
+  Copy,
+  Loader2,
+  RotateCcw,
+  Play,
+  Columns,
+  Maximize2
 } from 'lucide-react';
+import Editor from '@monaco-editor/react';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { dracula, oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { useStore } from '../../store/useStore';
 import { getCategoryShade, getDomainBaseColor } from '../../utils/theme';
 import { MarkdownContent } from './MarkdownContent';
 import { QuizViewer } from './QuizViewer';
 import { ProblemDifficulty, ProblemType, TopicNode, ProblemItem, DomainCategory } from '../../types/telemetry';
+
+export interface SupportedLanguageConfig {
+  id: string;
+  label: string;
+  monacoLang: string;
+  prismLang: string;
+}
+
+export const SUPPORTED_LANGUAGES: SupportedLanguageConfig[] = [
+  { id: 'python', label: 'Python', monacoLang: 'python', prismLang: 'python' },
+  { id: 'typescript', label: 'TypeScript', monacoLang: 'typescript', prismLang: 'typescript' },
+  { id: 'java', label: 'Java', monacoLang: 'java', prismLang: 'java' },
+  { id: 'cpp', label: 'C++', monacoLang: 'cpp', prismLang: 'cpp' },
+  { id: 'go', label: 'Go', monacoLang: 'go', prismLang: 'go' },
+  { id: 'rust', label: 'Rust', monacoLang: 'rust', prismLang: 'rust' },
+  { id: 'sql', label: 'SQL', monacoLang: 'sql', prismLang: 'sql' },
+  { id: 'protobuf', label: 'Protobuf', monacoLang: 'protobuf', prismLang: 'protobuf' }
+];
+
+export const DEFAULT_STARTER_CODES: Record<string, string> = {
+  python: `# Write your Python solution below\nclass Solution:\n    def solve(self):\n        pass\n`,
+  typescript: `// Write your TypeScript solution below\nexport function solve(): void {\n    \n}\n`,
+  java: `// Write your Java solution below\nclass Solution {\n    public void solve() {\n        \n    }\n}\n`,
+  cpp: `// Write your C++ solution below\n#include <iostream>\n#include <vector>\n\nclass Solution {\npublic:\n    void solve() {\n        \n    }\n};\n`,
+  go: `// Write your Go solution below\npackage main\n\nimport "fmt"\n\nfunc Solve() {\n    fmt.Println("Solution stub")\n}\n`,
+  rust: `// Write your Rust solution below\npub struct Solution;\n\nimpl Solution {\n    pub fn solve() {\n        \n    }\n}\n`,
+  sql: `-- Write your SQL query below\nSELECT \n    id,\n    name,\n    created_at\nFROM records\nWHERE status = 'ACTIVE'\nORDER BY id ASC;\n`,
+  protobuf: `syntax = "proto3";\n\npackage problem.solution;\n\nservice SolutionService {\n    rpc Execute(SolutionRequest) returns (SolutionResponse);\n}\n\nmessage SolutionRequest {\n    string id = 1;\n    bytes payload = 2;\n}\n\nmessage SolutionResponse {\n    bool success = 1;\n    string message = 2;\n}\n`
+};
+
+export const PROTOBUF_MONARCH = {
+  defaultToken: '',
+  tokenPostfix: '.proto',
+
+  keywords: [
+    'syntax', 'import', 'weak', 'public', 'package', 'option',
+    'message', 'enum', 'service', 'rpc', 'returns', 'extend',
+    'extensions', 'to', 'max', 'reserved', 'repeated', 'optional',
+    'required', 'oneof', 'map', 'stream'
+  ],
+
+  typeKeywords: [
+    'double', 'float', 'int32', 'int64', 'uint32', 'uint64', 'sint32', 'sint64',
+    'fixed32', 'fixed64', 'sfixed32', 'sfixed64', 'bool', 'string', 'bytes',
+    'true', 'false'
+  ],
+
+  operators: ['=', ';', '{', '}', '(', ')', '<', '>', '[', ']', ':', ','],
+
+  tokenizer: {
+    root: [
+      [/[a-zA-Z_$][\w$]*/, {
+        cases: {
+          '@keywords': 'keyword',
+          '@typeKeywords': 'type',
+          '@default': 'identifier'
+        }
+      }],
+      { include: '@whitespace' },
+      [/[{}()\[\]]/, '@brackets'],
+      [/[=;:,]/, 'delimiter'],
+      [/\d+/, 'number'],
+      [/"([^"\\]|\\.)*"/, 'string'],
+      [/'([^'\\]|\\.)*'/, 'string']
+    ],
+
+    whitespace: [
+      [/[ \t\r\n]+/, 'white'],
+      [/\/\*/, 'comment', '@comment'],
+      [/\/\/.*$/, 'comment']
+    ],
+
+    comment: [
+      [/[^\/*]+/, 'comment'],
+      [/\*\//, 'comment', '@pop'],
+      [/[\/*]/, 'comment']
+    ]
+  }
+};
 
 export default function ProblemViewerModal() {
   const theme = useStore((state) => state.theme);
@@ -47,6 +134,11 @@ export default function ProblemViewerModal() {
   const [activeTab, setActiveTab] = useState<'PROMPT' | 'SOLUTION' | 'QUIZ'>('PROMPT');
   const [revealedHints, setRevealedHints] = useState<number[]>([]);
   const [selectedLanguage, setSelectedLanguage] = useState<string>('python');
+  const [copiedStarter, setCopiedStarter] = useState(false);
+  const [userCodeByLang, setUserCodeByLang] = useState<Record<string, string>>({});
+  const [editorFontSize, setEditorFontSize] = useState<number>(13);
+  const [workbenchLayout, setWorkbenchLayout] = useState<'split' | 'full'>('split');
+  const [copiedEditorCode, setCopiedEditorCode] = useState<boolean>(false);
   const bodyRef = useRef<HTMLDivElement>(null);
 
   // Edit Mode State
@@ -94,6 +186,15 @@ export default function ProblemViewerModal() {
     if (activeProblem) {
       syncEditStateFromProblem(activeProblem);
       setIsEditing(false);
+      if (activeProblem.starterCode) {
+        setUserCodeByLang(activeProblem.starterCode);
+        const langs = Object.keys(activeProblem.starterCode);
+        if (langs.length > 0 && !langs.includes(selectedLanguage)) {
+          setSelectedLanguage(langs[0]);
+        }
+      } else {
+        setUserCodeByLang({ ...DEFAULT_STARTER_CODES });
+      }
     }
   }, [activeProblem?.id]);
 
@@ -261,10 +362,73 @@ export default function ProblemViewerModal() {
     }
   };
 
-  const starterCodeLanguages = Object.keys(activeProblem.starterCode || {});
-  const activeStarterCode =
+  const starterCodeLanguages = Array.from(
+    new Set([
+      ...SUPPORTED_LANGUAGES.map((l) => l.id),
+      ...Object.keys(activeProblem.starterCode || {})
+    ])
+  );
+
+  const activeStarterCode: string =
     activeProblem.starterCode?.[selectedLanguage] ||
-    (starterCodeLanguages.length > 0 ? activeProblem.starterCode?.[starterCodeLanguages[0]] : '');
+    DEFAULT_STARTER_CODES[selectedLanguage] ||
+    (starterCodeLanguages.length > 0 ? activeProblem.starterCode?.[starterCodeLanguages[0]] || '' : '');
+
+  const handleCopyStarter = () => {
+    if (activeStarterCode) {
+      navigator.clipboard.writeText(activeStarterCode);
+      setCopiedStarter(true);
+      setTimeout(() => setCopiedStarter(false), 2000);
+    }
+  };
+
+  const currentLanguageConfig =
+    SUPPORTED_LANGUAGES.find((l) => l.id === selectedLanguage) ||
+    SUPPORTED_LANGUAGES[0];
+
+  const currentEditorCode: string =
+    userCodeByLang[selectedLanguage] ??
+    activeProblem.starterCode?.[selectedLanguage] ??
+    DEFAULT_STARTER_CODES[selectedLanguage] ??
+    '';
+
+  const handleEditorChange = (newCode: string | undefined) => {
+    const val = newCode ?? '';
+    setUserCodeByLang((prev) => ({
+      ...prev,
+      [selectedLanguage]: val
+    }));
+  };
+
+  const handleResetCode = () => {
+    const originalStarter =
+      activeProblem.starterCode?.[selectedLanguage] ??
+      DEFAULT_STARTER_CODES[selectedLanguage] ??
+      '';
+    setUserCodeByLang((prev) => ({
+      ...prev,
+      [selectedLanguage]: originalStarter
+    }));
+  };
+
+  const handleCopyEditorCode = () => {
+    if (currentEditorCode) {
+      navigator.clipboard.writeText(currentEditorCode);
+      setCopiedEditorCode(true);
+      setTimeout(() => setCopiedEditorCode(false), 2000);
+    }
+  };
+
+  const handleEditorBeforeMount = (monaco: any) => {
+    if (!monaco?.languages) return;
+    const existing = monaco.languages.getLanguages();
+    if (!existing.some((l: any) => l.id === 'protobuf')) {
+      monaco.languages.register({ id: 'protobuf' });
+      monaco.languages.setMonarchTokensProvider('protobuf', PROTOBUF_MONARCH);
+    }
+  };
+
+  const editorLineCount = currentEditorCode.split('\n').length;
 
   return (
     <AnimatePresence>
@@ -277,7 +441,11 @@ export default function ProblemViewerModal() {
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 15 }}
           transition={{ duration: 0.2 }}
-          className={`w-full max-w-5xl max-h-[90vh] flex flex-col rounded-xl border shadow-2xl overflow-hidden ${
+          className={`w-full ${
+            workbenchLayout === 'split' && activeTab === 'PROMPT' && !isEditing
+              ? 'max-w-[96vw] xl:max-w-7xl h-[92vh] max-h-[92vh]'
+              : 'max-w-5xl max-h-[90vh]'
+          } flex flex-col rounded-xl border shadow-2xl overflow-hidden transition-all duration-200 ${
             isLight
               ? 'bg-white/95 border-slate-200 text-slate-800'
               : 'bg-[#0a0f1d]/95 border-slate-700/80 text-slate-100 shadow-[0_0_30px_rgba(0,240,255,0.15)]'
@@ -537,6 +705,23 @@ export default function ProblemViewerModal() {
                 </button>
               )}
 
+              {/* Layout Toggle (Split Workbench vs Full Prompt) */}
+              {!isEditing && activeTab === 'PROMPT' && (
+                <button
+                  onClick={() => setWorkbenchLayout((prev) => (prev === 'split' ? 'full' : 'split'))}
+                  data-testid="toggle-workbench-layout-btn"
+                  title={workbenchLayout === 'split' ? 'Expand to Full Width Prompt' : 'Split Workbench (Prompt + Code Editor)'}
+                  className={`px-2.5 py-1.5 rounded-lg text-xs font-mono font-medium flex items-center gap-1.5 transition-all ${
+                    isLight
+                      ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300'
+                      : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:border-cyan-400'
+                  }`}
+                >
+                  {workbenchLayout === 'split' ? <Maximize2 size={13} /> : <Columns size={13} />}
+                  <span className="hidden sm:inline">{workbenchLayout === 'split' ? 'Full Prompt' : 'Split View'}</span>
+                </button>
+              )}
+
               {/* Close Button */}
               <button
                 onClick={() => setActiveProblem(null)}
@@ -653,10 +838,24 @@ export default function ProblemViewerModal() {
           </div>
 
           {/* MAIN MODAL BODY */}
-          <div ref={bodyRef} className="flex-1 overflow-y-auto p-6 space-y-6">
+          <div
+            ref={bodyRef}
+            className={`flex-1 ${
+              workbenchLayout === 'split' && activeTab === 'PROMPT' && !isEditing
+                ? 'overflow-hidden p-4 lg:p-6'
+                : 'overflow-y-auto p-6 space-y-6'
+            }`}
+          >
             {/* TAB 1: PROMPT */}
             {activeTab === 'PROMPT' && (
-              <div className="space-y-6" data-testid="problem-prompt-section">
+              <div
+                className={
+                  workbenchLayout === 'split' && !isEditing
+                    ? 'h-full flex flex-col lg:flex-row gap-6'
+                    : 'space-y-6'
+                }
+                data-testid="problem-prompt-section"
+              >
                 {isEditing ? (
                   /* EDIT MODE FOR PROMPT */
                   <div className="space-y-6">
@@ -758,6 +957,37 @@ export default function ProblemViewerModal() {
                             </div>
                           </div>
 
+                          {/* Quick Select for 8 Supported Languages */}
+                          <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                            <span className="text-[10px] font-mono text-slate-400">Quick Select:</span>
+                            {SUPPORTED_LANGUAGES.map((l) => (
+                              <button
+                                key={l.id}
+                                type="button"
+                                onClick={() => {
+                                  if (editStarterCode[l.id] === undefined) {
+                                    setEditStarterCode({
+                                      ...editStarterCode,
+                                      [l.id]: DEFAULT_STARTER_CODES[l.id] || ''
+                                    });
+                                  }
+                                  setEditStarterLang(l.id);
+                                }}
+                                className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase transition-all ${
+                                  editStarterLang === l.id
+                                    ? isLight
+                                      ? 'bg-sky-600 text-white shadow-sm'
+                                      : 'bg-[#00f0ff] text-slate-950 font-bold'
+                                    : isLight
+                                    ? 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+                                    : 'bg-slate-800 text-slate-400 hover:text-white'
+                                }`}
+                              >
+                                {l.label}
+                              </button>
+                            ))}
+                          </div>
+
                           {editStarterLang && (
                             <textarea
                               rows={6}
@@ -836,20 +1066,414 @@ export default function ProblemViewerModal() {
                           <MarkdownContent content={editPrompt} accentColor={isLight ? '#0284c7' : '#00f0ff'} />
                         </div>
                         {editStarterCode[editStarterLang] && (
-                          <div className="rounded-lg border overflow-hidden border-slate-800 bg-slate-900/70">
-                            <div className="px-4 py-2 border-b text-xs font-mono bg-slate-950 text-slate-300 uppercase font-bold">
-                              Starter Code Stub ({editStarterLang})
+                          <div className={`rounded-xl border overflow-hidden shadow-md ${isLight ? 'border-slate-300 bg-slate-50' : 'border-slate-800 bg-[#060a14]'}`}>
+                            <div className={`px-4 py-2 border-b text-xs font-mono uppercase font-bold flex items-center justify-between ${isLight ? 'bg-slate-100 text-slate-700 border-slate-300' : 'bg-slate-950 text-slate-300 border-slate-800'}`}>
+                              <div className="flex items-center gap-2">
+                                <Terminal size={12} className={isLight ? 'text-sky-600' : 'text-sky-400'} />
+                                <span>Starter Code Preview ({editStarterLang})</span>
+                              </div>
                             </div>
-                            <pre className="p-4 text-xs font-mono text-slate-200">
-                              <code>{editStarterCode[editStarterLang]}</code>
-                            </pre>
+                            <div className="overflow-x-auto text-[11.5px] font-mono leading-relaxed">
+                              <SyntaxHighlighter
+                                language={editStarterLang || 'text'}
+                                style={isLight ? oneLight : dracula}
+                                showLineNumbers={true}
+                                customStyle={{
+                                  margin: 0,
+                                  padding: '1rem',
+                                  background: 'transparent',
+                                  fontSize: '11.5px',
+                                  lineHeight: '1.6'
+                                }}
+                                lineNumberStyle={{
+                                  minWidth: '2.5em',
+                                  paddingRight: '1em',
+                                  color: isLight ? '#94a3b8' : '#475569',
+                                  userSelect: 'none'
+                                }}
+                                codeTagProps={{
+                                  style: {
+                                    fontFamily: "'JetBrains Mono', 'Fira Code', monospace"
+                                  }
+                                }}
+                              >
+                                {editStarterCode[editStarterLang]}
+                              </SyntaxHighlighter>
+                            </div>
                           </div>
                         )}
                       </div>
                     )}
                   </div>
+                ) : workbenchLayout === 'split' ? (
+                  /* SPLIT WORKBENCH VIEW: LEFT PANE (PROMPT) + RIGHT PANE (CODE WORKBENCH) */
+                  <>
+                    {/* LEFT PANE: PROMPT & CONSTRAINTS */}
+                    <div
+                      className="w-full lg:w-1/2 h-full overflow-y-auto pr-2 space-y-6 flex flex-col"
+                      data-testid="problem-prompt-left-pane"
+                    >
+                      {/* Summary Banner */}
+                      <div
+                        className={`p-3.5 rounded-lg border text-sm leading-relaxed ${
+                          isLight
+                            ? 'bg-sky-50/70 border-sky-200 text-sky-900'
+                            : 'bg-sky-950/20 border-sky-800/60 text-sky-200'
+                        }`}
+                      >
+                        <p className="font-medium">{activeProblem.summary}</p>
+                      </div>
+
+                      {/* Markdown Prompt */}
+                      <div className="prose max-w-none">
+                        <MarkdownContent content={activeProblem.prompt} accentColor={isLight ? '#0284c7' : '#00f0ff'} />
+                      </div>
+
+                      {/* Starter Code Box (if applicable) */}
+                      {starterCodeLanguages.length > 0 && (
+                        <div
+                          className={`rounded-xl border overflow-hidden shadow-lg ${
+                            isLight ? 'border-slate-300 bg-slate-50' : 'border-slate-800 bg-[#060a14]'
+                          }`}
+                          data-testid="problem-starter-code-box"
+                        >
+                          <div
+                            className={`px-4 py-2 border-b flex items-center justify-between text-xs font-mono ${
+                              isLight ? 'bg-slate-100 border-slate-300 text-slate-700' : 'bg-slate-950/90 border-slate-800 text-slate-300'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <Terminal size={13} className={isLight ? 'text-sky-600' : 'text-sky-400'} />
+                              <span className="font-bold tracking-wider">STARTER CODE STUB</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-1 overflow-x-auto max-w-[280px] sm:max-w-[360px] no-scrollbar py-0.5">
+                                {starterCodeLanguages.map((lang) => (
+                                  <button
+                                    key={lang}
+                                    onClick={() => setSelectedLanguage(lang)}
+                                    className={`px-2.5 py-0.5 rounded uppercase text-[10px] font-bold transition-all shrink-0 cursor-pointer whitespace-nowrap ${
+                                      selectedLanguage === lang
+                                        ? isLight
+                                          ? 'bg-sky-600 text-white shadow-sm'
+                                          : 'bg-[#00f0ff] text-slate-950 shadow-[0_0_8px_rgba(0,240,255,0.4)]'
+                                        : isLight
+                                        ? 'text-slate-600 hover:text-slate-900 bg-slate-200/60'
+                                        : 'text-slate-400 hover:text-white bg-slate-900/60'
+                                    }`}
+                                    data-testid={`starter-lang-tab-${lang}`}
+                                  >
+                                    {lang}
+                                  </button>
+                                ))}
+                              </div>
+                              <button
+                                onClick={handleCopyStarter}
+                                className={`flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-mono transition-colors border cursor-pointer ${
+                                  isLight
+                                    ? 'text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-50 border-slate-200'
+                                    : 'text-slate-400 hover:text-white bg-slate-900/80 hover:bg-slate-800 border-white/5'
+                                }`}
+                                title="Copy starter code"
+                                data-testid="copy-starter-code-btn"
+                              >
+                                {copiedStarter ? (
+                                  <>
+                                    <Check size={11} className={isLight ? 'text-emerald-600' : 'text-[#00ff9d]'} />
+                                    <span className={isLight ? 'text-emerald-600 font-bold' : 'text-[#00ff9d] font-bold'}>COPIED</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Copy size={11} />
+                                    <span>COPY</span>
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          </div>
+                          <div className="overflow-x-auto text-[11.5px] font-mono leading-relaxed">
+                            <SyntaxHighlighter
+                              language={currentLanguageConfig.prismLang}
+                              style={isLight ? oneLight : dracula}
+                              showLineNumbers={true}
+                              customStyle={{
+                                margin: 0,
+                                padding: '1rem',
+                                background: 'transparent',
+                                fontSize: '11.5px',
+                                lineHeight: '1.6'
+                              }}
+                              lineNumberStyle={{
+                                minWidth: '2.5em',
+                                paddingRight: '1em',
+                                color: isLight ? '#94a3b8' : '#475569',
+                                userSelect: 'none'
+                              }}
+                              codeTagProps={{
+                                style: {
+                                  fontFamily: "'JetBrains Mono', 'Fira Code', monospace"
+                                }
+                              }}
+                            >
+                              {activeStarterCode}
+                            </SyntaxHighlighter>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Progressive Hints */}
+                      {activeProblem.hints && activeProblem.hints.length > 0 && (
+                        <div className="space-y-2">
+                          <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-400">
+                            Progressive Interview Hints ({activeProblem.hints.length})
+                          </h4>
+                          <div className="space-y-2">
+                            {activeProblem.hints.map((hint, idx) => {
+                              const isRevealed = revealedHints.includes(idx);
+                              return (
+                                <div
+                                  key={idx}
+                                  className={`rounded-lg border transition-all ${
+                                    isLight
+                                      ? 'bg-slate-50 border-slate-200'
+                                      : 'bg-slate-900/50 border-slate-800'
+                                  }`}
+                                >
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleHint(idx)}
+                                    data-testid={`hint-toggle-btn-${idx}`}
+                                    className="w-full px-4 py-2.5 flex items-center justify-between text-left text-xs font-medium hover:bg-white/5 transition-colors"
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <HelpCircle size={13} className="text-amber-400" />
+                                      <span>Hint {idx + 1}</span>
+                                    </div>
+                                    {isRevealed ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                                  </button>
+                                  {isRevealed && (
+                                    <div
+                                      className={`px-4 pb-3 pt-1 text-xs border-t leading-relaxed ${
+                                        isLight
+                                          ? 'border-slate-200 text-slate-700 bg-white/60'
+                                          : 'border-slate-800/80 text-slate-300 bg-slate-950/40'
+                                      }`}
+                                    >
+                                      {hint}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Reveal Solution Gate CTA */}
+                      <div
+                        className={`p-4 rounded-xl border flex flex-col sm:flex-row items-center justify-between gap-4 ${
+                          isLight
+                            ? 'bg-emerald-50/80 border-emerald-200 text-emerald-950'
+                            : 'bg-emerald-950/20 border-emerald-500/30 text-emerald-200'
+                        }`}
+                      >
+                        <div>
+                          <h4 className="font-bold text-sm">Ready to check your solution or get stuck?</h4>
+                          <p className="text-xs opacity-80 mt-0.5">
+                            Explore the canonical architecture, complexity bounds, and linked prerequisite knowledge nodes.
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => setActiveTab('SOLUTION')}
+                          className="px-4 py-2 rounded-lg font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 transition-all bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-md shrink-0"
+                          data-testid="reveal-solution-btn"
+                        >
+                          <span>Reveal Solution</span>
+                          <ArrowRight size={13} />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* RIGHT PANE: MONACO CODE WORKBENCH */}
+                    <div
+                      className={`w-full lg:w-1/2 h-full flex flex-col rounded-xl border overflow-hidden shadow-xl ${
+                        isLight ? 'border-slate-300 bg-slate-50' : 'border-slate-800 bg-[#070b16]'
+                      }`}
+                      data-testid="problem-code-workbench"
+                    >
+                      {/* WORKBENCH TOOLBAR */}
+                      <div
+                        className={`px-4 py-2.5 border-b flex items-center justify-between gap-3 text-xs font-mono shrink-0 ${
+                          isLight ? 'bg-slate-100 border-slate-300 text-slate-700' : 'bg-slate-950 border-slate-800 text-slate-300'
+                        }`}
+                      >
+                        {/* Language Tabs (Python, TypeScript, Java, C++, Go, Rust, SQL, Protobuf) */}
+                        <div className="flex items-center gap-1 overflow-x-auto no-scrollbar max-w-[calc(100%-250px)] py-0.5">
+                          {SUPPORTED_LANGUAGES.map((lang) => {
+                            const isSelected = selectedLanguage === lang.id;
+                            return (
+                              <button
+                                key={lang.id}
+                                onClick={() => setSelectedLanguage(lang.id)}
+                                data-testid={`workbench-lang-tab-${lang.id}`}
+                                className={`px-2.5 py-1 rounded text-[11px] font-bold uppercase transition-all whitespace-nowrap cursor-pointer shrink-0 ${
+                                  isSelected
+                                    ? isLight
+                                      ? 'bg-sky-600 text-white shadow-sm'
+                                      : 'bg-[#00f0ff] text-slate-950 shadow-[0_0_10px_rgba(0,240,255,0.4)]'
+                                    : isLight
+                                    ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                                    : 'text-slate-400 hover:text-white hover:bg-slate-900/60'
+                                }`}
+                              >
+                                {lang.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        {/* Font Size & Action Buttons */}
+                        <div className="flex items-center gap-2 shrink-0">
+                          {/* Font Size Adjustment */}
+                          <div className="flex items-center border rounded overflow-hidden">
+                            <button
+                              type="button"
+                              onClick={() => setEditorFontSize((prev) => Math.max(11, prev - 1))}
+                              className="px-2 py-0.5 text-[11px] font-bold hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"
+                              title="Decrease font size"
+                              data-testid="decrease-font-btn"
+                            >
+                              A-
+                            </button>
+                            <span className="px-1.5 py-0.5 text-[10px] border-x opacity-70">
+                              {editorFontSize}px
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setEditorFontSize((prev) => Math.min(22, prev + 1))}
+                              className="px-2 py-0.5 text-[11px] font-bold hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"
+                              title="Increase font size"
+                              data-testid="increase-font-btn"
+                            >
+                              A+
+                            </button>
+                          </div>
+
+                          {/* Reset Code */}
+                          <button
+                            type="button"
+                            onClick={handleResetCode}
+                            className={`flex items-center gap-1 px-2.5 py-1 rounded text-xs font-mono transition-colors border ${
+                              isLight
+                                ? 'text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-50 border-slate-200'
+                                : 'text-slate-400 hover:text-white bg-slate-900/80 hover:bg-slate-800 border-white/5'
+                            }`}
+                            title="Reset code to original starter template"
+                            data-testid="reset-code-btn"
+                          >
+                            <RotateCcw size={12} />
+                            <span className="hidden sm:inline">Reset</span>
+                          </button>
+
+                          {/* Copy Code */}
+                          <button
+                            type="button"
+                            onClick={handleCopyEditorCode}
+                            className={`flex items-center gap-1 px-2.5 py-1 rounded text-xs font-mono transition-colors border ${
+                              isLight
+                                ? 'text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-50 border-slate-200'
+                                : 'text-slate-400 hover:text-white bg-slate-900/80 hover:bg-slate-800 border-white/5'
+                            }`}
+                            title="Copy editor code to clipboard"
+                            data-testid="copy-editor-code-btn"
+                          >
+                            {copiedEditorCode ? (
+                              <>
+                                <Check size={12} className={isLight ? 'text-emerald-600' : 'text-[#00ff9d]'} />
+                                <span className={isLight ? 'text-emerald-600 font-bold' : 'text-[#00ff9d] font-bold'}>Copied</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy size={12} />
+                                <span className="hidden sm:inline">Copy</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* MONACO CODE EDITOR CANVAS */}
+                      <div className="flex-1 min-h-[350px] relative bg-slate-950/20" data-testid="monaco-editor-container">
+                        <Editor
+                          height="100%"
+                          language={currentLanguageConfig.monacoLang}
+                          value={currentEditorCode}
+                          theme={isLight ? 'light' : 'vs-dark'}
+                          beforeMount={handleEditorBeforeMount}
+                          onChange={handleEditorChange}
+                          options={{
+                            fontSize: editorFontSize,
+                            fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace",
+                            minimap: { enabled: false },
+                            scrollBeyondLastLine: false,
+                            automaticLayout: true,
+                            tabSize: 2,
+                            lineNumbers: 'on',
+                            wordWrap: 'on',
+                            formatOnPaste: true,
+                            bracketPairColorization: { enabled: true },
+                            padding: { top: 12, bottom: 12 }
+                          }}
+                        />
+                      </div>
+
+                      {/* BOTTOM ACTION & EXECUTION STATUS BAR */}
+                      <div
+                        className={`px-4 py-3 border-t flex flex-wrap items-center justify-between gap-3 text-xs font-mono shrink-0 ${
+                          isLight ? 'bg-slate-100/90 border-slate-300 text-slate-700' : 'bg-slate-950 border-slate-800 text-slate-300'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                            <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-400">Ready</span>
+                          </div>
+                          <span className="text-slate-500">•</span>
+                          <span className="text-[11px] text-slate-400">{editorLineCount} lines</span>
+                          <span className="text-slate-500">•</span>
+                          <span className="text-[11px] font-bold uppercase text-sky-400">{currentLanguageConfig.label}</span>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            data-testid="run-code-btn"
+                            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all border cursor-pointer ${
+                              isLight
+                                ? 'bg-white hover:bg-slate-100 text-slate-800 border-slate-300 shadow-sm'
+                                : 'bg-slate-900 hover:bg-slate-800 text-slate-200 border-slate-700 hover:border-slate-500'
+                            }`}
+                            title="Run code against sample test cases (Step 3 WASM runner)"
+                          >
+                            <Play size={13} className={isLight ? 'text-sky-600 fill-sky-600' : 'text-sky-400 fill-sky-400'} />
+                            <span>Run Code</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            data-testid="submit-solution-btn"
+                            className="px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-md font-sans cursor-pointer"
+                            title="Submit code against all test cases (Step 4 Judge)"
+                          >
+                            <Check size={14} className="stroke-[2.5]" />
+                            <span>Submit</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </>
                 ) : (
-                  /* VIEW MODE FOR PROMPT */
+                  /* FULL WIDTH PROMPT (WHEN WORKBENCH LAYOUT IS 'full') */
                   <>
                     {/* Summary Banner */}
                     <div
@@ -870,44 +1494,92 @@ export default function ProblemViewerModal() {
                     {/* Starter Code Box (if applicable) */}
                     {starterCodeLanguages.length > 0 && (
                       <div
-                        className={`rounded-lg border overflow-hidden ${
-                          isLight ? 'border-slate-300 bg-slate-50' : 'border-slate-800 bg-slate-900/70'
+                        className={`rounded-xl border overflow-hidden shadow-lg ${
+                          isLight ? 'border-slate-300 bg-slate-50' : 'border-slate-800 bg-[#060a14]'
                         }`}
+                        data-testid="problem-starter-code-box"
                       >
                         <div
                           className={`px-4 py-2 border-b flex items-center justify-between text-xs font-mono ${
-                            isLight ? 'bg-slate-200/70 border-slate-300' : 'bg-slate-950 border-slate-800 text-slate-300'
+                            isLight ? 'bg-slate-100 border-slate-300 text-slate-700' : 'bg-slate-950/90 border-slate-800 text-slate-300'
                           }`}
                         >
                           <div className="flex items-center gap-2">
-                            <Terminal size={13} className="text-sky-400" />
-                            <span>STARTER CODE STUB</span>
+                            <Terminal size={13} className={isLight ? 'text-sky-600' : 'text-sky-400'} />
+                            <span className="font-bold tracking-wider">STARTER CODE STUB</span>
                           </div>
-                          <div className="flex items-center gap-1">
-                            {starterCodeLanguages.map((lang) => (
-                              <button
-                                key={lang}
-                                onClick={() => setSelectedLanguage(lang)}
-                                className={`px-2 py-0.5 rounded uppercase text-[10px] font-bold transition-all ${
-                                  selectedLanguage === lang
-                                    ? isLight
-                                      ? 'bg-sky-600 text-white'
-                                      : 'bg-[#00f0ff] text-slate-950'
-                                    : 'text-slate-400 hover:text-white'
-                                }`}
-                              >
-                                {lang}
-                              </button>
-                            ))}
+                          <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1 overflow-x-auto max-w-[280px] sm:max-w-[420px] no-scrollbar py-0.5">
+                              {starterCodeLanguages.map((lang) => (
+                                <button
+                                  key={lang}
+                                  onClick={() => setSelectedLanguage(lang)}
+                                  className={`px-2.5 py-0.5 rounded uppercase text-[10px] font-bold transition-all shrink-0 cursor-pointer whitespace-nowrap ${
+                                    selectedLanguage === lang
+                                      ? isLight
+                                        ? 'bg-sky-600 text-white shadow-sm'
+                                        : 'bg-[#00f0ff] text-slate-950 shadow-[0_0_8px_rgba(0,240,255,0.4)]'
+                                      : isLight
+                                      ? 'text-slate-600 hover:text-slate-900 bg-slate-200/60'
+                                      : 'text-slate-400 hover:text-white bg-slate-900/60'
+                                  }`}
+                                  data-testid={`starter-lang-tab-${lang}`}
+                                >
+                                  {lang}
+                                </button>
+                              ))}
+                            </div>
+                            <button
+                              onClick={handleCopyStarter}
+                              className={`flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-mono transition-colors border cursor-pointer ${
+                                isLight
+                                  ? 'text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-50 border-slate-200'
+                                  : 'text-slate-400 hover:text-white bg-slate-900/80 hover:bg-slate-800 border-white/5'
+                              }`}
+                              title="Copy starter code"
+                              data-testid="copy-starter-code-btn"
+                            >
+                              {copiedStarter ? (
+                                <>
+                                  <Check size={11} className={isLight ? 'text-emerald-600' : 'text-[#00ff9d]'} />
+                                  <span className={isLight ? 'text-emerald-600 font-bold' : 'text-[#00ff9d] font-bold'}>COPIED</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Copy size={11} />
+                                  <span>COPY</span>
+                                </>
+                              )}
+                            </button>
                           </div>
                         </div>
-                        <pre
-                          className={`p-4 text-xs font-mono overflow-x-auto ${
-                            isLight ? 'text-slate-800' : 'text-slate-200'
-                          }`}
-                        >
-                          <code>{activeStarterCode}</code>
-                        </pre>
+                        <div className="overflow-x-auto text-[11.5px] font-mono leading-relaxed">
+                          <SyntaxHighlighter
+                            language={currentLanguageConfig.prismLang}
+                            style={isLight ? oneLight : dracula}
+                            showLineNumbers={true}
+                            customStyle={{
+                              margin: 0,
+                              padding: '1rem',
+                              background: 'transparent',
+                              fontSize: '11.5px',
+                              lineHeight: '1.6'
+                            }}
+                            lineNumberStyle={{
+                              minWidth: '2.5em',
+                              paddingRight: '1em',
+                              color: isLight ? '#94a3b8' : '#475569',
+                              userSelect: 'none'
+                            }}
+                            codeTagProps={{
+                              style: {
+                                fontFamily: "'JetBrains Mono', 'Fira Code', monospace"
+                              }
+                            }}
+                          >
+                            {activeStarterCode}
+                          </SyntaxHighlighter>
+                        </div>
                       </div>
                     )}
 

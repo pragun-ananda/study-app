@@ -236,6 +236,65 @@ At index \`left\`, the trapped water is bounded by $\\min(\\text{left\\_max}, \\
       typescript: `export function trap(height: number[]): number {
   // TODO: Implement O(n) time O(1) space solution
   return 0;
+}`,
+      java: `class Solution {
+    public int trap(int[] height) {
+        // TODO: Implement O(n) time O(1) space solution
+        return 0;
+    }
+}`,
+      cpp: `#include <vector>
+#include <algorithm>
+
+class Solution {
+public:
+    int trap(std::vector<int>& height) {
+        // TODO: Implement O(n) time O(1) space solution
+        return 0;
+    }
+};`,
+      go: `package solution
+
+// Trap calculates total trapped rainwater volume
+func Trap(height []int) int {
+    // TODO: Implement O(n) time O(1) space solution
+    return 0
+}`,
+      rust: `pub struct Solution;
+
+impl Solution {
+    pub fn trap(height: Vec<i32>) -> i32 {
+        // TODO: Implement O(n) time O(1) space solution
+        0
+    }
+}`,
+      sql: `-- Schema: ElevationMap(position INT PRIMARY KEY, bar_height INT)
+-- Compute total trapped water volume using window functions
+SELECT 
+    COALESCE(SUM(GREATEST(0, LEAST(left_max, right_max) - bar_height)), 0) AS trapped_water
+FROM (
+    SELECT 
+        position,
+        bar_height,
+        MAX(bar_height) OVER (ORDER BY position ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS left_max,
+        MAX(bar_height) OVER (ORDER BY position ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS right_max
+    FROM ElevationMap
+) water_basin;`,
+      protobuf: `syntax = "proto3";
+
+package interview.trapping_water;
+
+service WaterTrappingService {
+    rpc CalculateTrappedWater (WaterRequest) returns (WaterResponse);
+}
+
+message WaterRequest {
+    repeated int32 elevation_heights = 1;
+}
+
+message WaterResponse {
+    int32 total_trapped_volume = 1;
+    int64 execution_time_ns = 2;
 }`
     },
     testCases: [

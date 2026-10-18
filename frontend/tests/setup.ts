@@ -255,3 +255,44 @@ beforeEach(() => {
   useStore.getState().hydrate(INITIAL_TOPICS, INITIAL_TODOS);
   vi.clearAllMocks();
 });
+
+// 7. Mock @monaco-editor/react for jsdom unit testing
+vi.mock('@monaco-editor/react', async () => {
+  const React = await import('react');
+  const registeredLanguages: Array<{ id: string }> = [];
+  const mockEditor = (props: any) => {
+    if (props.beforeMount) {
+      try {
+        props.beforeMount({
+          languages: {
+            getLanguages: () => registeredLanguages,
+            register: ({ id }: { id: string }) => registeredLanguages.push({ id }),
+            setMonarchTokensProvider: vi.fn()
+          }
+        });
+      } catch {}
+    }
+    return React.createElement(
+      'div',
+      {
+        'data-testid': 'monaco-editor-container',
+        'data-language': props.language,
+        'data-theme': props.theme
+      },
+      React.createElement('textarea', {
+        'data-testid': 'monaco-editor-textarea',
+        value: props.value,
+        onChange: (e: any) => props.onChange?.(e.target.value),
+        'aria-label': 'Code Editor'
+      })
+    );
+  };
+
+  return {
+    __esModule: true,
+    default: mockEditor,
+    Editor: mockEditor,
+    useMonaco: () => null,
+    loader: { config: vi.fn(), init: vi.fn() }
+  };
+});
