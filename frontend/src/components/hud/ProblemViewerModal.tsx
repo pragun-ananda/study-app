@@ -1105,8 +1105,8 @@ export default function ProblemViewerModal() {
             ref={bodyRef}
             className={`flex-1 ${
               workbenchLayout === 'split' && activeTab === 'PROMPT' && !isEditing
-                ? 'overflow-hidden p-4 lg:p-6'
-                : 'overflow-y-auto p-6 space-y-6'
+                ? 'overflow-y-auto lg:overflow-hidden p-3 sm:p-4 lg:p-6'
+                : 'overflow-y-auto p-4 sm:p-6 space-y-6'
             }`}
           >
             {/* TAB 1: PROMPT */}
@@ -1114,7 +1114,7 @@ export default function ProblemViewerModal() {
               <div
                 className={
                   workbenchLayout === 'split' && !isEditing
-                    ? 'h-full flex flex-col lg:flex-row gap-6'
+                    ? 'min-h-full h-auto lg:h-full flex flex-col lg:flex-row gap-6'
                     : 'space-y-6'
                 }
                 data-testid="problem-prompt-section"
@@ -1559,7 +1559,7 @@ export default function ProblemViewerModal() {
 
                     {/* RIGHT PANE: MONACO CODE WORKBENCH */}
                     <div
-                      className={`w-full lg:w-1/2 h-full flex flex-col rounded-xl border overflow-hidden shadow-xl ${
+                      className={`w-full lg:w-1/2 min-h-[420px] lg:h-full flex flex-col rounded-xl border overflow-hidden shadow-xl ${
                         isLight ? 'border-slate-300 bg-slate-50' : 'border-slate-800 bg-[#070b16]'
                       }`}
                       data-testid="problem-code-workbench"
@@ -1571,7 +1571,7 @@ export default function ProblemViewerModal() {
                         }`}
                       >
                         {/* Language Tabs (Python, TypeScript, Java, C++, Go, Rust, SQL, Protobuf) */}
-                        <div className="flex items-center gap-1 overflow-x-auto no-scrollbar max-w-[calc(100%-250px)] py-0.5">
+                        <div className="flex items-center gap-1 overflow-x-auto no-scrollbar max-w-[calc(100%-120px)] sm:max-w-[calc(100%-250px)] py-0.5">
                           {SUPPORTED_LANGUAGES.map((lang) => {
                             const isSelected = selectedLanguage === lang.id;
                             return (
