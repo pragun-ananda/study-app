@@ -38,6 +38,7 @@ import NotificationsDropdown from './NotificationsDropdown';
 import DiffViewerModal from './DiffViewerModal';
 import IngestionWalkthroughModal from './IngestionWalkthroughModal';
 import CreateNodeModal from './CreateNodeModal';
+import { TopologicalSubgraph } from './TopologicalSubgraph';
 import { useStore } from '../../store/useStore';
 import { TopicNode, DomainCategory, DEFAULT_DOMAINS, TopicStatus } from '../../types/telemetry';
 import { DOMAIN_BASE_COLORS, DOMAIN_LIGHT_COLORS, getCategoryShade } from '../../utils/theme';
@@ -1385,55 +1386,13 @@ export default function TelemetryHUD() {
                     </div>
                   </div>
 
-                  {/* 1. TOPOLOGICAL PREREQUISITES SECTION */}
+                  {/* 1. TOPOLOGICAL PREREQUISITES / ORDERING 2D FLOW SECTION */}
                   <div className={`pt-2.5 border-t space-y-2 ${isLight ? 'border-slate-200' : 'border-white/10'}`}>
-                    <div className="flex items-center justify-between text-[11px] font-bold">
-                      <div className="flex items-center gap-1.5 text-amber-600">
-                        <ShieldAlert size={13} />
-                        <span>PREREQUISITES (TOPOLOGICAL ORDER)</span>
-                      </div>
-                      {topologicalPrereqs.length > 0 && (
-                        <span className="text-[10px] text-amber-600 font-bold">
-                          {topologicalPrereqs.length} STEPS
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="space-y-1.5">
-                      {topologicalPrereqs.length > 0 ? (
-                        topologicalPrereqs.map((prereqNode, idx) => (
-                          <div
-                            key={prereqNode.id}
-                            onClick={() => setSelectedTopicId(prereqNode.id)}
-                            className={`p-2 rounded border text-[11px] cursor-pointer transition-all flex items-center justify-between group ${
-                              isLight
-                                ? 'bg-white/90 border-amber-500/30 hover:border-amber-500 text-slate-800 shadow-sm'
-                                : 'bg-slate-950/80 border-[#ffaa00]/30 hover:border-[#ffaa00] text-slate-200'
-                            }`}
-                          >
-                            <div className="flex items-center gap-2 truncate">
-                              <span className={`text-[10px] font-mono font-extrabold px-1.5 py-0.5 rounded flex-shrink-0 ${
-                                isLight ? 'text-amber-700 bg-amber-100' : 'text-[#ffaa00] bg-[#ffaa00]/15'
-                              }`}>
-                                {idx + 1}
-                              </span>
-                              <span className={`truncate font-sans font-bold group-hover:text-amber-600 ${
-                                isLight ? 'text-slate-800' : 'text-slate-200'
-                              }`}>
-                                {prereqNode.name}
-                              </span>
-                            </div>
-                            <span className="text-[10px] text-amber-600 font-bold ml-2 flex-shrink-0">
-                              {prereqNode.mastery}%
-                            </span>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="text-[10px] text-slate-400 italic p-1">
-                          No prerequisites required for this foundational topic.
-                        </div>
-                      )}
-                    </div>
+                    <TopologicalSubgraph
+                      targetTopicId={selectedNode.id}
+                      topicNodes={topicNodes}
+                      onSelectTopic={(topicId) => setSelectedTopicId(topicId)}
+                    />
                   </div>
 
                   {/* 2. NOTES SECTION */}

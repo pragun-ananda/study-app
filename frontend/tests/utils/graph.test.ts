@@ -3,7 +3,8 @@ import {
   getTopologicalPrerequisites,
   calculateConnectedGraph,
   calculateOverviewFramingDistance,
-  calculateNewNodeCoordinates
+  calculateNewNodeCoordinates,
+  calculateTopological2DLayout
 } from '../../src/utils/graph';
 import { TopicNode } from '../../src/types/telemetry';
 
@@ -278,4 +279,115 @@ describe('Graph Spatial Layout: calculateNewNodeCoordinates', () => {
     expect(coords.every((c) => typeof c === 'number' && !isNaN(c) && isFinite(c))).toBe(true);
   });
 });
+
+describe('Graph 2D Topological Sort Layout: calculateTopological2DLayout', () => {
+  it('returns empty result when targetId does not exist', () => {
+    const result = calculateTopological2DLayout('UNKNOWN', []);
+    expect(result.nodes).toHaveLength(0);
+    expect(result.edges).toHaveLength(0);
+    expect(result.needsCount).toBe(0);
+    expect(result.parentsCount).toBe(0);
+  });
+
+  it('renders isolated node with CURRENT group in center', () => {
+    const node = createMockNode('A', 'Node A');
+    const result = calculateTopological2DLayout('A', [node]);
+
+    expect(result.nodes).toHaveLength(1);
+    expect(result.nodes[0].id).toBe('A');
+    expect(result.nodes[0].group).toBe('CURRENT');
+    expect(result.nodes[0].x).toBe(160); // Centered in 320px
+    expect(result.edges).toHaveLength(0);
+    expect(result.needsCount).toBe(0);
+    expect(result.parentsCount).toBe(0);
+  });
+
+  it('correctly partitions and orders 3 groups for A -> B -> C with target B', () => {
+    const nodeA = createMockNode('A', 'Node A', [], ['B']);
+    const nodeB = createMockNode('B', 'Node B', ['A'], ['C']);
+    const nodeC = createMockNode('C', 'Node C', ['B'], []);
+    const nodes = [nodeA, nodeB, nodeC];
+
+    const result = calculateTopological2DLayout('B', nodes);
+
+    expect(result.needsCount).toBe(1);
+    expect(result.parentsCount).toBe(1);
+    expect(result.nodes).toHaveLength(3);
+
+    const needNode = result.nodes.find((n) => n.id === 'A')!;
+    const currentNode = result.nodes.find((n) => n.id === 'B')!;
+    const parentNode = result.nodes.find((n) => n.id === 'C')!;
+
+    expect(needNode.group).toBe('NEED');
+    expect(needNode.step).toBe(1);
+    expect(currentNode.group).toBe('CURRENT');
+    expect(parentNode.group).toBe('PARENT');
+
+    // Vertical top-down topological ordering: Needs -> Current -> Parents
+    expect(needNode.y).toBeLessThan(currentNode.y);
+    expect(currentNode.y).toBeLessThan(parentNode.y);
+
+    // Edges
+    expect(result.edges).toHaveLength(2);
+    const edgeAB = result.edges.find((e) => e.fromId === 'A' && e.toId === 'B');
+    const edgeBC = result.edges.find((e) => e.fromId === 'B' && e.toId === 'C');
+    expect(edgeAB).toBeDefined();
+    expect(edgeAB?.group).toBe('NEED');
+    expect(edgeBC).toBeDefined();
+    expect(edgeBC?.group).toBe('CURRENT');
+  });
+
+  it('correctly calculates topological layers for diamond DAG leading to target', () => {
+    // A -> B, A -> C, B -> D, C -> D
+    const nodeA = createMockNode('A', 'Node A', [], ['B', 'C']);
+    const nodeB = createMockNode('B', 'Node B', ['A'], ['D']);
+    const nodeC = createMockNode('C', 'Node C', ['A'], ['D']);
+    const nodeD = createMockNode('D', 'Node D', ['B', 'C'], []);
+    const nodes = [nodeA, nodeB, nodeC, nodeD];
+
+    const result = calculateTopological2DLayout('D', nodes);
+
+    expect(result.needsCount).toBe(3);
+    expect(result.parentsCount).toBe(0);
+
+    const aNode = result.nodes.find((n) => n.id === 'A')!;
+    const bNode = result.nodes.find((n) => n.id === 'B')!;
+    const cNode = result.nodes.find((n) => n.id === 'C')!;
+    const dNode = result.nodes.find((n) => n.id === 'D')!;
+
+    expect(aNode.group).toBe('NEED');
+    expect(bNode.group).toBe('NEED');
+    expect(cNode.group).toBe('NEED');
+    expect(dNode.group).toBe('CURRENT');
+
+    // A is root need (Layer 0)
+    expect(aNode.y).toBeLessThan(bNode.y);
+    expect(aNode.y).toBeLessThan(cNode.y);
+    // B and C are side-by-side in Layer 1
+    expect(bNode.y).toBe(cNode.y);
+    expect(bNode.x).not.toBe(cNode.x);
+    // D is below B and C
+    expect(bNode.y).toBeLessThan(dNode.y);
+  });
+
+  it('ensures node coordinates fit within the popup width without negative margins or overflow', () => {
+    const nodeA = createMockNode('A', 'Prereq 1', [], ['Target']);
+    const nodeB = createMockNode('B', 'Prereq 2', [], ['Target']);
+    const target = createMockNode('Target', 'Target Node', ['A', 'B'], ['Child1', 'Child2']);
+    const child1 = createMockNode('Child1', 'Child 1', ['Target'], []);
+    const child2 = createMockNode('Child2', 'Child 2', ['Target'], []);
+    const nodes = [nodeA, nodeB, target, child1, child2];
+
+    const result = calculateTopological2DLayout('Target', nodes);
+
+    expect(result.width).toBe(320);
+    result.nodes.forEach((n) => {
+      const left = n.x - n.width / 2;
+      const right = n.x + n.width / 2;
+      expect(left).toBeGreaterThanOrEqual(10);
+      expect(right).toBeLessThanOrEqual(310);
+    });
+  });
+});
+
 

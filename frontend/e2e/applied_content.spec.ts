@@ -53,7 +53,7 @@ test.describe('Applied Content Dual-Panel Viewer E2E', () => {
     await expect(canvasContainer).toHaveClass(/md:left-1\/2/);
 
     // Verify content inside left pane:
-    await expect(page.getByText('Dynamo & Cassandra: High-Availability Ring Storage')).toBeVisible();
+    await expect(leftPane.getByText('Dynamo & Cassandra: High-Availability Ring Storage')).toBeVisible();
     await expect(page.getByText(/Executive Context/i)).toBeVisible();
     await expect(page.getByText(/Consistent Hashing & Virtual Nodes/i)).toBeVisible();
 
