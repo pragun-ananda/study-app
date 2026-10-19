@@ -111,4 +111,130 @@ describe('Integration: Quizzes & Spaced Repetition REST API (/api/quizzes & /api
       expect(res.body.some((t: any) => t.id === 'TOPIC-003')).toBe(true);
     });
   });
+
+  describe('Manual Quiz Creation & Management (REST API)', () => {
+    it('creates a new quiz with diverse question types via POST /api/quizzes', async () => {
+      const payload = {
+        topicId: 'TOPIC-002',
+        title: 'Attention Mechanisms Deep Dive',
+        description: 'Covers scaled dot-product attention and multi-head attention',
+        questions: [
+          {
+            type: 'MCQ',
+            prompt: 'What scaling factor is used in scaled dot-product attention?',
+            options: { A: 'sqrt(d_k)', B: 'd_k^2', C: 'log(d_k)', D: '1/d_k' },
+            correctAnswer: 'A',
+            explanation: 'We divide by sqrt(d_k) to counteract small gradients for large dimensions.',
+            difficulty: 'MEDIUM'
+          },
+          {
+            type: 'TRUE_FALSE',
+            prompt: 'Cross-attention uses queries from the decoder and keys/values from the encoder.',
+            correctAnswer: 'true',
+            explanation: 'Cross-attention connects decoder representations to encoder outputs.',
+            difficulty: 'EASY'
+          },
+          {
+            type: 'FLASHCARD',
+            term: 'Softmax temperature',
+            definition: 'A hyperparameter controlling the sharpness of attention distribution.',
+            memorizationReason: 'Frequently tuned during LLM sampling.',
+            difficulty: 'HARD'
+          }
+        ]
+      };
+
+      const res = await request(app).post('/api/quizzes').send(payload);
+      expect(res.status).toBe(201);
+      expect(res.body.id).toBeDefined();
+      expect(res.body.topicId).toBe('TOPIC-002');
+      expect(res.body.title).toBe('Attention Mechanisms Deep Dive');
+      expect(res.body.questions.length).toBe(3);
+      expect(res.body.questions[0].type).toBe('MCQ');
+      expect(res.body.questions[1].type).toBe('TRUE_FALSE');
+      expect(res.body.questions[2].type).toBe('FLASHCARD');
+
+      // Verify it is queryable via GET /api/quizzes/:id
+      const getRes = await request(app).get(`/api/quizzes/${res.body.id}`);
+      expect(getRes.status).toBe(200);
+      expect(getRes.body.title).toBe('Attention Mechanisms Deep Dive');
+      expect(getRes.body.questions.length).toBe(3);
+    });
+
+    it('creates a quiz scoped to a topic via POST /api/topics/:id/quizzes', async () => {
+      const res = await request(app)
+        .post('/api/topics/TOPIC-002/quizzes')
+        .send({
+          title: 'Direct Topic Quiz',
+          questions: [
+            {
+              type: 'MCQ',
+              prompt: 'Is this topic scoped?',
+              correctAnswer: 'Yes',
+              explanation: 'Created through topic endpoint'
+            }
+          ]
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.topicId).toBe('TOPIC-002');
+      expect(res.body.title).toBe('Direct Topic Quiz');
+    });
+
+    it('rejects quiz creation with missing or empty title', async () => {
+      const res = await request(app).post('/api/quizzes').send({
+        topicId: 'TOPIC-002',
+        title: '   '
+      });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toContain('Quiz title is required');
+    });
+
+    it('rejects quiz creation for nonexistent topic', async () => {
+      const res = await request(app).post('/api/quizzes').send({
+        topicId: 'NONEXISTENT_TOPIC',
+        title: 'Ghost Quiz'
+      });
+      expect(res.status).toBe(404);
+      expect(res.body.error).toContain('not found');
+    });
+
+    it('retrieves all quizzes for a topic via GET /api/quizzes/topics/:topicId', async () => {
+      const res = await request(app).get('/api/quizzes/topics/TOPIC-002');
+      expect(res.status).toBe(200);
+      expect(Array.isArray(res.body)).toBe(true);
+      expect(res.body.length).toBeGreaterThanOrEqual(1);
+      expect(res.body.some((q: any) => q.id === 'QUIZ-INT-1')).toBe(true);
+    });
+
+    it('updates quiz title, description, and replaces questions via PATCH /api/quizzes/:id', async () => {
+      const patchRes = await request(app)
+        .patch('/api/quizzes/QUIZ-INT-1')
+        .send({
+          title: 'Updated Transformer Quiz Title',
+          questions: [
+            {
+              type: 'MCQ',
+              prompt: 'Brand new prompt?',
+              correctAnswer: 'New Answer',
+              explanation: 'Updated question set',
+              difficulty: 'EASY'
+            }
+          ]
+        });
+
+      expect(patchRes.status).toBe(200);
+      expect(patchRes.body.title).toBe('Updated Transformer Quiz Title');
+      expect(patchRes.body.questions.length).toBe(1);
+      expect(patchRes.body.questions[0].prompt).toBe('Brand new prompt?');
+    });
+
+    it('deletes quiz and cascades via DELETE /api/quizzes/:id', async () => {
+      const delRes = await request(app).delete('/api/quizzes/QUIZ-INT-1');
+      expect(delRes.status).toBe(204);
+
+      const getRes = await request(app).get('/api/quizzes/QUIZ-INT-1');
+      expect(getRes.status).toBe(404);
+    });
+  });
 });

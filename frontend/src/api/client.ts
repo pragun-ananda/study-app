@@ -1,6 +1,7 @@
 import {
   TopicNode,
   NoteItem,
+  QuizItem,
   StudyTodo,
   IngestPipelineResult,
   IngestRequestOptions,
@@ -176,6 +177,41 @@ export async function updateNote(id: string, note: Partial<NoteItem>): Promise<N
 
 export async function deleteNote(id: string): Promise<void> {
   return request<void>(`/api/notes/${encodeURIComponent(id)}`, {
+    method: 'DELETE'
+  });
+}
+
+// ==========================================
+// Quizzes API
+// ==========================================
+
+export async function fetchQuizzesForTopic(topicId: string): Promise<QuizItem[]> {
+  return request<QuizItem[]>(`/api/topics/${encodeURIComponent(topicId)}/quizzes`);
+}
+
+export async function fetchQuizById(id: string): Promise<QuizItem> {
+  return request<QuizItem>(`/api/quizzes/${encodeURIComponent(id)}`);
+}
+
+export async function createQuizForTopic(
+  topicId: string,
+  quiz: Omit<QuizItem, 'id'> & { id?: string }
+): Promise<QuizItem> {
+  return request<QuizItem>(`/api/topics/${encodeURIComponent(topicId)}/quizzes`, {
+    method: 'POST',
+    body: JSON.stringify(quiz)
+  });
+}
+
+export async function updateQuiz(id: string, updates: Partial<QuizItem>): Promise<QuizItem> {
+  return request<QuizItem>(`/api/quizzes/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(updates)
+  });
+}
+
+export async function deleteQuiz(id: string): Promise<void> {
+  return request<void>(`/api/quizzes/${encodeURIComponent(id)}`, {
     method: 'DELETE'
   });
 }
