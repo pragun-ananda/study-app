@@ -32,6 +32,8 @@ export interface RepoState {
   fileBlobs: Record<string, FileBlobData>;
   annotations: CodeAnnotationDTO[];
   activeAnnotationId: string | null;
+  threads: Record<string, CodeAnnotationThreadDTO[]>;
+  isExplaining: boolean;
   isRepoViewerOpen: boolean;
   isImportModalOpen: boolean;
   isLoading: boolean;
@@ -56,6 +58,17 @@ export interface RepoState {
   updateAnnotation: (id: string, input: UpdateCodeAnnotationInput) => Promise<CodeAnnotationDTO>;
   deleteAnnotation: (id: string) => Promise<void>;
   setActiveAnnotationId: (id: string | null) => void;
+  fetchThreads: (annId: string) => Promise<void>;
+  addThreadMessage: (annId: string, message: string, sender?: 'USER' | 'SOL_AI') => Promise<CodeAnnotationThreadDTO>;
+  explainAnnotation: (annId: string) => Promise<CodeAnnotationDTO>;
+  explainCodeSnippet: (input: {
+    filePath: string;
+    startLine: number;
+    endLine: number;
+    codeSnippet: string;
+    language?: string;
+    userNote?: string;
+  }) => Promise<any>;
   resetState: () => void;
 }
 
@@ -69,6 +82,8 @@ export const useRepoStore = create<RepoState>((set, get) => ({
   fileBlobs: {},
   annotations: [],
   activeAnnotationId: null,
+  threads: {},
+  isExplaining: false,
   isRepoViewerOpen: false,
   isImportModalOpen: false,
   isLoading: false,
@@ -281,6 +296,76 @@ export const useRepoStore = create<RepoState>((set, get) => ({
     set({ activeAnnotationId: id });
   },
 
+  fetchThreads: async (annId: string) => {
+    const { activeRepoId } = get();
+    if (!activeRepoId) return;
+    try {
+      const threads = await api.getAnnotationThreads(activeRepoId, annId);
+      set((state) => ({
+        threads: {
+          ...state.threads,
+          [annId]: threads
+        }
+      }));
+    } catch (err: any) {
+      console.warn('[FETCH_THREADS_ERROR]:', err);
+    }
+  },
+
+  addThreadMessage: async (annId: string, message: string, sender: 'USER' | 'SOL_AI' = 'USER') => {
+    const { activeRepoId } = get();
+    if (!activeRepoId) throw new Error('No active repository');
+
+    const msg = await api.createAnnotationThreadMessage(activeRepoId, annId, sender, message);
+    set((state) => ({
+      threads: {
+        ...state.threads,
+        [annId]: [...(state.threads[annId] || []), msg]
+      }
+    }));
+    return msg;
+  },
+
+  explainAnnotation: async (annId: string) => {
+    const { activeRepoId } = get();
+    if (!activeRepoId) throw new Error('No active repository');
+
+    try {
+      set({ isExplaining: true, error: null });
+      const updated = await api.explainAnnotation(activeRepoId, annId);
+      set((state) => ({
+        annotations: state.annotations.map((a) => (a.id === annId ? updated : a)),
+        isExplaining: false
+      }));
+      return updated;
+    } catch (err: any) {
+      set({ error: err.message || 'Failed to generate architectural explanation', isExplaining: false });
+      throw err;
+    }
+  },
+
+  explainCodeSnippet: async (input: {
+    filePath: string;
+    startLine: number;
+    endLine: number;
+    codeSnippet: string;
+    language?: string;
+    userNote?: string;
+  }) => {
+    const { activeRepoId } = get();
+    if (!activeRepoId) throw new Error('No active repository');
+
+    try {
+      set({ isExplaining: true, error: null });
+      const explanation = await api.explainCode(activeRepoId, input);
+      set({ isExplaining: false });
+      return explanation;
+    } catch (err: any) {
+      set({ error: err.message || 'Failed to explain code snippet', isExplaining: false });
+      throw err;
+    }
+  },
+
   resetState: () => {
     set({
       repositories: [],
@@ -292,6 +377,8 @@ export const useRepoStore = create<RepoState>((set, get) => ({
       fileBlobs: {},
       annotations: [],
       activeAnnotationId: null,
+      threads: {},
+      isExplaining: false,
       isRepoViewerOpen: false,
       isImportModalOpen: false,
       isLoading: false,

@@ -19,6 +19,7 @@ import { useRepoStore, RepoViewMode } from '../../store/useRepoStore';
 import { useStore } from '../../store/useStore';
 import { FileTreeExplorer } from './FileTreeExplorer';
 import { MonacoRepoViewer } from './MonacoRepoViewer';
+import { AnnotationDock } from './AnnotationDock';
 import { DesignCategory } from '../../types/telemetry';
 
 export const RepoViewerModal: React.FC = () => {
@@ -294,23 +295,13 @@ export const RepoViewerModal: React.FC = () => {
           {viewMode === 'SPLIT_ANNOTATIONS' && (
             <div
               data-testid="annotations-dock"
-              className={`w-80 sm:w-96 h-full flex flex-col border-l overflow-y-auto p-3 shrink-0 ${
-                isLight ? 'bg-neutral-50 border-neutral-200' : 'bg-neutral-950/70 border-white/10'
+              className={`w-80 sm:w-96 md:w-[420px] h-full flex flex-col border-l shrink-0 ${
+                isLight ? 'bg-neutral-50/70 border-neutral-200' : 'bg-neutral-950/70 border-white/10'
               }`}
             >
-              <div className="flex items-center justify-between pb-2 border-b border-white/10 mb-3">
-                <div className="flex items-center gap-1.5 text-xs font-mono font-bold">
-                  <MessageSquarePlus className="w-4 h-4 text-purple-400" />
-                  <span>Notes & Architectural Study</span>
-                </div>
-                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400">
-                  {safeAnnotations.length} note{safeAnnotations.length !== 1 ? 's' : ''}
-                </span>
-              </div>
-
-              {/* Note Creator Form */}
-              {isAddingNote && selectedLines ? (
-                <div className="p-3 mb-4 rounded-lg border bg-purple-950/20 border-purple-500/30 text-xs font-mono">
+              {/* Note Creator Form if line range selected */}
+              {isAddingNote && selectedLines && (
+                <div className="p-3 border-b bg-purple-950/20 border-purple-500/30 text-xs font-mono">
                   <div className="flex items-center justify-between mb-2">
                     <span className="font-semibold text-purple-300">
                       Annotate Lines {selectedLines.start}–{selectedLines.end}
@@ -362,59 +353,19 @@ export const RepoViewerModal: React.FC = () => {
                     <button
                       data-testid="save-annotation-button"
                       onClick={handleSaveAnnotation}
-                      className="px-3 py-1 rounded bg-purple-600 hover:bg-purple-500 text-white font-semibold"
+                      className="px-3 py-1 rounded bg-purple-600 hover:bg-purple-500 text-white font-semibold cursor-pointer"
                     >
                       Save Note
                     </button>
                   </div>
                 </div>
-              ) : (
-                <div className="p-2.5 mb-3 rounded-lg border border-dashed border-white/15 text-center text-xs font-mono text-neutral-400">
-                  Select any line or block in the code viewer to attach a direct note or architectural critique.
-                </div>
               )}
 
-              {/* List of Annotations for Active File */}
-              <div className="space-y-2">
-                {safeAnnotations
-                  .filter((a) => !activeFilePath || a.filePath === activeFilePath)
-                  .map((ann) => (
-                    <div
-                      key={ann.id}
-                      data-testid={`annotation-card-${ann.id}`}
-                      className="p-2.5 rounded-lg border bg-white/5 border-white/10 text-xs font-mono hover:border-purple-500/40 transition-all"
-                    >
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="font-semibold text-purple-300 truncate max-w-[200px]">
-                          {ann.title}
-                        </span>
-                        <div className="flex items-center gap-1">
-                          <span className="text-[10px] text-neutral-500">
-                            L{ann.startLine}–{ann.endLine}
-                          </span>
-                          <button
-                            data-testid={`delete-annotation-${ann.id}`}
-                            onClick={() => deleteAnnotation(ann.id)}
-                            className="text-neutral-500 hover:text-red-400 p-0.5"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="text-[10px] text-purple-400 font-semibold mb-1">
-                        [{ann.designCategory}]
-                      </div>
-
-                      <p className="text-neutral-300 line-clamp-3 mb-2">{ann.content}</p>
-
-                      {ann.anchorCodeSnippet && (
-                        <pre className="p-1.5 rounded bg-black/50 text-[10px] text-neutral-400 font-mono overflow-x-auto truncate">
-                          {ann.anchorCodeSnippet}
-                        </pre>
-                      )}
-                    </div>
-                  ))}
+              <div className="flex-1 overflow-hidden">
+                <AnnotationDock
+                  currentFileContent={activeBlobData?.content || ''}
+                  isLight={isLight}
+                />
               </div>
             </div>
           )}

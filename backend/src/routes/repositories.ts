@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { repoFetcherService } from '../services/repoFetcherService.js';
 import { annotationService } from '../services/annotationService.js';
+import { codeArchitectureExplainer } from '../services/codeArchitectureExplainer.js';
 
 export const repositoriesRouter = Router();
 
@@ -161,6 +162,60 @@ repositoriesRouter.delete('/:id/annotations/:annId', async (req: Request, res: R
   } catch (err: any) {
     console.error('[REPO_ANNOTATION_DELETE_ERROR]:', err);
     res.status(500).json({ error: 'Failed to delete annotation' });
+  }
+});
+
+// POST /api/repositories/:id/explain-code - Direct architectural critique of code snippet
+repositoriesRouter.post('/:id/explain-code', async (req: Request, res: Response) => {
+  try {
+    const { filePath, startLine, endLine, codeSnippet, language, userNote, surroundingContext } = req.body;
+    if (!filePath || startLine === undefined || endLine === undefined || !codeSnippet) {
+      return res.status(400).json({ error: 'filePath, startLine, endLine, and codeSnippet are required' });
+    }
+
+    const repo = await repoFetcherService.getRepositoryById(req.params.id);
+    const explanation = await codeArchitectureExplainer.explainCode({
+      repositoryName: repo?.fullName || req.params.id,
+      filePath,
+      language: language || repo?.language || undefined,
+      startLine: Number(startLine),
+      endLine: Number(endLine),
+      codeSnippet,
+      surroundingContext,
+      userNote
+    });
+
+    res.json(explanation);
+  } catch (err: any) {
+    console.error('[REPO_EXPLAIN_CODE_ERROR]:', err);
+    res.status(500).json({ error: err.message || 'Failed to generate code architecture explanation' });
+  }
+});
+
+// POST /api/repositories/:id/annotations/:annId/explain - Generate and attach AI explanation to annotation
+repositoriesRouter.post('/:id/annotations/:annId/explain', async (req: Request, res: Response) => {
+  try {
+    const annotation = await annotationService.getAnnotationById(req.params.annId);
+    if (!annotation) {
+      return res.status(404).json({ error: 'Annotation not found' });
+    }
+
+    const repo = await repoFetcherService.getRepositoryById(req.params.id);
+    const explanation = await codeArchitectureExplainer.explainCode({
+      repositoryName: repo?.fullName || req.params.id,
+      filePath: annotation.filePath,
+      language: repo?.language || undefined,
+      startLine: annotation.startLine,
+      endLine: annotation.endLine,
+      codeSnippet: annotation.anchorCodeSnippet,
+      userNote: annotation.content
+    });
+
+    const updated = await annotationService.setAnnotationAiExplanation(annotation.id, explanation);
+    res.json(updated);
+  } catch (err: any) {
+    console.error('[REPO_ANNOTATION_EXPLAIN_ERROR]:', err);
+    res.status(500).json({ error: err.message || 'Failed to explain annotation' });
   }
 });
 

@@ -146,6 +146,20 @@ export class AnnotationService {
     return toCodeAnnotationDTO(res.rows[0]);
   }
 
+  public async setAnnotationAiExplanation(id: string, aiExplanation: any): Promise<CodeAnnotationDTO> {
+    const res = await query<CodeAnnotationRow>(
+      `UPDATE code_annotations 
+       SET ai_explanation = $2, updated_at = NOW() 
+       WHERE id = $1 
+       RETURNING *`,
+      [id, JSON.stringify(aiExplanation)]
+    );
+    if (res.rows.length === 0) {
+      throw new Error(`Code annotation not found: "${id}"`);
+    }
+    return toCodeAnnotationDTO(res.rows[0]);
+  }
+
   public async deleteAnnotation(id: string): Promise<boolean> {
     const res = await query(
       `DELETE FROM code_annotations WHERE id = $1`,

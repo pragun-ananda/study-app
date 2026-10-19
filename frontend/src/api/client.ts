@@ -528,3 +528,35 @@ export async function createAnnotationThreadMessage(
     }
   );
 }
+
+export async function explainCode(
+  id: string,
+  input: {
+    filePath: string;
+    startLine: number;
+    endLine: number;
+    codeSnippet: string;
+    language?: string;
+    userNote?: string;
+    surroundingContext?: string;
+  }
+): Promise<any> {
+  return request<any>(`/api/repositories/${encodeURIComponent(id)}/explain-code`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input)
+  });
+}
+
+export async function explainAnnotation(
+  id: string,
+  annId: string
+): Promise<CodeAnnotationDTO> {
+  return request<CodeAnnotationDTO>(
+    `/api/repositories/${encodeURIComponent(id)}/annotations/${encodeURIComponent(annId)}/explain`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    }
+  );
+}

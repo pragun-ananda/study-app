@@ -454,6 +454,125 @@ const mockFetch: typeof fetch = async (input: RequestInfo | URL, init?: RequestI
     );
   }
 
+  // POST /api/repositories/:id/explain-code
+  if (url.match(/\/api\/repositories\/[^/]+\/explain-code$/) && method === 'POST') {
+    return new Response(
+      JSON.stringify({
+        summary: 'Mock execution summary for test snippet.',
+        architecturalRationale: 'Engineers designed this component using an event loop to minimize context switching.',
+        designPatterns: ['Reactor Pattern', 'Non-blocking I/O'],
+        concurrencyAndFailureModes: {
+          raceConditionsAndDeadlocks: 'Thread-confined; minimal hazard.',
+          memoryTradeoffs: 'Linear heap overhead.',
+          spofOrBottleneck: 'Socket backlog buffer limit.'
+        },
+        complexityAnalysis: {
+          timeComplexity: 'O(1)',
+          spaceComplexity: 'O(1)',
+          scalabilityNotes: 'Horizontally scalable.'
+        },
+        suggestedStudyQuestions: [
+          {
+            question: 'Why avoid multithreading here?',
+            rationale: 'Tests concurrency tradeoffs.'
+          }
+        ]
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+
+  // POST /api/repositories/:id/annotations/:annId/explain
+  if (url.match(/\/api\/repositories\/[^/]+\/annotations\/[^/]+\/explain$/) && method === 'POST') {
+    return new Response(
+      JSON.stringify({
+        id: url.split('/')[5],
+        repositoryId: 'REPO-1',
+        filePath: 'README.md',
+        startLine: 1,
+        endLine: 5,
+        title: 'Mock Explained Annotation',
+        content: 'Explaining code...',
+        designCategory: 'ARCHITECTURE',
+        anchorCodeSnippet: '# Linux Kernel',
+        aiExplanation: {
+          summary: 'Mock execution summary.',
+          architecturalRationale: 'Why this was designed this way.',
+          designPatterns: ['Architecture Pattern'],
+          concurrencyAndFailureModes: {
+            raceConditionsAndDeadlocks: 'None',
+            memoryTradeoffs: 'None',
+            spofOrBottleneck: 'None'
+          },
+          complexityAnalysis: {
+            timeComplexity: 'O(1)',
+            spaceComplexity: 'O(1)',
+            scalabilityNotes: 'None'
+          },
+          suggestedStudyQuestions: []
+        },
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+
+  // GET /api/repositories/:id/annotations/:annId/threads
+  if (url.match(/\/api\/repositories\/[^/]+\/annotations\/[^/]+\/threads$/) && method === 'GET') {
+    return new Response(JSON.stringify([]), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
+  // POST /api/repositories/:id/annotations/:annId/threads
+  if (url.match(/\/api\/repositories\/[^/]+\/annotations\/[^/]+\/threads$/) && method === 'POST') {
+    return new Response(
+      JSON.stringify({
+        id: `TH-${Date.now()}`,
+        annotationId: url.split('/')[5],
+        sender: body.sender || 'USER',
+        message: body.message,
+        suggestedQuizzes: null,
+        createdAt: new Date().toISOString()
+      }),
+      { status: 201, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+
+  // PUT /api/repositories/:id/annotations/:annId
+  if (url.match(/\/api\/repositories\/[^/]+\/annotations\/[^/]+$/) && method === 'PUT') {
+    const annId = url.split('/').pop()!;
+    const existing = useRepoStore.getState().annotations.find((a) => a.id === annId);
+    return new Response(
+      JSON.stringify({
+        id: annId,
+        repositoryId: existing?.repositoryId || 'REPO-1',
+        filePath: existing?.filePath || body.filePath || 'README.md',
+        startLine: existing?.startLine ?? 1,
+        endLine: existing?.endLine ?? 5,
+        title: body.title || existing?.title || 'Updated Title',
+        content: body.content !== undefined ? body.content : (existing?.content || ''),
+        designCategory: body.designCategory || existing?.designCategory || 'ARCHITECTURE',
+        anchorCodeSnippet: existing?.anchorCodeSnippet || '# Linux Kernel',
+        aiExplanation: existing?.aiExplanation || null,
+        topicId: body.topicId !== undefined ? body.topicId : (existing?.topicId || null),
+        createdAt: existing?.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+
+  // DELETE /api/repositories/:id/annotations/:annId
+  if (url.match(/\/api\/repositories\/[^/]+\/annotations\/[^/]+$/) && method === 'DELETE') {
+    return new Response(JSON.stringify({ success: true, id: url.split('/').pop() }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
   // GET /api/repositories/:id
   if (url.match(/\/api\/repositories\/[^/]+$/) && method === 'GET') {
     return new Response(

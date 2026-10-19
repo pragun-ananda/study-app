@@ -210,5 +210,49 @@ describe('Integration: Repositories & Annotations REST API (/api/repositories)',
       expect(getThreadsRes.body[0].sender).toBe('USER');
       expect(getThreadsRes.body[1].sender).toBe('SOL_AI');
     });
+
+    it('generates direct architectural code critique via POST /api/repositories/:id/explain-code', async () => {
+      const explainRes = await request(app)
+        .post(`/api/repositories/${repoId}/explain-code`)
+        .send({
+          filePath: 'src/lru.go',
+          startLine: 1,
+          endLine: 3,
+          codeSnippet: 'type Cache struct { mu sync.Mutex; items map[string]interface{} }',
+          language: 'go',
+          userNote: 'Why is a mutex embedded directly in the struct?'
+        });
+
+      expect(explainRes.status).toBe(200);
+      expect(explainRes.body.summary).toBeDefined();
+      expect(explainRes.body.architecturalRationale).toBeDefined();
+      expect(Array.isArray(explainRes.body.designPatterns)).toBe(true);
+      expect(explainRes.body.concurrencyAndFailureModes).toBeDefined();
+      expect(explainRes.body.complexityAnalysis).toBeDefined();
+      expect(explainRes.body.suggestedStudyQuestions.length).toBeGreaterThan(0);
+    });
+
+    it('attaches AI architectural analysis to existing annotation via POST /api/repositories/:id/annotations/:annId/explain', async () => {
+      const createRes = await request(app)
+        .post(`/api/repositories/${repoId}/annotations`)
+        .send({
+          filePath: 'src/lru.go',
+          startLine: 1,
+          endLine: 3,
+          title: 'Cache Invalidation Lock',
+          content: 'Examine concurrency lock overhead',
+          anchorCodeSnippet: 'type Cache struct { mu sync.Mutex }'
+        });
+
+      const annId = createRes.body.id;
+
+      const explainRes = await request(app)
+        .post(`/api/repositories/${repoId}/annotations/${annId}/explain`);
+
+      expect(explainRes.status).toBe(200);
+      expect(explainRes.body.id).toBe(annId);
+      expect(explainRes.body.aiExplanation).toBeDefined();
+      expect(explainRes.body.aiExplanation.architecturalRationale).toBeDefined();
+    });
   });
 });
