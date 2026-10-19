@@ -475,7 +475,119 @@ export interface TelemetryActions {
   resetState: () => void;
 }
 
-
 export type TelemetryStore = TelemetryState & TelemetryActions;
+
+// ==============================================================================
+// CODE REPOSITORY DOCUMENTATION ENGINE TYPES
+// ==============================================================================
+
+export type RepoOriginType = 'GITHUB' | 'GITLAB' | 'CUSTOM' | 'LOCAL';
+
+export type DesignCategory = 
+  | 'ARCHITECTURE'
+  | 'ALGORITHM'
+  | 'CONCURRENCY'
+  | 'DESIGN_PATTERN'
+  | 'PERFORMANCE'
+  | 'SECURITY'
+  | 'SPOF_TRADEOFF'
+  | 'GENERAL_NOTE';
+
+export interface RepositoryDTO {
+  id: string;
+  name: string;
+  owner: string;
+  fullName: string;
+  originType: RepoOriginType;
+  cloneUrl: string;
+  defaultBranch: string;
+  activeCommitSha: string;
+  description: string | null;
+  language: string | null;
+  starsCount: number;
+  forksCount: number;
+  isArchived: boolean;
+  treeCachedAt: string | null;
+  annotationsCount?: number;
+  cachedBlobsCount?: number;
+  cachedBytes?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ImportRepositoryInput {
+  url?: string;
+  fullName?: string;
+  owner?: string;
+  name?: string;
+  branch?: string;
+  originType?: RepoOriginType;
+  description?: string;
+  language?: string;
+  customFiles?: Array<{ path: string; content: string }>;
+}
+
+export interface RepoTreeNode {
+  path: string;
+  name: string;
+  type: 'file' | 'dir';
+  size?: number;
+  sha?: string;
+  children?: RepoTreeNode[];
+}
+
+export interface RepoTreeManifest {
+  repositoryId: string;
+  commitSha: string;
+  tree: RepoTreeNode[];
+  totalFiles: number;
+  truncated: boolean;
+}
+
+export interface CodeAnnotationDTO {
+  id: string;
+  repositoryId: string;
+  commitSha: string;
+  filePath: string;
+  startLine: number;
+  endLine: number;
+  title: string;
+  content: string;
+  anchorCodeSnippet: string;
+  designCategory: DesignCategory;
+  aiExplanation: any | null;
+  topicId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateCodeAnnotationInput {
+  repositoryId: string;
+  commitSha?: string;
+  filePath: string;
+  startLine: number;
+  endLine: number;
+  title: string;
+  content: string;
+  anchorCodeSnippet: string;
+  designCategory?: DesignCategory;
+  topicId?: string | null;
+}
+
+export interface UpdateCodeAnnotationInput {
+  title?: string;
+  content?: string;
+  designCategory?: DesignCategory;
+  topicId?: string | null;
+}
+
+export interface CodeAnnotationThreadDTO {
+  id: string;
+  annotationId: string;
+  sender: 'USER' | 'SOL_AI' | 'SYSTEM';
+  message: string;
+  suggestedQuizzes: any | null;
+  createdAt: string;
+}
 
 

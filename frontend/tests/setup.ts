@@ -1,6 +1,7 @@
 import '@testing-library/jest-dom';
 import { beforeEach, vi } from 'vitest';
 import { useStore, INITIAL_TOPICS } from '../src/store/useStore';
+import { useRepoStore } from '../src/store/useRepoStore';
 import { INITIAL_TODOS } from '../src/data/test';
 import { setCustomFetch } from '../src/api/client';
 
@@ -332,12 +333,152 @@ const mockFetch: typeof fetch = async (input: RequestInfo | URL, init?: RequestI
     });
   }
 
-  // GET /api/problems
-  if (url.startsWith('/api/problems') && method === 'GET') {
-    return new Response(JSON.stringify(useStore.getState().problems || []), {
+  // GET /api/repositories
+  if (url === '/api/repositories' && method === 'GET') {
+    return new Response(
+      JSON.stringify([
+        {
+          id: 'REPO-1',
+          owner: 'torvalds',
+          name: 'linux',
+          fullName: 'torvalds/linux',
+          remoteUrl: 'https://github.com/torvalds/linux',
+          defaultBranch: 'master',
+          activeCommitSha: 'abc1234',
+          isPublic: true,
+          description: 'Linux kernel source tree',
+          language: 'C',
+          starsCount: 170000,
+          forksCount: 50000,
+          storageBudgetBytes: 104857600,
+          cachedBytes: 1024,
+          cachedBlobsCount: 1,
+          annotationsCount: 2,
+          createdAt: '2026-10-19T00:00:00Z',
+          updatedAt: '2026-10-19T00:00:00Z'
+        }
+      ]),
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+
+  // POST /api/repositories/import or /api/repositories
+  if ((url === '/api/repositories/import' || url === '/api/repositories') && method === 'POST') {
+    return new Response(
+      JSON.stringify({
+        id: `REPO-${Date.now()}`,
+        owner: body.url?.split('/')[3] || 'facebook',
+        name: body.url?.split('/')[4] || 'react',
+        fullName: 'facebook/react',
+        remoteUrl: body.url || 'https://github.com/facebook/react',
+        defaultBranch: 'main',
+        activeCommitSha: 'def5678',
+        isPublic: true,
+        description: 'React library',
+        language: 'TypeScript',
+        starsCount: 220000,
+        forksCount: 45000,
+        storageBudgetBytes: 104857600,
+        cachedBytes: 0,
+        cachedBlobsCount: 0,
+        annotationsCount: 0,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      }),
+      { status: 201, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+
+  // GET /api/repositories/:id/tree
+  if (url.match(/\/api\/repositories\/[^/]+\/tree/) && method === 'GET') {
+    return new Response(
+      JSON.stringify({
+        repositoryId: 'REPO-1',
+        commitSha: 'abc1234',
+        truncated: false,
+        fileCount: 2,
+        tree: [
+          { path: 'README.md', name: 'README.md', type: 'file', size: 120 },
+          {
+            path: 'src',
+            name: 'src',
+            type: 'directory',
+            children: [{ path: 'src/index.ts', name: 'index.ts', type: 'file', size: 450 }]
+          }
+        ]
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+
+  // GET /api/repositories/:id/blob
+  if (url.match(/\/api\/repositories\/[^/]+\/blob/) && method === 'GET') {
+    return new Response(
+      JSON.stringify({
+        content: '# Linux Kernel\n\nWelcome to Linux.',
+        fileSizeBytes: 33,
+        encoding: 'utf-8',
+        fromCache: true,
+        isTruncated: false
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+
+  // GET /api/repositories/:id/annotations
+  if (url.match(/\/api\/repositories\/[^/]+\/annotations$/) && method === 'GET') {
+    return new Response(JSON.stringify([]), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }
     });
+  }
+
+  // POST /api/repositories/:id/annotations
+  if (url.match(/\/api\/repositories\/[^/]+\/annotations$/) && method === 'POST') {
+    return new Response(
+      JSON.stringify({
+        id: `ANN-${Date.now()}`,
+        repositoryId: 'REPO-1',
+        filePath: body.filePath,
+        startLine: body.startLine,
+        endLine: body.endLine,
+        title: body.title,
+        content: body.content,
+        category: body.category || 'ARCHITECTURE',
+        codeSnippet: body.codeSnippet || '',
+        threadCount: 0,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      }),
+      { status: 201, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+
+  // GET /api/repositories/:id
+  if (url.match(/\/api\/repositories\/[^/]+$/) && method === 'GET') {
+    return new Response(
+      JSON.stringify({
+        id: 'REPO-1',
+        owner: 'torvalds',
+        name: 'linux',
+        fullName: 'torvalds/linux',
+        remoteUrl: 'https://github.com/torvalds/linux',
+        defaultBranch: 'master',
+        activeCommitSha: 'abc1234',
+        isPublic: true,
+        description: 'Linux kernel source tree',
+        language: 'C',
+        starsCount: 170000,
+        forksCount: 50000,
+        storageBudgetBytes: 104857600,
+        cachedBytes: 1024,
+        cachedBlobsCount: 1,
+        annotationsCount: 2,
+        createdAt: '2026-10-19T00:00:00Z',
+        updatedAt: '2026-10-19T00:00:00Z'
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
+    );
   }
 
   return new Response(JSON.stringify({}), { status: 200 });
@@ -355,6 +496,7 @@ beforeEach(() => {
   setCustomFetch(mockFetch);
   useStore.getState().resetState();
   useStore.getState().hydrate(INITIAL_TOPICS, INITIAL_TODOS);
+  useRepoStore.getState().resetState();
   vi.clearAllMocks();
 });
 

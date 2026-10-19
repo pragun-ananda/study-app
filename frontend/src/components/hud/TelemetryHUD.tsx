@@ -29,7 +29,9 @@ import {
   AlertTriangle,
   Layers,
   Sparkles,
-  Code
+  Code,
+  FolderGit2,
+  GitBranch
 } from 'lucide-react';
 import NoteViewerModal from './NoteViewerModal';
 import ApplicationViewerModal from './ApplicationViewerModal';
@@ -38,8 +40,10 @@ import NotificationsDropdown from './NotificationsDropdown';
 import DiffViewerModal from './DiffViewerModal';
 import IngestionWalkthroughModal from './IngestionWalkthroughModal';
 import CreateNodeModal from './CreateNodeModal';
+import { RepoViewerModal } from '../code_repo/RepoViewerModal';
 import { TopologicalSubgraph } from './TopologicalSubgraph';
 import { useStore } from '../../store/useStore';
+import { useRepoStore } from '../../store/useRepoStore';
 import { TopicNode, DomainCategory, DEFAULT_DOMAINS, TopicStatus } from '../../types/telemetry';
 import { DOMAIN_BASE_COLORS, DOMAIN_LIGHT_COLORS, getCategoryShade } from '../../utils/theme';
 import { getTopologicalPrerequisites } from '../../utils/graph';
@@ -77,12 +81,18 @@ export default function TelemetryHUD() {
   const activeQuiz = useStore((state) => state.activeQuiz);
   const activeProblem = useStore((state) => state.activeProblem);
 
+  // Repository Documentation Engine State & Actions
+  const repositories = useRepoStore((state) => state.repositories);
+  const fetchRepositories = useRepoStore((state) => state.fetchRepositories);
+  const openRepoViewer = useRepoStore((state) => state.openRepoViewer);
+  const setIsImportModalOpen = useRepoStore((state) => state.setIsImportModalOpen);
+
   // Ingestion State & Actions
   const ingestUrl = useStore((state) => state.ingestUrl);
   const isIngesting = useStore((state) => state.isIngesting);
   const ingestError = useStore((state) => state.ingestError);
 
-  const [activeTab, setActiveTab] = useState<'TOPICS' | 'APPLICATIONS' | 'PROBLEMS'>('TOPICS');
+  const [activeTab, setActiveTab] = useState<'TOPICS' | 'APPLICATIONS' | 'PROBLEMS' | 'REPOSITORIES'>('TOPICS');
   const [isSubgraphsOpen, setIsSubgraphsOpen] = useState(false);
 
   // URL Ingest Plus-Icon Textbox State
@@ -292,7 +302,8 @@ export default function TelemetryHUD() {
   }, [selectedNode, applications]);
 
   const filteredProblems = useMemo(() => {
-    return (problems || []).filter((prob) => {
+    if (!Array.isArray(problems)) return [];
+    return problems.filter((prob) => {
       const categoryMatch = !selectedCategory || selectedCategory === 'ALL' || prob.domain === selectedCategory;
       const searchMatch =
         !searchQuery ||
@@ -304,11 +315,30 @@ export default function TelemetryHUD() {
   }, [problems, selectedCategory, searchQuery]);
 
   const topicProblems = useMemo(() => {
-    if (!selectedNode) return [];
-    return (problems || []).filter((prob) =>
+    if (!selectedNode || !Array.isArray(problems)) return [];
+    return problems.filter((prob) =>
       prob.prerequisiteTopics?.some((pt) => pt.id === selectedNode.id)
     );
   }, [selectedNode, problems]);
+
+  // Load repositories on HUD mount
+  useEffect(() => {
+    fetchRepositories();
+  }, [fetchRepositories]);
+
+  const filteredRepositories = useMemo(() => {
+    if (!Array.isArray(repositories)) return [];
+    return repositories.filter((repo) => {
+      if (!searchQuery) return true;
+      const q = searchQuery.toLowerCase();
+      return (
+        repo.name.toLowerCase().includes(q) ||
+        repo.owner.toLowerCase().includes(q) ||
+        (repo.description && repo.description.toLowerCase().includes(q)) ||
+        (repo.language && repo.language.toLowerCase().includes(q))
+      );
+    });
+  }, [repositories, searchQuery]);
 
   // Dynamic Mastery Score calculated per active Subgraph
   const activeSubgraphNodes = selectedCategory && selectedCategory !== 'ALL'
@@ -729,39 +759,50 @@ export default function TelemetryHUD() {
             <div className="flex flex-col h-full space-y-4 overflow-hidden">
 
               <div className={`flex items-center justify-between border-b pb-2 ${isLight ? 'border-slate-200' : 'border-white/10'}`}>
-                <div className={`flex items-center gap-1 p-1 rounded-lg w-full justify-between ${isLight ? 'bg-slate-200/70' : 'bg-slate-950/60'}`}>
+                <div className={`grid grid-cols-4 gap-1 p-1 rounded-lg w-full ${isLight ? 'bg-slate-200/70' : 'bg-slate-950/60'}`}>
                   <button
                     onClick={() => setActiveTab('TOPICS')}
                     data-testid="sidebar-tab-concepts"
-                    className={`flex-1 px-1.5 py-1 rounded text-[11px] font-bold transition-all flex items-center justify-center gap-1 ${
+                    className={`px-1 py-1 rounded text-[10.5px] font-bold transition-all flex items-center justify-center gap-1 ${
                       activeTab === 'TOPICS'
                         ? (isLight ? 'bg-sky-600 text-white shadow-sm' : 'bg-[#00f0ff] text-slate-950 shadow-[0_0_10px_rgba(0,240,255,0.3)]')
                         : (isLight ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-slate-200')
                     }`}
                   >
-                    <BookOpen size={11} /> CONCEPTS ({filteredTopics.length})
+                    <BookOpen size={10} /> CONCEPTS ({filteredTopics.length})
                   </button>
                   <button
                     onClick={() => setActiveTab('APPLICATIONS')}
                     data-testid="sidebar-tab-applications"
-                    className={`flex-1 px-1.5 py-1 rounded text-[11px] font-bold transition-all flex items-center justify-center gap-1 ${
+                    className={`px-1 py-1 rounded text-[10.5px] font-bold transition-all flex items-center justify-center gap-1 ${
                       activeTab === 'APPLICATIONS'
                         ? (isLight ? 'bg-sky-600 text-white shadow-sm' : 'bg-[#00f0ff] text-slate-950 shadow-[0_0_10px_rgba(0,240,255,0.3)]')
                         : (isLight ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-slate-200')
                     }`}
                   >
-                    <Layers size={11} /> CASE STUDIES ({filteredApplications.length})
+                    <Layers size={10} /> CASE STUDIES ({filteredApplications.length})
                   </button>
                   <button
                     onClick={() => setActiveTab('PROBLEMS')}
                     data-testid="sidebar-tab-problems"
-                    className={`flex-1 px-1.5 py-1 rounded text-[11px] font-bold transition-all flex items-center justify-center gap-1 ${
+                    className={`px-1 py-1 rounded text-[10.5px] font-bold transition-all flex items-center justify-center gap-1 ${
                       activeTab === 'PROBLEMS'
                         ? (isLight ? 'bg-sky-600 text-white shadow-sm' : 'bg-[#00f0ff] text-slate-950 shadow-[0_0_10px_rgba(0,240,255,0.3)]')
                         : (isLight ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-slate-200')
                     }`}
                   >
-                    <Code size={11} /> PROBLEMS ({filteredProblems.length})
+                    <Code size={10} /> PROBLEMS ({filteredProblems.length})
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('REPOSITORIES')}
+                    data-testid="sidebar-tab-repositories"
+                    className={`px-1 py-1 rounded text-[10.5px] font-bold transition-all flex items-center justify-center gap-1 ${
+                      activeTab === 'REPOSITORIES'
+                        ? (isLight ? 'bg-sky-600 text-white shadow-sm' : 'bg-[#00f0ff] text-slate-950 shadow-[0_0_10px_rgba(0,240,255,0.3)]')
+                        : (isLight ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-slate-200')
+                    }`}
+                  >
+                    <FolderGit2 size={10} /> REPOS ({filteredRepositories.length})
                   </button>
                 </div>
               </div>
@@ -1008,6 +1049,121 @@ export default function TelemetryHUD() {
                 </div>
               )}
 
+              {/* TAB 4: CODE REPOSITORIES ENGINE */}
+              {activeTab === 'REPOSITORIES' && (
+                <div className="flex-1 flex flex-col space-y-3 overflow-hidden" data-testid="sidebar-repositories-panel">
+                  <div className={`flex justify-between items-center text-[11px] ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
+                    <span className="font-bold uppercase tracking-wider flex items-center gap-1.5">
+                      <FolderGit2 size={12} className={isLight ? 'text-sky-600' : 'text-[#00f0ff]'} />
+                      <span>CODE REPOSITORIES</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsImportModalOpen(true);
+                        openRepoViewer();
+                      }}
+                      className={`text-[11px] font-bold hover:underline flex items-center gap-1 cursor-pointer ${
+                        isLight ? 'text-sky-600' : 'text-[#00f0ff]'
+                      }`}
+                      data-testid="sidebar-import-repo-btn"
+                    >
+                      <Plus size={12} />
+                      <span>IMPORT REPO</span>
+                    </button>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto space-y-2.5 pr-1.5 pb-6 overscroll-contain" onWheel={(e) => e.stopPropagation()}>
+                    {filteredRepositories.length > 0 ? (
+                      filteredRepositories.map((repo) => (
+                        <div
+                          key={repo.id}
+                          data-testid="sidebar-repo-card"
+                          onClick={() => openRepoViewer(repo.id)}
+                          className={`p-3 rounded-lg border text-xs cursor-pointer transition-all group ${
+                            isLight
+                              ? 'border-slate-200 bg-white/90 hover:border-sky-400 hover:shadow-md'
+                              : 'border-white/10 bg-slate-950/70 hover:border-[#00f0ff]/50 hover:shadow-[0_0_15px_rgba(0,240,255,0.15)]'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-2 mb-1.5">
+                            <span className={`font-mono text-[10px] truncate max-w-[170px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                              {repo.owner} /
+                            </span>
+                            <div className="flex items-center gap-1.5">
+                              {repo.language && (
+                                <span className={`text-[9.5px] px-1.5 py-0.5 rounded font-mono font-semibold ${
+                                  isLight ? 'bg-slate-100 text-slate-700' : 'bg-slate-900 text-slate-300 border border-white/5'
+                                }`}>
+                                  {repo.language}
+                                </span>
+                              )}
+                              <span className={`text-[9.5px] px-1.5 py-0.5 rounded font-mono font-bold flex items-center gap-1 ${
+                                isLight ? 'bg-sky-50 text-sky-700' : 'bg-[#00f0ff]/10 text-[#00f0ff]'
+                              }`}>
+                                <GitBranch size={9} />
+                                {repo.defaultBranch}
+                              </span>
+                            </div>
+                          </div>
+
+                          <h4 className={`font-sans font-bold text-xs leading-snug mb-1 group-hover:underline ${
+                            isLight ? 'text-slate-900 group-hover:text-sky-600' : 'text-slate-100 group-hover:text-[#00f0ff]'
+                          }`}>
+                            {repo.name}
+                          </h4>
+
+                          {repo.description && (
+                            <p className={`text-[10.5px] line-clamp-2 leading-relaxed mb-2 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                              {repo.description}
+                            </p>
+                          )}
+
+                          <div className="flex items-center justify-between text-[10px] font-mono pt-1.5 border-t border-slate-100 dark:border-white/5">
+                            <span className={isLight ? 'text-slate-500' : 'text-slate-400'}>
+                              ★ {repo.starsCount ? repo.starsCount.toLocaleString() : '0'}
+                            </span>
+                            <span className={`font-bold flex items-center gap-1 ${isLight ? 'text-sky-600' : 'text-[#00f0ff]'}`}>
+                              <span>{repo.annotationsCount || 0} Notes</span>
+                              <ArrowRight size={10} className="group-hover:translate-x-0.5 transition-transform" />
+                            </span>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className={`p-6 text-center rounded-xl border border-dashed flex flex-col items-center gap-2 ${
+                        isLight ? 'border-slate-300 bg-slate-50/50' : 'border-white/10 bg-slate-950/40'
+                      }`}>
+                        <FolderGit2 size={28} className={isLight ? 'text-slate-400' : 'text-slate-600'} />
+                        <div className={`text-xs font-bold ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+                          No Repositories Documented
+                        </div>
+                        <p className={`text-[11px] leading-relaxed max-w-[220px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                          Import any open-source GitHub repository to explore source code and annotate architectural rationale.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsImportModalOpen(true);
+                            openRepoViewer();
+                          }}
+                          className={`mt-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                            isLight
+                              ? 'bg-sky-600 hover:bg-sky-700 text-white shadow-sm'
+                              : 'bg-[#00f0ff] hover:bg-[#00f0ff]/90 text-slate-950 shadow-[0_0_12px_rgba(0,240,255,0.3)]'
+                          }`}
+                          data-testid="empty-import-repo-btn"
+                        >
+                          <Plus size={12} />
+                          <span>Import Repository</span>
+                        </button>
+                      </div>
+                    )}
+                    <div className="h-10 w-full flex-shrink-0 pointer-events-none" />
+                  </div>
+                </div>
+              )}
+
               {/* End Sidebar Tab Content */}
             </div>
           ) : (
@@ -1015,6 +1171,7 @@ export default function TelemetryHUD() {
               <BookOpen size={18} />
               <Layers size={18} />
               <Code size={18} />
+              <FolderGit2 size={18} />
             </div>
           )}
         </motion.div>
@@ -1920,6 +2077,9 @@ export default function TelemetryHUD() {
 
       {/* Manual Create Node Modal */}
       <CreateNodeModal />
+
+      {/* Code Repository Documentation Engine Modal */}
+      <RepoViewerModal />
     </div>
   );
 }

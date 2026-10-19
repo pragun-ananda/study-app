@@ -802,6 +802,9 @@ export interface RepositoryDTO {
   forksCount: number;
   isArchived: boolean;
   treeCachedAt: string | null;
+  annotationsCount?: number;
+  cachedBlobsCount?: number;
+  cachedBytes?: number;
   createdAt: string;
   updatedAt: string;
 }

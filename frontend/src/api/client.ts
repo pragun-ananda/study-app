@@ -13,7 +13,14 @@ import {
   SystemDesignFollowUp,
   ProblemFollowUpResponseDTO,
   GradeFollowUpResponseResult,
-  GradeSystemDesignPayload
+  GradeSystemDesignPayload,
+  RepositoryDTO,
+  ImportRepositoryInput,
+  RepoTreeManifest,
+  CodeAnnotationDTO,
+  CreateCodeAnnotationInput,
+  UpdateCodeAnnotationInput,
+  CodeAnnotationThreadDTO
 } from '../types/telemetry';
 
 export class ApiError extends Error {
@@ -404,6 +411,120 @@ export async function gradeSystemDesignDirect(
   });
 }
 
+// ==========================================
+// Code Repository Documentation Engine API
+// ==========================================
 
+export async function importRepository(input: ImportRepositoryInput): Promise<RepositoryDTO> {
+  return request<RepositoryDTO>('/api/repositories/import', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input)
+  });
+}
 
+export async function getRepositories(): Promise<RepositoryDTO[]> {
+  return request<RepositoryDTO[]>('/api/repositories');
+}
 
+export async function getRepository(id: string): Promise<RepositoryDTO> {
+  return request<RepositoryDTO>(`/api/repositories/${encodeURIComponent(id)}`);
+}
+
+export async function getRepoTree(id: string, sha?: string): Promise<RepoTreeManifest> {
+  const qs = sha ? `?sha=${encodeURIComponent(sha)}` : '';
+  return request<RepoTreeManifest>(`/api/repositories/${encodeURIComponent(id)}/tree${qs}`);
+}
+
+export async function getRepoBlob(
+  id: string,
+  path: string,
+  sha?: string
+): Promise<{
+  content: string;
+  fileSizeBytes: number;
+  encoding: string;
+  fromCache: boolean;
+  isTruncated: boolean;
+}> {
+  const params = new URLSearchParams({ path });
+  if (sha) params.set('sha', sha);
+  return request<{
+    content: string;
+    fileSizeBytes: number;
+    encoding: string;
+    fromCache: boolean;
+    isTruncated: boolean;
+  }>(`/api/repositories/${encodeURIComponent(id)}/blob?${params.toString()}`);
+}
+
+export async function getRepoAnnotations(
+  id: string,
+  path?: string,
+  sha?: string
+): Promise<CodeAnnotationDTO[]> {
+  const params = new URLSearchParams();
+  if (path) params.set('path', path);
+  if (sha) params.set('sha', sha);
+  const qs = params.toString();
+  return request<CodeAnnotationDTO[]>(`/api/repositories/${encodeURIComponent(id)}/annotations${qs ? `?${qs}` : ''}`);
+}
+
+export async function createRepoAnnotation(
+  id: string,
+  input: CreateCodeAnnotationInput
+): Promise<CodeAnnotationDTO> {
+  return request<CodeAnnotationDTO>(`/api/repositories/${encodeURIComponent(id)}/annotations`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input)
+  });
+}
+
+export async function updateRepoAnnotation(
+  id: string,
+  annId: string,
+  input: UpdateCodeAnnotationInput
+): Promise<CodeAnnotationDTO> {
+  return request<CodeAnnotationDTO>(`/api/repositories/${encodeURIComponent(id)}/annotations/${encodeURIComponent(annId)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input)
+  });
+}
+
+export async function deleteRepoAnnotation(
+  id: string,
+  annId: string
+): Promise<{ success: boolean; id: string }> {
+  return request<{ success: boolean; id: string }>(
+    `/api/repositories/${encodeURIComponent(id)}/annotations/${encodeURIComponent(annId)}`,
+    { method: 'DELETE' }
+  );
+}
+
+export async function getAnnotationThreads(
+  id: string,
+  annId: string
+): Promise<CodeAnnotationThreadDTO[]> {
+  return request<CodeAnnotationThreadDTO[]>(
+    `/api/repositories/${encodeURIComponent(id)}/annotations/${encodeURIComponent(annId)}/threads`
+  );
+}
+
+export async function createAnnotationThreadMessage(
+  id: string,
+  annId: string,
+  sender: 'USER' | 'SOL_AI' | 'SYSTEM',
+  message: string,
+  suggestedQuizzes?: any
+): Promise<CodeAnnotationThreadDTO> {
+  return request<CodeAnnotationThreadDTO>(
+    `/api/repositories/${encodeURIComponent(id)}/annotations/${encodeURIComponent(annId)}/threads`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sender, message, suggestedQuizzes })
+    }
+  );
+}
