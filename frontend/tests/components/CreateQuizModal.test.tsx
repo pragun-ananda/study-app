@@ -8,7 +8,7 @@ import * as api from '../../src/api/client';
 describe('CreateQuizModal Component', () => {
   beforeEach(() => {
     useStore.getState().resetState();
-    vi.restoreAllMocks();
+    vi.clearAllMocks();
   });
 
   it('does not render when isCreateQuizOpen is false', () => {
