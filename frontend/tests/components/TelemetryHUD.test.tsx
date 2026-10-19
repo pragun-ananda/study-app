@@ -699,6 +699,39 @@ describe('TelemetryHUD Component', () => {
       });
     });
   });
+
+  describe('Manual Quiz Creation Integration', () => {
+    it('opens CreateQuizModal with target node preselected when + ADD QUIZ is clicked in inspector', () => {
+      const topic = useStore.getState().topicNodes[0];
+      useStore.getState().setSelectedTopicId(topic.id);
+      useStore.getState().setIsInspectorOpen(true);
+
+      render(<TelemetryHUD />);
+
+      const addQuizBtn = screen.getByTestId('add-quiz-button');
+      expect(addQuizBtn).toBeInTheDocument();
+      fireEvent.click(addQuizBtn);
+
+      expect(useStore.getState().isCreateQuizOpen).toBe(true);
+      expect(useStore.getState().createQuizTargetTopicId).toBe(topic.id);
+    });
+
+    it('opens CreateQuizModal when top bar plus menu "Create Quiz Manually" is clicked', async () => {
+      render(<TelemetryHUD />);
+
+      const plusBtn = screen.getByTestId('ingest-url-btn');
+      fireEvent.click(plusBtn);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('create-quiz-manually-btn')).toBeInTheDocument();
+      });
+
+      const createQuizBtn = screen.getByTestId('create-quiz-manually-btn');
+      fireEvent.click(createQuizBtn);
+
+      expect(useStore.getState().isCreateQuizOpen).toBe(true);
+    });
+  });
 });
 
 

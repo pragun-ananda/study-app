@@ -350,6 +350,8 @@ export interface TelemetryState {
   isSidebarOpen: boolean;
   selectedCategory: string | null;
   isCreateNodeOpen: boolean;
+  isCreateQuizOpen: boolean;
+  createQuizTargetTopicId: string | null;
 
   // Knowledge Graph & Study Data
   topicNodes: TopicNode[];
@@ -416,6 +418,8 @@ export interface TelemetryActions {
   setSelectedCategory: (category: string | null) => void;
   setHoveredTopicId: (id: string | null) => void;
   setIsCreateNodeOpen: (open: boolean) => void;
+  setIsCreateQuizOpen: (open: boolean) => void;
+  setCreateQuizTargetTopicId: (topicId: string | null) => void;
 
   // Server Hydration & Direct State Injection
   loadInitialData: () => Promise<void>;
@@ -433,6 +437,9 @@ export interface TelemetryActions {
   addNoteToTopic: (topicId: string, note: Omit<NoteItem, 'id'>) => Promise<NoteItem | void>;
   updateNoteInTopic: (topicId: string, note: NoteItem) => Promise<NoteItem | void>;
   deleteNoteFromTopic: (topicId: string, noteId: string) => Promise<void>;
+  addQuizToTopic: (topicId: string, quiz: Omit<QuizItem, 'id'> & { id?: string }) => Promise<QuizItem | void>;
+  updateQuizInTopic: (topicId: string, quiz: QuizItem) => Promise<QuizItem | void>;
+  deleteQuizFromTopic: (topicId: string, quizId: string) => Promise<void>;
   addTopicNode: (node: Omit<TopicNode, 'id'>) => Promise<TopicNode | void>;
   updateTopicNode: (id: string, updates: Partial<TopicNode>) => Promise<TopicNode | void>;
   deleteTopicNode: (id: string) => Promise<void>;

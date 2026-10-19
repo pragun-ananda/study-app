@@ -2,11 +2,11 @@ import {
   TopicRow,
   NoteRow,
   StudyTodoRow,
-  QuizRow,
-  QuizQuestionRow,
   TopicDTO,
   NoteDTO,
   StudyTodoDTO,
+  QuizRow,
+  QuizQuestionRow,
   QuizDTO,
   QuizQuestionDTO
 } from '../types.js';
@@ -15,7 +15,8 @@ export function toTopicDTO(
   row: TopicRow,
   prerequisites: string[] = [],
   unlocks: string[] = [],
-  notes: NoteDTO[] = []
+  notes: NoteDTO[] = [],
+  quizzes: QuizDTO[] = []
 ): TopicDTO {
   const coordX = Number(Number(row.coord_x ?? 0).toFixed(2));
   const coordY = Number(Number(row.coord_y ?? 0).toFixed(2));
@@ -40,7 +41,8 @@ export function toTopicDTO(
     lastReviewed,
     prerequisites,
     unlocks,
-    notes
+    notes,
+    quizzes
   };
 }
 
@@ -80,4 +82,42 @@ export function toTodoDTO(row: StudyTodoRow): StudyTodoDTO {
   }
 
   return dto;
+}
+
+export function toQuizQuestionDTO(row: QuizQuestionRow): QuizQuestionDTO {
+  const payload = typeof row.payload === 'object' && row.payload !== null ? row.payload : {};
+  const dto: QuizQuestionDTO = {
+    id: row.id,
+    quizId: row.quiz_id,
+    noteId: row.note_id || undefined,
+    type: row.type,
+    prompt: row.prompt,
+    payload,
+    correctAnswer: row.correct_answer,
+    explanation: row.explanation,
+    difficulty: row.difficulty,
+    createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
+    options: payload.options,
+    distractorExplanations: payload.distractorExplanations,
+    pairs: payload.pairs,
+    sequence: payload.sequence || payload.orderedSequence,
+    term: payload.term,
+    definition: payload.definition,
+    memorizationReason: payload.memorizationReason
+  };
+
+  return dto;
+}
+
+export function toQuizDTO(row: QuizRow, questions: QuizQuestionDTO[] = []): QuizDTO {
+  return {
+    id: row.id,
+    topicId: row.topic_id,
+    sourceId: row.source_id || undefined,
+    title: row.title,
+    description: row.description || undefined,
+    questions,
+    createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
+    updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : String(row.updated_at)
+  };
 }

@@ -358,6 +358,7 @@ export interface TopicDTO {
   prerequisites: string[];
   unlocks: string[];
   notes?: NoteDTO[];
+  quizzes?: QuizDTO[];
 }
 
 export interface SourceDTO {
@@ -394,6 +395,13 @@ export interface QuizQuestionDTO {
   explanation: string;
   difficulty: QuizQuestionDifficulty;
   createdAt?: string;
+  options?: Record<string, string>;
+  distractorExplanations?: Record<string, string>;
+  pairs?: Array<{ term: string; definition: string }>;
+  sequence?: string[];
+  term?: string;
+  definition?: string;
+  memorizationReason?: string;
 }
 
 export interface QuizDTO {

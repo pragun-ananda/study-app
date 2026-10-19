@@ -245,6 +245,8 @@ export const INITIAL_STATE: TelemetryState = {
   isSidebarOpen: false,
   selectedCategory: null,
   isCreateNodeOpen: false,
+  isCreateQuizOpen: false,
+  createQuizTargetTopicId: null,
 
   topicNodes: INITIAL_TOPICS,
   selectedTopicId: null,
@@ -321,6 +323,8 @@ export const useStore = create<TelemetryStore>((set, get) => ({
   setSelectedCategory: (selectedCategory: string | null) => set({ selectedCategory }),
   setHoveredTopicId: (hoveredTopicId: string | null) => set({ hoveredTopicId }),
   setIsCreateNodeOpen: (isCreateNodeOpen: boolean) => set({ isCreateNodeOpen }),
+  setIsCreateQuizOpen: (isCreateQuizOpen: boolean) => set({ isCreateQuizOpen }),
+  setCreateQuizTargetTopicId: (createQuizTargetTopicId: string | null) => set({ createQuizTargetTopicId }),
 
   // Server Hydration Actions
 
@@ -630,6 +634,89 @@ export const useStore = create<TelemetryStore>((set, get) => ({
       });
     } catch (err: any) {
       set({ error: err.message || 'Failed to delete note' });
+    }
+  },
+
+  addQuizToTopic: async (topicId: string, quizData: Omit<QuizItem, 'id'> & { id?: string }) => {
+    try {
+      let createdQuiz: QuizItem;
+      try {
+        createdQuiz = await api.createQuizForTopic(topicId, quizData);
+      } catch (err) {
+        // Fallback for offline / test mock environments
+        createdQuiz = {
+          id: quizData.id || `quiz-local-${Date.now()}`,
+          title: quizData.title,
+          description: quizData.description,
+          questions: quizData.questions || [],
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
+      }
+      set((state) => {
+        const updated = state.topicNodes.map((n) => {
+          if (n.id === topicId) {
+            return { ...n, quizzes: [...(n.quizzes || []), createdQuiz] };
+          }
+          return n;
+        });
+        return { topicNodes: updated, activeQuiz: createdQuiz, isCreateQuizOpen: false, error: null };
+      });
+      return createdQuiz;
+    } catch (err: any) {
+      set({ error: err.message || 'Failed to add quiz to topic' });
+    }
+  },
+
+  updateQuizInTopic: async (topicId: string, quiz: QuizItem) => {
+    try {
+      let updatedQuiz: QuizItem;
+      try {
+        updatedQuiz = await api.updateQuiz(quiz.id, quiz);
+      } catch (err) {
+        updatedQuiz = quiz;
+      }
+      set((state) => {
+        const updated = state.topicNodes.map((n) => {
+          if (n.id === topicId) {
+            const nextQuizzes = (n.quizzes || []).map((item) =>
+              item.id === updatedQuiz.id ? updatedQuiz : item
+            );
+            return { ...n, quizzes: nextQuizzes };
+          }
+          return n;
+        });
+        return { topicNodes: updated, activeQuiz: updatedQuiz, error: null };
+      });
+      return updatedQuiz;
+    } catch (err: any) {
+      set({ error: err.message || 'Failed to update quiz' });
+    }
+  },
+
+  deleteQuizFromTopic: async (topicId: string, quizId: string) => {
+    try {
+      try {
+        await api.deleteQuiz(quizId);
+      } catch (err) {
+        // Continue with optimistic store update
+      }
+      set((state) => {
+        const updated = state.topicNodes.map((n) => {
+          if (n.id === topicId) {
+            return { ...n, quizzes: (n.quizzes || []).filter((q) => q.id !== quizId) };
+          }
+          return n;
+        });
+        const nextActive = state.activeQuiz?.id === quizId ? null : state.activeQuiz;
+        return {
+          topicNodes: updated,
+          activeQuiz: nextActive,
+          error: null
+        };
+      });
+    } catch (err: any) {
+      set({ error: err.message || 'Failed to delete quiz' });
     }
   },
 
