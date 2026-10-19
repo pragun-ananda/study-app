@@ -68,6 +68,24 @@ export const RepoViewerModal: React.FC = () => {
     }
   }, [isRepoViewerOpen, repositories.length]);
 
+  // Global Escape key handler
+  useEffect(() => {
+    if (!isRepoViewerOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (isImportModalOpen) {
+          setIsImportModalOpen(false);
+        } else if (isAddingNote) {
+          setIsAddingNote(false);
+        } else {
+          closeRepoViewer();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isRepoViewerOpen, isImportModalOpen, isAddingNote, closeRepoViewer, setIsImportModalOpen]);
+
   if (!isRepoViewerOpen) return null;
 
   const safeAnnotations = Array.isArray(annotations) ? annotations : [];
@@ -302,14 +320,20 @@ export const RepoViewerModal: React.FC = () => {
             >
               {/* Note Creator Form if line range selected */}
               {isAddingNote && selectedLines && (
-                <div className="p-3 border-b bg-purple-950/20 border-purple-500/30 text-xs font-mono">
+                <div
+                  className={`p-3 border-b text-xs font-mono ${
+                    isLight
+                      ? 'bg-purple-50/80 border-purple-200 text-purple-900'
+                      : 'bg-purple-950/20 border-purple-500/30 text-neutral-200'
+                  }`}
+                >
                   <div className="flex items-center justify-between mb-2">
-                    <span className="font-semibold text-purple-300">
+                    <span className={`font-semibold ${isLight ? 'text-purple-700' : 'text-purple-300'}`}>
                       Annotate Lines {selectedLines.start}–{selectedLines.end}
                     </span>
                     <button
                       onClick={() => setIsAddingNote(false)}
-                      className="text-neutral-400 hover:text-white"
+                      className={`${isLight ? 'text-slate-400 hover:text-slate-700' : 'text-neutral-400 hover:text-white'}`}
                     >
                       <X className="w-3.5 h-3.5" />
                     </button>
@@ -320,13 +344,21 @@ export const RepoViewerModal: React.FC = () => {
                     value={annTitle}
                     onChange={(e) => setAnnTitle(e.target.value)}
                     placeholder="Note title (e.g. In-memory indexing logic)"
-                    className="w-full mb-2 p-1.5 rounded bg-black/40 border border-white/10 text-neutral-200 outline-none focus:border-purple-500"
+                    className={`w-full mb-2 p-1.5 rounded outline-none ${
+                      isLight
+                        ? 'bg-white border border-slate-300 text-slate-900 placeholder:text-slate-400 focus:border-purple-500'
+                        : 'bg-black/40 border border-white/10 text-neutral-200 placeholder:text-neutral-500 focus:border-purple-500'
+                    }`}
                   />
 
                   <select
                     value={annCategory}
                     onChange={(e) => setAnnCategory(e.target.value as DesignCategory)}
-                    className="w-full mb-2 p-1.5 rounded bg-black/40 border border-white/10 text-neutral-300 outline-none"
+                    className={`w-full mb-2 p-1.5 rounded outline-none ${
+                      isLight
+                        ? 'bg-white border border-slate-300 text-slate-800'
+                        : 'bg-black/40 border border-white/10 text-neutral-300'
+                    }`}
                   >
                     <option value="ARCHITECTURE">Architecture & Topology</option>
                     <option value="CONCURRENCY">Concurrency & Locking</option>
@@ -341,13 +373,19 @@ export const RepoViewerModal: React.FC = () => {
                     value={annContent}
                     onChange={(e) => setAnnContent(e.target.value)}
                     placeholder="Why was this designed this way? Architectural critique..."
-                    className="w-full mb-2 p-1.5 rounded bg-black/40 border border-white/10 text-neutral-200 outline-none focus:border-purple-500"
+                    className={`w-full mb-2 p-1.5 rounded outline-none ${
+                      isLight
+                        ? 'bg-white border border-slate-300 text-slate-900 placeholder:text-slate-400 focus:border-purple-500'
+                        : 'bg-black/40 border border-white/10 text-neutral-200 placeholder:text-neutral-500 focus:border-purple-500'
+                    }`}
                   />
 
                   <div className="flex justify-end gap-2">
                     <button
                       onClick={() => setIsAddingNote(false)}
-                      className="px-2.5 py-1 rounded bg-white/5 hover:bg-white/10 text-neutral-400"
+                      className={`px-2.5 py-1 rounded transition-colors ${
+                        isLight ? 'bg-slate-200 hover:bg-slate-300 text-slate-700' : 'bg-white/5 hover:bg-white/10 text-neutral-400'
+                      }`}
                     >
                       Cancel
                     </button>

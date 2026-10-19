@@ -838,7 +838,7 @@ export default function TelemetryHUD() {
                         : (isLight ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-slate-200')
                     }`}
                   >
-                    <Layers size={10} /> CASE STUDIES ({filteredApplications.length})
+                    <Layers size={10} /> CASE STUDIES ({combinedApplications.length})
                   </button>
                   <button
                     onClick={() => setActiveTab('PROBLEMS')}
@@ -1058,22 +1058,42 @@ export default function TelemetryHUD() {
                               <span className="text-slate-400">
                                 {app.language || 'Code'} • {app.starsCount ? `★ ${(app.starsCount / 1000).toFixed(0)}k` : '15 min read'}
                               </span>
-                              <button
-                                type="button"
-                                data-testid={`open-studio-btn-${app.repositoryId || app.id}`}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  openRepoViewer(app.repositoryId || app.id);
-                                }}
-                                className={`px-2 py-0.5 rounded font-bold text-[9.5px] transition-all flex items-center gap-1 cursor-pointer ${
-                                  isLight
-                                    ? 'bg-purple-100 hover:bg-purple-200 text-purple-700'
-                                    : 'bg-purple-900/40 hover:bg-purple-900/60 text-purple-300 border border-purple-500/30'
-                                }`}
-                              >
-                                <FolderGit2 size={10} />
-                                <span>CODE STUDIO</span>
-                              </button>
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  data-testid={`open-study-overview-btn-${app.id}`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setActiveApplication(app);
+                                    setIsSidebarOpen(false);
+                                  }}
+                                  className={`px-2 py-0.5 rounded font-semibold text-[9.5px] transition-all flex items-center gap-1 cursor-pointer ${
+                                    isLight
+                                      ? 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                                      : 'bg-white/5 hover:bg-white/10 text-slate-300'
+                                  }`}
+                                  title="Read architecture overview & concepts"
+                                >
+                                  <FileText size={10} />
+                                  <span>OVERVIEW</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  data-testid={`open-studio-btn-${app.repositoryId || app.id}`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openRepoViewer(app.repositoryId || app.id);
+                                  }}
+                                  className={`px-2 py-0.5 rounded font-bold text-[9.5px] transition-all flex items-center gap-1 cursor-pointer ${
+                                    isLight
+                                      ? 'bg-purple-100 hover:bg-purple-200 text-purple-700'
+                                      : 'bg-purple-900/40 hover:bg-purple-900/60 text-purple-300 border border-purple-500/30'
+                                  }`}
+                                >
+                                  <FolderGit2 size={10} />
+                                  <span>CODE STUDIO</span>
+                                </button>
+                              </div>
                             </div>
                           </div>
                         ) : (
