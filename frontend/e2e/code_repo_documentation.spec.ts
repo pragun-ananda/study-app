@@ -7,21 +7,29 @@ test.describe('Code Repository Documentation & Architectural Learning Engine (Mi
     await expect(page.getByText(/MASTERY:/i)).toBeVisible({ timeout: 15000 });
   });
 
-  test('Navigates REPOSITORIES tab in sidebar, opens Code Studio, and browses file tree', async ({ page }) => {
+  test('Navigates CASE STUDIES tab in sidebar, filters by Open-Source Projects, and browses file tree in Code Studio', async ({ page }) => {
     // 1. Open left study panel
     const togglePanelBtn = page.getByLabel('Toggle study panel');
     await togglePanelBtn.click();
 
-    // 2. Click on the 4th tab: REPOSITORIES
+    // 2. Click on the CASE STUDIES tab
+    const caseStudiesTabBtn = page.getByTestId('sidebar-tab-applications');
+    await expect(caseStudiesTabBtn).toBeVisible();
+    await caseStudiesTabBtn.click();
+
+    // Verify Case Study Types filter is rendered (OPEN SOURCE, PAPERS, BLOGS)
+    await expect(page.getByTestId('case-study-filter-papers')).toBeVisible();
+    await expect(page.getByTestId('case-study-filter-blogs')).toBeVisible();
+
+    // Filter to OPEN SOURCE repositories
     const repoTabBtn = page.getByTestId('sidebar-tab-repositories');
     await expect(repoTabBtn).toBeVisible();
     await repoTabBtn.click();
 
     // Verify repository cards are rendered
-    await expect(page.getByText(/CODE REPOSITORIES/i)).toBeVisible();
     const repoCard = page.getByTestId('sidebar-repo-card').first();
     await expect(repoCard).toBeVisible();
-    await expect(repoCard.getByRole('heading', { name: 'redis' })).toBeVisible();
+    await expect(repoCard.getByRole('heading', { name: /redis/i })).toBeVisible();
 
     // 3. Open Code Studio Modal
     await repoCard.click();
@@ -37,12 +45,15 @@ test.describe('Code Repository Documentation & Architectural Learning Engine (Mi
     await expect(treeExplorer).toBeVisible();
     await expect(treeExplorer.getByPlaceholder('Search files...')).toBeVisible();
 
+    // Wait for tree to be loaded
+    const aeFileNode = page.getByTestId('tree-file-src/ae.c');
+    await expect(aeFileNode).toBeVisible({ timeout: 10000 });
+
     // Filter file tree
     const treeFilter = treeExplorer.getByPlaceholder('Search files...');
     await treeFilter.fill('ae.c');
 
     // Select file in tree
-    const aeFileNode = page.getByTestId('tree-file-src/ae.c');
     await expect(aeFileNode).toBeVisible();
     await aeFileNode.click();
 
@@ -57,8 +68,9 @@ test.describe('Code Repository Documentation & Architectural Learning Engine (Mi
   });
 
   test('Inspects line-anchored annotations, verifies Staff+ AI critique and exports to quiz', async ({ page }) => {
-    // 1. Open left study panel & switch to REPOSITORIES
+    // 1. Open left study panel & switch to CASE STUDIES -> REPOSITORIES
     await page.getByLabel('Toggle study panel').click();
+    await page.getByTestId('sidebar-tab-applications').click();
     await page.getByTestId('sidebar-tab-repositories').click();
 
     // 2. Open Code Studio Modal
@@ -72,7 +84,9 @@ test.describe('Code Repository Documentation & Architectural Learning Engine (Mi
     await splitModeBtn.click();
 
     // Open file with annotations
-    await page.getByTestId('tree-file-src/ae.c').click();
+    const targetFile = page.getByTestId('tree-file-src/ae.c');
+    await expect(targetFile).toBeVisible({ timeout: 10000 });
+    await targetFile.click();
 
     // 4. Verify Annotation Dock is visible
     const dock = page.getByTestId('annotation-dock');
@@ -153,8 +167,9 @@ test.describe('Code Repository Documentation & Architectural Learning Engine (Mi
   });
 
   test('Imports a new repository from GitHub URL shorthand', async ({ page }) => {
-    // 1. Open left study panel & switch to REPOSITORIES
+    // 1. Open left study panel & switch to CASE STUDIES -> REPOSITORIES
     await page.getByLabel('Toggle study panel').click();
+    await page.getByTestId('sidebar-tab-applications').click();
     await page.getByTestId('sidebar-tab-repositories').click();
 
     // 2. Click "Import" button

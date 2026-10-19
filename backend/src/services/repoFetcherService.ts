@@ -28,6 +28,7 @@ export function toRepositoryDTO(row: RepositoryRow): RepositoryDTO {
     forksCount: Number(row.forks_count || 0),
     isArchived: Boolean(row.is_archived),
     treeCachedAt: row.tree_cached_at ? new Date(row.tree_cached_at).toISOString() : null,
+    caseStudyType: 'OPEN_SOURCE_PROJECT',
     createdAt: new Date(row.created_at).toISOString(),
     updatedAt: new Date(row.updated_at).toISOString()
   };

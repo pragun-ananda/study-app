@@ -48,7 +48,14 @@ export interface QuizItem {
   questions: QuizQuestionItem[];
 }
 
-export type ApplicationType = 'CASE_STUDY' | 'INTERVIEW_PROBLEM' | 'PROJECT_BLUEPRINT';
+export type ApplicationType =
+  | 'OPEN_SOURCE_PROJECT'
+  | 'PAPER'
+  | 'BLOG'
+  | 'CASE_STUDY'
+  | 'INTERVIEW_PROBLEM'
+  | 'PROJECT_BLUEPRINT';
+
 export type ApplicationDifficulty = 'BEGINNER' | 'INTERMEDIATE' | 'ADVANCED';
 
 export interface ApplicationItem {
@@ -65,6 +72,13 @@ export interface ApplicationItem {
   topicNames?: string[];
   externalUrl?: string;
   quizzes?: QuizItem[];
+  // Repository integration
+  repositoryId?: string;
+  repoFullName?: string;
+  starsCount?: number;
+  forksCount?: number;
+  language?: string;
+  activeCommitSha?: string;
 }
 
 export type ProblemType = 'CODING' | 'SYSTEM_DESIGN' | 'ML_SYSTEM_DESIGN' | 'OBJECT_ORIENTED_DESIGN';
@@ -508,6 +522,7 @@ export interface RepositoryDTO {
   forksCount: number;
   isArchived: boolean;
   treeCachedAt: string | null;
+  caseStudyType?: 'OPEN_SOURCE_PROJECT' | 'PAPER' | 'BLOG';
   annotationsCount?: number;
   cachedBlobsCount?: number;
   cachedBytes?: number;

@@ -802,6 +802,7 @@ export interface RepositoryDTO {
   forksCount: number;
   isArchived: boolean;
   treeCachedAt: string | null;
+  caseStudyType?: 'OPEN_SOURCE_PROJECT' | 'PAPER' | 'BLOG';
   annotationsCount?: number;
   cachedBlobsCount?: number;
   cachedBytes?: number;

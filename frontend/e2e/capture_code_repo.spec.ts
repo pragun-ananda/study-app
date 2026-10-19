@@ -14,7 +14,12 @@ test('Captures code repository screenshots for artifacts', async ({ page }) => {
   const togglePanelBtn = page.getByLabel('Toggle study panel');
   await togglePanelBtn.click();
 
-  // 2. Click REPOSITORIES tab
+  // 2. Click CASE STUDIES tab
+  const caseStudiesTabBtn = page.getByTestId('sidebar-tab-applications');
+  await expect(caseStudiesTabBtn).toBeVisible();
+  await caseStudiesTabBtn.click();
+
+  // Filter to OPEN SOURCE repositories
   const repoTabBtn = page.getByTestId('sidebar-tab-repositories');
   await expect(repoTabBtn).toBeVisible();
   await repoTabBtn.click();
@@ -22,6 +27,10 @@ test('Captures code repository screenshots for artifacts', async ({ page }) => {
   // Verify repository cards are rendered
   const repoCard = page.getByTestId('sidebar-repo-card').first();
   await expect(repoCard).toBeVisible();
+
+  // Screenshot 0: Case Studies Sidebar Tab with Open Source filter and Import button
+  await page.screenshot({ path: path.join(ARTIFACT_DIR, 'code_repo_case_studies_tab.png') });
+
   await repoCard.click();
 
   // 3. Wait for modal
@@ -32,10 +41,11 @@ test('Captures code repository screenshots for artifacts', async ({ page }) => {
   // 4. Open src/ae.c
   const treeExplorer = page.getByTestId('file-tree-explorer');
   await expect(treeExplorer).toBeVisible();
+  const fileNode = page.getByTestId('tree-file-src/ae.c');
+  await expect(fileNode).toBeVisible({ timeout: 10000 });
+
   const treeFilter = treeExplorer.getByPlaceholder('Search files...');
   await treeFilter.fill('ae.c');
-
-  const fileNode = page.getByTestId('tree-file-src/ae.c');
   await expect(fileNode).toBeVisible();
   await fileNode.click();
   await page.waitForTimeout(1500);

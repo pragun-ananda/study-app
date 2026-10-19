@@ -44,7 +44,7 @@ import { RepoViewerModal } from '../code_repo/RepoViewerModal';
 import { TopologicalSubgraph } from './TopologicalSubgraph';
 import { useStore } from '../../store/useStore';
 import { useRepoStore } from '../../store/useRepoStore';
-import { TopicNode, DomainCategory, DEFAULT_DOMAINS, TopicStatus } from '../../types/telemetry';
+import { TopicNode, DomainCategory, DEFAULT_DOMAINS, TopicStatus, ApplicationItem } from '../../types/telemetry';
 import { DOMAIN_BASE_COLORS, DOMAIN_LIGHT_COLORS, getCategoryShade } from '../../utils/theme';
 import { getTopologicalPrerequisites } from '../../utils/graph';
 
@@ -97,7 +97,15 @@ export default function TelemetryHUD() {
   const ingestError = useStore((state) => state.ingestError);
 
   const [activeTab, setActiveTab] = useState<'TOPICS' | 'APPLICATIONS' | 'PROBLEMS' | 'REPOSITORIES'>('TOPICS');
+  const [caseStudyTypeFilter, setCaseStudyTypeFilter] = useState<'ALL' | 'OPEN_SOURCE_PROJECT' | 'PAPER' | 'BLOG' | 'PROJECT_BLUEPRINT'>('ALL');
   const [isSubgraphsOpen, setIsSubgraphsOpen] = useState(false);
+
+  useEffect(() => {
+    if (activeTab === 'REPOSITORIES') {
+      setActiveTab('APPLICATIONS');
+      setCaseStudyTypeFilter('OPEN_SOURCE_PROJECT');
+    }
+  }, [activeTab]);
 
   // URL Ingest Plus-Icon Textbox State
   const [isUrlInputOpen, setIsUrlInputOpen] = useState(false);
@@ -289,21 +297,60 @@ export default function TelemetryHUD() {
     return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
   }, [isDeleteModalOpen, isDeletingTopic]);
 
+  // Combine applications with repositories so each repo is a case study
+  const combinedApplications = useMemo(() => {
+    const list: ApplicationItem[] = [...applications];
+    const existingRepoIds = new Set(list.map((a) => a.repositoryId).filter(Boolean));
+
+    if (Array.isArray(repositories)) {
+      for (const repo of repositories) {
+        if (!existingRepoIds.has(repo.id)) {
+          list.push({
+            id: repo.id,
+            title: `${repo.name}${repo.language ? ` (${repo.language})` : ''}`,
+            type: 'OPEN_SOURCE_PROJECT',
+            domain: 'SYSTEMS',
+            difficulty: 'ADVANCED',
+            organization: repo.owner,
+            readTimeMinutes: 15,
+            summary: repo.description || `Source code repository and architecture of ${repo.fullName}`,
+            content: `## ${repo.fullName}\n\n${repo.description || ''}\n\n**Primary Language:** ${repo.language || 'N/A'}\n**Active SHA:** \`${repo.activeCommitSha}\`\n\nClick **Open in Code Studio** to inspect files and annotations.`,
+            topicIds: ['TOPIC-001'],
+            repositoryId: repo.id,
+            repoFullName: repo.fullName,
+            starsCount: repo.starsCount,
+            forksCount: repo.forksCount,
+            language: repo.language || undefined,
+            activeCommitSha: repo.activeCommitSha
+          });
+        }
+      }
+    }
+    return list;
+  }, [applications, repositories]);
+
   const filteredApplications = useMemo(() => {
-    return applications.filter((app) => {
+    return combinedApplications.filter((app) => {
       const categoryMatch = !selectedCategory || selectedCategory === 'ALL' || app.domain === selectedCategory;
+      const typeMatch =
+        caseStudyTypeFilter === 'ALL' ||
+        (caseStudyTypeFilter === 'OPEN_SOURCE_PROJECT' && app.type === 'OPEN_SOURCE_PROJECT') ||
+        (caseStudyTypeFilter === 'PAPER' && app.type === 'PAPER') ||
+        (caseStudyTypeFilter === 'BLOG' && app.type === 'BLOG') ||
+        (caseStudyTypeFilter === 'PROJECT_BLUEPRINT' && app.type === 'PROJECT_BLUEPRINT');
       const searchMatch =
         !searchQuery ||
         app.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        app.summary.toLowerCase().includes(searchQuery.toLowerCase());
-      return categoryMatch && searchMatch;
+        app.summary.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (app.repoFullName && app.repoFullName.toLowerCase().includes(searchQuery.toLowerCase()));
+      return categoryMatch && typeMatch && searchMatch;
     });
-  }, [applications, selectedCategory, searchQuery]);
+  }, [combinedApplications, selectedCategory, caseStudyTypeFilter, searchQuery]);
 
   const topicApplications = useMemo(() => {
     if (!selectedNode) return [];
-    return applications.filter((app) => app.topicIds.includes(selectedNode.id));
-  }, [selectedNode, applications]);
+    return combinedApplications.filter((app) => app.topicIds.includes(selectedNode.id));
+  }, [selectedNode, combinedApplications]);
 
   const filteredProblems = useMemo(() => {
     if (!Array.isArray(problems)) return [];
@@ -770,7 +817,7 @@ export default function TelemetryHUD() {
             <div className="flex flex-col h-full space-y-4 overflow-hidden">
 
               <div className={`flex items-center justify-between border-b pb-2 ${isLight ? 'border-slate-200' : 'border-white/10'}`}>
-                <div className={`grid grid-cols-4 gap-1 p-1 rounded-lg w-full ${isLight ? 'bg-slate-200/70' : 'bg-slate-950/60'}`}>
+                <div className={`grid grid-cols-3 gap-1 p-1 rounded-lg w-full ${isLight ? 'bg-slate-200/70' : 'bg-slate-950/60'}`}>
                   <button
                     onClick={() => setActiveTab('TOPICS')}
                     data-testid="sidebar-tab-concepts"
@@ -803,17 +850,6 @@ export default function TelemetryHUD() {
                     }`}
                   >
                     <Code size={10} /> PROBLEMS ({filteredProblems.length})
-                  </button>
-                  <button
-                    onClick={() => setActiveTab('REPOSITORIES')}
-                    data-testid="sidebar-tab-repositories"
-                    className={`px-1 py-1 rounded text-[10.5px] font-bold transition-all flex items-center justify-center gap-1 ${
-                      activeTab === 'REPOSITORIES'
-                        ? (isLight ? 'bg-sky-600 text-white shadow-sm' : 'bg-[#00f0ff] text-slate-950 shadow-[0_0_10px_rgba(0,240,255,0.3)]')
-                        : (isLight ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-slate-200')
-                    }`}
-                  >
-                    <FolderGit2 size={10} /> REPOS ({filteredRepositories.length})
                   </button>
                 </div>
               </div>
@@ -882,7 +918,7 @@ export default function TelemetryHUD() {
                 </div>
               )}
 
-              {/* TAB 2: APPLIED CONTENT (CASE STUDIES & INTERVIEWS) */}
+              {/* TAB 2: APPLIED CONTENT (CASE STUDIES & REPOSITORIES) */}
               {activeTab === 'APPLICATIONS' && (
                 <div className="flex-1 flex flex-col space-y-3 overflow-hidden">
                   <div className={`flex justify-between items-center text-[11px] ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
@@ -890,70 +926,218 @@ export default function TelemetryHUD() {
                       <Sparkles size={12} className={isLight ? 'text-sky-600' : 'text-[#00f0ff]'} />
                       <span>REAL-WORLD SCENARIOS</span>
                     </span>
-                    <span className={`font-bold ${isLight ? 'text-sky-600' : 'text-[#00f0ff]'}`}>
-                      {filteredApplications.length} Items
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsImportModalOpen(true);
+                          openRepoViewer();
+                        }}
+                        className={`text-[11px] font-bold hover:underline flex items-center gap-1 cursor-pointer ${
+                          isLight ? 'text-sky-600' : 'text-[#00f0ff]'
+                        }`}
+                        data-testid="sidebar-import-repo-btn"
+                      >
+                        <Plus size={12} />
+                        <span>IMPORT REPO</span>
+                      </button>
+                      <span className={`font-bold ${isLight ? 'text-sky-600' : 'text-[#00f0ff]'}`}>
+                        {filteredApplications.length} Items
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Case Study Type Filter Pills */}
+                  <div className="flex items-center gap-1 overflow-x-auto pb-1 text-[10px] font-mono no-scrollbar">
+                    <button
+                      type="button"
+                      onClick={() => setCaseStudyTypeFilter('ALL')}
+                      data-testid="case-study-filter-all"
+                      className={`px-2 py-0.5 rounded-md font-semibold transition-all shrink-0 cursor-pointer ${
+                        caseStudyTypeFilter === 'ALL'
+                          ? isLight ? 'bg-sky-600 text-white shadow-xs' : 'bg-[#00f0ff] text-slate-950 font-bold shadow-xs'
+                          : isLight ? 'bg-slate-100 text-slate-600 hover:bg-slate-200' : 'bg-slate-900 text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      ALL ({combinedApplications.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCaseStudyTypeFilter('OPEN_SOURCE_PROJECT')}
+                      data-testid="sidebar-tab-repositories"
+                      className={`px-2 py-0.5 rounded-md font-semibold transition-all shrink-0 cursor-pointer flex items-center gap-1 ${
+                        caseStudyTypeFilter === 'OPEN_SOURCE_PROJECT'
+                          ? isLight ? 'bg-purple-600 text-white shadow-xs' : 'bg-purple-400 text-slate-950 font-bold shadow-xs'
+                          : isLight ? 'bg-slate-100 text-slate-600 hover:bg-slate-200' : 'bg-slate-900 text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <FolderGit2 size={10} />
+                      OPEN SOURCE ({combinedApplications.filter((a) => a.type === 'OPEN_SOURCE_PROJECT').length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCaseStudyTypeFilter('PAPER')}
+                      data-testid="case-study-filter-papers"
+                      className={`px-2 py-0.5 rounded-md font-semibold transition-all shrink-0 cursor-pointer flex items-center gap-1 ${
+                        caseStudyTypeFilter === 'PAPER'
+                          ? isLight ? 'bg-indigo-600 text-white shadow-xs' : 'bg-indigo-400 text-slate-950 font-bold shadow-xs'
+                          : isLight ? 'bg-slate-100 text-slate-600 hover:bg-slate-200' : 'bg-slate-900 text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <FileText size={10} />
+                      PAPERS ({combinedApplications.filter((a) => a.type === 'PAPER').length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCaseStudyTypeFilter('BLOG')}
+                      data-testid="case-study-filter-blogs"
+                      className={`px-2 py-0.5 rounded-md font-semibold transition-all shrink-0 cursor-pointer flex items-center gap-1 ${
+                        caseStudyTypeFilter === 'BLOG'
+                          ? isLight ? 'bg-emerald-600 text-white shadow-xs' : 'bg-emerald-400 text-slate-950 font-bold shadow-xs'
+                          : isLight ? 'bg-slate-100 text-slate-600 hover:bg-slate-200' : 'bg-slate-900 text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <Sparkles size={10} />
+                      BLOGS ({combinedApplications.filter((a) => a.type === 'BLOG').length})
+                    </button>
                   </div>
 
                   <div className="flex-1 overflow-y-auto space-y-2.5 pr-1.5 pb-6 overscroll-contain" onWheel={(e) => e.stopPropagation()}>
                     {filteredApplications.length > 0 ? (
                       filteredApplications.map((app) => (
-                        <div
-                          key={app.id}
-                          data-testid="sidebar-application-card"
-                          onClick={() => {
-                            setActiveApplication(app);
-                            setIsSidebarOpen(false);
-                          }}
-                          className={`p-3 rounded-xl border text-xs cursor-pointer transition-all ${
-                            isLight
-                              ? 'border-slate-200 bg-white/95 hover:border-sky-400 hover:shadow-md shadow-sm'
-                              : 'border-white/10 bg-slate-950/70 hover:border-[#00f0ff]/50 hover:bg-slate-900/80'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between gap-1.5 mb-1.5">
-                            <span
-                              className={`text-[9px] font-mono px-1.5 py-0.5 rounded font-bold uppercase tracking-wider ${
-                                isLight
-                                  ? 'bg-sky-100 text-sky-700'
-                                  : 'bg-cyan-950/60 text-cyan-300 border border-cyan-500/20'
+                        app.type === 'OPEN_SOURCE_PROJECT' ? (
+                          <div
+                            key={app.id}
+                            data-testid="sidebar-repo-card"
+                            onClick={() => openRepoViewer(app.repositoryId || app.id)}
+                            className={`p-3 rounded-xl border text-xs cursor-pointer transition-all group ${
+                              isLight
+                                ? 'border-slate-200 bg-white/95 hover:border-purple-400 hover:shadow-md shadow-sm'
+                                : 'border-white/10 bg-slate-950/70 hover:border-purple-400/50 hover:shadow-[0_0_15px_rgba(168,85,247,0.15)]'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-1.5 mb-1.5">
+                              <span
+                                className={`text-[9px] font-mono px-1.5 py-0.5 rounded font-bold uppercase tracking-wider flex items-center gap-1 ${
+                                  isLight
+                                    ? 'bg-purple-100 text-purple-700'
+                                    : 'bg-purple-950/60 text-purple-300 border border-purple-500/20'
+                                }`}
+                              >
+                                <FolderGit2 size={9} />
+                                OPEN-SOURCE PROJECT
+                              </span>
+                              <span
+                                className={`text-[9px] font-mono px-1.5 py-0.5 rounded font-bold uppercase ${
+                                  app.difficulty === 'ADVANCED'
+                                    ? isLight ? 'bg-rose-100 text-rose-700' : 'bg-rose-950/50 text-rose-400'
+                                    : app.difficulty === 'INTERMEDIATE'
+                                    ? isLight ? 'bg-amber-100 text-amber-700' : 'bg-amber-950/50 text-amber-400'
+                                    : isLight ? 'bg-emerald-100 text-emerald-700' : 'bg-emerald-950/50 text-emerald-400'
+                                }`}
+                              >
+                                {app.difficulty}
+                              </span>
+                            </div>
+
+                            <h4
+                              role="heading"
+                              aria-level={4}
+                              className={`font-sans font-bold text-xs leading-snug mb-1 group-hover:text-purple-600 dark:group-hover:text-purple-300 transition-colors ${
+                                isLight ? 'text-slate-900' : 'text-slate-100'
                               }`}
                             >
-                              {app.type.replace('_', ' ')}
-                            </span>
-                            <span
-                              className={`text-[9px] font-mono px-1.5 py-0.5 rounded font-bold uppercase ${
-                                app.difficulty === 'ADVANCED'
-                                  ? isLight ? 'bg-rose-100 text-rose-700' : 'bg-rose-950/50 text-rose-400'
-                                  : app.difficulty === 'INTERMEDIATE'
-                                  ? isLight ? 'bg-amber-100 text-amber-700' : 'bg-amber-950/50 text-amber-400'
-                                  : isLight ? 'bg-emerald-100 text-emerald-700' : 'bg-emerald-950/50 text-emerald-400'
-                              }`}
-                            >
-                              {app.difficulty}
-                            </span>
+                              {app.title}
+                            </h4>
+
+                            <p className={`text-[10.5px] line-clamp-2 leading-relaxed mb-2 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                              {app.summary}
+                            </p>
+
+                            <div className="flex items-center justify-between text-[10px] font-mono pt-1.5 border-t border-slate-100 dark:border-white/5">
+                              <span className="text-slate-400">
+                                {app.language || 'Code'} • {app.starsCount ? `★ ${(app.starsCount / 1000).toFixed(0)}k` : '15 min read'}
+                              </span>
+                              <button
+                                type="button"
+                                data-testid={`open-studio-btn-${app.repositoryId || app.id}`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openRepoViewer(app.repositoryId || app.id);
+                                }}
+                                className={`px-2 py-0.5 rounded font-bold text-[9.5px] transition-all flex items-center gap-1 cursor-pointer ${
+                                  isLight
+                                    ? 'bg-purple-100 hover:bg-purple-200 text-purple-700'
+                                    : 'bg-purple-900/40 hover:bg-purple-900/60 text-purple-300 border border-purple-500/30'
+                                }`}
+                              >
+                                <FolderGit2 size={10} />
+                                <span>CODE STUDIO</span>
+                              </button>
+                            </div>
                           </div>
+                        ) : (
+                          <div
+                            key={app.id}
+                            data-testid="sidebar-application-card"
+                            onClick={() => {
+                              setActiveApplication(app);
+                              setIsSidebarOpen(false);
+                            }}
+                            className={`p-3 rounded-xl border text-xs cursor-pointer transition-all ${
+                              isLight
+                                ? 'border-slate-200 bg-white/95 hover:border-sky-400 hover:shadow-md shadow-sm'
+                                : 'border-white/10 bg-slate-950/70 hover:border-[#00f0ff]/50 hover:bg-slate-900/80'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-1.5 mb-1.5">
+                              <span
+                                className={`text-[9px] font-mono px-1.5 py-0.5 rounded font-bold uppercase tracking-wider flex items-center gap-1 ${
+                                  app.type === 'PAPER'
+                                    ? isLight ? 'bg-indigo-100 text-indigo-700' : 'bg-indigo-950/60 text-indigo-300 border border-indigo-500/20'
+                                    : app.type === 'BLOG'
+                                    ? isLight ? 'bg-emerald-100 text-emerald-700' : 'bg-emerald-950/60 text-emerald-300 border border-emerald-500/20'
+                                    : isLight ? 'bg-sky-100 text-sky-700' : 'bg-cyan-950/60 text-cyan-300 border border-cyan-500/20'
+                                }`}
+                              >
+                                {app.type === 'PAPER' && <FileText size={9} />}
+                                {app.type === 'BLOG' && <Sparkles size={9} />}
+                                {app.type.replace('_', ' ')}
+                              </span>
+                              <span
+                                className={`text-[9px] font-mono px-1.5 py-0.5 rounded font-bold uppercase ${
+                                  app.difficulty === 'ADVANCED'
+                                    ? isLight ? 'bg-rose-100 text-rose-700' : 'bg-rose-950/50 text-rose-400'
+                                    : app.difficulty === 'INTERMEDIATE'
+                                    ? isLight ? 'bg-amber-100 text-amber-700' : 'bg-amber-950/50 text-amber-400'
+                                    : isLight ? 'bg-emerald-100 text-emerald-700' : 'bg-emerald-950/50 text-emerald-400'
+                                }`}
+                              >
+                                {app.difficulty}
+                              </span>
+                            </div>
 
-                          <h4 className={`font-sans font-bold text-xs leading-snug mb-1 ${isLight ? 'text-slate-900' : 'text-slate-100'}`}>
-                            {app.title}
-                          </h4>
+                            <h4 className={`font-sans font-bold text-xs leading-snug mb-1 ${isLight ? 'text-slate-900' : 'text-slate-100'}`}>
+                              {app.title}
+                            </h4>
 
-                          <p className={`text-[10.5px] line-clamp-2 leading-relaxed mb-2 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
-                            {app.summary}
-                          </p>
+                            <p className={`text-[10.5px] line-clamp-2 leading-relaxed mb-2 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                              {app.summary}
+                            </p>
 
-                          <div className="flex items-center justify-between text-[10px] font-mono pt-1.5 border-t border-slate-100 dark:border-white/5">
-                            <span className="text-slate-400">{app.domain} • {app.readTimeMinutes} min</span>
-                            <span className={`font-bold flex items-center gap-1 ${isLight ? 'text-sky-600' : 'text-[#00f0ff]'}`}>
-                              <Layers size={10} />
-                              {app.topicIds.length} Concepts
-                            </span>
+                            <div className="flex items-center justify-between text-[10px] font-mono pt-1.5 border-t border-slate-100 dark:border-white/5">
+                              <span className="text-slate-400">{app.domain} • {app.readTimeMinutes} min</span>
+                              <span className={`font-bold flex items-center gap-1 ${isLight ? 'text-sky-600' : 'text-[#00f0ff]'}`}>
+                                <Layers size={10} />
+                                {app.topicIds.length} Concepts
+                              </span>
+                            </div>
                           </div>
-                        </div>
+                        )
                       ))
                     ) : (
                       <div className={`p-4 text-center text-xs italic ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
-                        No applications found matching criteria.
+                        No case studies found matching criteria.
                       </div>
                     )}
                     <div className="h-10 w-full flex-shrink-0 pointer-events-none" />
@@ -1053,124 +1237,6 @@ export default function TelemetryHUD() {
                     ) : (
                       <div className={`p-4 text-center text-xs italic ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
                         No interview problems found matching criteria.
-                      </div>
-                    )}
-                    <div className="h-10 w-full flex-shrink-0 pointer-events-none" />
-                  </div>
-                </div>
-              )}
-
-              {/* TAB 4: CODE REPOSITORIES ENGINE */}
-              {activeTab === 'REPOSITORIES' && (
-                <div className="flex-1 flex flex-col space-y-3 overflow-hidden" data-testid="sidebar-repositories-panel">
-                  <div className={`flex justify-between items-center text-[11px] ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
-                    <span className="font-bold uppercase tracking-wider flex items-center gap-1.5">
-                      <FolderGit2 size={12} className={isLight ? 'text-sky-600' : 'text-[#00f0ff]'} />
-                      <span>CODE REPOSITORIES</span>
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsImportModalOpen(true);
-                        openRepoViewer();
-                      }}
-                      className={`text-[11px] font-bold hover:underline flex items-center gap-1 cursor-pointer ${
-                        isLight ? 'text-sky-600' : 'text-[#00f0ff]'
-                      }`}
-                      data-testid="sidebar-import-repo-btn"
-                    >
-                      <Plus size={12} />
-                      <span>IMPORT REPO</span>
-                    </button>
-                  </div>
-
-                  <div className="flex-1 overflow-y-auto space-y-2.5 pr-1.5 pb-6 overscroll-contain" onWheel={(e) => e.stopPropagation()}>
-                    {filteredRepositories.length > 0 ? (
-                      filteredRepositories.map((repo) => (
-                        <div
-                          key={repo.id}
-                          data-testid="sidebar-repo-card"
-                          onClick={() => openRepoViewer(repo.id)}
-                          className={`p-3 rounded-lg border text-xs cursor-pointer transition-all group ${
-                            isLight
-                              ? 'border-slate-200 bg-white/90 hover:border-sky-400 hover:shadow-md'
-                              : 'border-white/10 bg-slate-950/70 hover:border-[#00f0ff]/50 hover:shadow-[0_0_15px_rgba(0,240,255,0.15)]'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between gap-2 mb-1.5">
-                            <span className={`font-mono text-[10px] truncate max-w-[170px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
-                              {repo.owner} /
-                            </span>
-                            <div className="flex items-center gap-1.5">
-                              {repo.language && (
-                                <span className={`text-[9.5px] px-1.5 py-0.5 rounded font-mono font-semibold ${
-                                  isLight ? 'bg-slate-100 text-slate-700' : 'bg-slate-900 text-slate-300 border border-white/5'
-                                }`}>
-                                  {repo.language}
-                                </span>
-                              )}
-                              <span className={`text-[9.5px] px-1.5 py-0.5 rounded font-mono font-bold flex items-center gap-1 ${
-                                isLight ? 'bg-sky-50 text-sky-700' : 'bg-[#00f0ff]/10 text-[#00f0ff]'
-                              }`}>
-                                <GitBranch size={9} />
-                                {repo.defaultBranch}
-                              </span>
-                            </div>
-                          </div>
-
-                          <h4 className={`font-sans font-bold text-xs leading-snug mb-1 group-hover:underline ${
-                            isLight ? 'text-slate-900 group-hover:text-sky-600' : 'text-slate-100 group-hover:text-[#00f0ff]'
-                          }`}>
-                            {repo.name}
-                          </h4>
-
-                          {repo.description && (
-                            <p className={`text-[10.5px] line-clamp-2 leading-relaxed mb-2 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
-                              {repo.description}
-                            </p>
-                          )}
-
-                          <div className="flex items-center justify-between text-[10px] font-mono pt-1.5 border-t border-slate-100 dark:border-white/5">
-                            <span className={isLight ? 'text-slate-500' : 'text-slate-400'}>
-                              ★ {repo.starsCount ? repo.starsCount.toLocaleString() : '0'}
-                            </span>
-                            <span
-                              data-testid="open-repo-studio-btn"
-                              className={`font-bold flex items-center gap-1 ${isLight ? 'text-sky-600' : 'text-[#00f0ff]'}`}
-                            >
-                              <span>{repo.annotationsCount || 0} Notes</span>
-                              <ArrowRight size={10} className="group-hover:translate-x-0.5 transition-transform" />
-                            </span>
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className={`p-6 text-center rounded-xl border border-dashed flex flex-col items-center gap-2 ${
-                        isLight ? 'border-slate-300 bg-slate-50/50' : 'border-white/10 bg-slate-950/40'
-                      }`}>
-                        <FolderGit2 size={28} className={isLight ? 'text-slate-400' : 'text-slate-600'} />
-                        <div className={`text-xs font-bold ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
-                          No Repositories Documented
-                        </div>
-                        <p className={`text-[11px] leading-relaxed max-w-[220px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
-                          Import any open-source GitHub repository to explore source code and annotate architectural rationale.
-                        </p>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsImportModalOpen(true);
-                            openRepoViewer();
-                          }}
-                          className={`mt-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                            isLight
-                              ? 'bg-sky-600 hover:bg-sky-700 text-white shadow-sm'
-                              : 'bg-[#00f0ff] hover:bg-[#00f0ff]/90 text-slate-950 shadow-[0_0_12px_rgba(0,240,255,0.3)]'
-                          }`}
-                          data-testid="empty-import-repo-btn"
-                        >
-                          <Plus size={12} />
-                          <span>Import Repository</span>
-                        </button>
                       </div>
                     )}
                     <div className="h-10 w-full flex-shrink-0 pointer-events-none" />
