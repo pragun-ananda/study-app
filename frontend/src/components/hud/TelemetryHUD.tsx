@@ -38,6 +38,7 @@ import NotificationsDropdown from './NotificationsDropdown';
 import DiffViewerModal from './DiffViewerModal';
 import IngestionWalkthroughModal from './IngestionWalkthroughModal';
 import CreateNodeModal from './CreateNodeModal';
+import CreateQuizModal from './CreateQuizModal';
 import { TopologicalSubgraph } from './TopologicalSubgraph';
 import { useStore } from '../../store/useStore';
 import { TopicNode, DomainCategory, DEFAULT_DOMAINS, TopicStatus } from '../../types/telemetry';
@@ -182,6 +183,8 @@ export default function TelemetryHUD() {
   );
 
   const setIsCreateNodeOpen = useStore((state) => state.setIsCreateNodeOpen);
+  const setIsCreateQuizOpen = useStore((state) => state.setIsCreateQuizOpen);
+  const setCreateQuizTargetTopicId = useStore((state) => state.setCreateQuizTargetTopicId);
   const updateTopicNode = useStore((state) => state.updateTopicNode);
   const deleteTopicNode = useStore((state) => state.deleteTopicNode);
   const addPrerequisiteEdge = useStore((state) => state.addPrerequisiteEdge);
@@ -605,6 +608,44 @@ export default function TelemetryHUD() {
                         : 'bg-slate-900 border-white/10 text-slate-400'
                     }`}>
                       N
+                    </span>
+                  </button>
+
+                  {/* Section 3: Create Quiz Manually */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsUrlInputOpen(false);
+                      setIsCreateQuizOpen(true);
+                    }}
+                    className={`w-full p-2.5 rounded-lg border text-left flex items-center justify-between transition-all cursor-pointer ${
+                      isLight
+                        ? 'bg-slate-50 hover:bg-sky-50/60 border-slate-200 hover:border-sky-300 text-slate-800 group'
+                        : 'bg-slate-950/60 hover:bg-[#00f0ff]/10 border-white/10 hover:border-[#00f0ff]/40 text-slate-200 group'
+                    }`}
+                    data-testid="create-quiz-manually-btn"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <div className={`p-1.5 rounded-md ${
+                        isLight ? 'bg-amber-100 text-amber-600' : 'bg-amber-500/15 text-amber-400'
+                      }`}>
+                        <HelpCircle size={15} />
+                      </div>
+                      <div>
+                        <div className={`text-xs font-bold ${isLight ? 'group-hover:text-sky-600' : 'group-hover:text-[#00f0ff]'}`}>
+                          Create Quiz Manually
+                        </div>
+                        <div className={`text-[10px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                          MCQ, True/False, Flashcards & Ordering
+                        </div>
+                      </div>
+                    </div>
+                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono border font-bold ${
+                      isLight
+                        ? 'bg-white border-slate-200 text-slate-500'
+                        : 'bg-slate-900 border-white/10 text-slate-400'
+                    }`}>
+                      Q
                     </span>
                   </button>
                 </motion.div>
@@ -1496,20 +1537,22 @@ export default function TelemetryHUD() {
                   </div>
 
                   {/* 2.5 PRACTICE QUIZZES SECTION */}
-                  {selectedNode.quizzes && selectedNode.quizzes.length > 0 && (
-                    <div className={`pt-2.5 border-t space-y-2 ${isLight ? 'border-slate-200' : 'border-white/10'}`}>
-                      <div className="flex items-center justify-between text-[11px] font-bold">
-                        <div className="flex items-center gap-1.5" style={{ color: selectedNodeColor }}>
-                          <HelpCircle size={13} />
-                          <span>PRACTICE QUIZZES</span>
-                        </div>
+                  <div className={`pt-2.5 border-t space-y-2 ${isLight ? 'border-slate-200' : 'border-white/10'}`}>
+                    <div className="flex items-center justify-between text-[11px] font-bold">
+                      <div className="flex items-center gap-1.5" style={{ color: selectedNodeColor }}>
+                        <HelpCircle size={13} />
+                        <span>PRACTICE QUIZZES</span>
+                      </div>
+                      {selectedNode.quizzes && selectedNode.quizzes.length > 0 && (
                         <span className="text-[10px] font-mono opacity-80" style={{ color: selectedNodeColor }}>
                           {selectedNode.quizzes.length} BANK{selectedNode.quizzes.length > 1 ? 'S' : ''}
                         </span>
-                      </div>
+                      )}
+                    </div>
 
-                      <div className="space-y-1.5">
-                        {selectedNode.quizzes.map((quiz) => (
+                    <div className="space-y-1.5">
+                      {selectedNode.quizzes && selectedNode.quizzes.length > 0 ? (
+                        selectedNode.quizzes.map((quiz) => (
                           <div
                             key={quiz.id}
                             data-testid="inspector-quiz-item"
@@ -1543,10 +1586,33 @@ export default function TelemetryHUD() {
                               {quiz.questions?.length || 0} Qs
                             </span>
                           </div>
-                        ))}
-                      </div>
+                        ))
+                      ) : (
+                        <div className="text-[10px] text-slate-400 italic p-1">
+                          No quizzes attached to this concept yet.
+                        </div>
+                      )}
+
+                      {/* Add New Quiz Button */}
+                      <button
+                        onClick={() => {
+                          setCreateQuizTargetTopicId(selectedNode.id);
+                          setIsCreateQuizOpen(true);
+                        }}
+                        data-testid="add-quiz-button"
+                        style={{
+                          borderColor: `${selectedNodeColor}35`,
+                          color: selectedNodeColor
+                        }}
+                        className={`w-full mt-1 p-2 rounded-lg border border-dashed hover:border-solid text-[11px] font-mono font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm group ${
+                          isLight ? 'hover:bg-slate-50' : 'hover:bg-slate-900/80'
+                        }`}
+                      >
+                        <Plus size={13} className="group-hover:scale-125 transition-transform" />
+                        <span>+ ADD QUIZ</span>
+                      </button>
                     </div>
-                  )}
+                  </div>
 
                   {/* 3. LEARN NEXT SECTION */}
                   <div className={`pt-2.5 border-t space-y-2 ${isLight ? 'border-slate-200' : 'border-white/10'}`}>
@@ -1920,6 +1986,9 @@ export default function TelemetryHUD() {
 
       {/* Manual Create Node Modal */}
       <CreateNodeModal />
+
+      {/* Manual Create Quiz Modal */}
+      <CreateQuizModal />
     </div>
   );
 }

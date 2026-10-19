@@ -110,3 +110,11 @@ export function validateNoteInput(data: Record<string, unknown>): { error?: stri
   }
   return {};
 }
+
+export function validateQuizInput(data: Record<string, unknown>): { error?: string } {
+  if (!data.title || typeof data.title !== 'string' || !data.title.trim()) {
+    return { error: 'Quiz title is required and must be a non-empty string' };
+  }
+  return {};
+}
+
