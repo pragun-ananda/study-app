@@ -752,3 +752,185 @@ export interface IngestPipelineResult {
   };
 }
 
+// ==============================================================================
+// CODE REPOSITORY DOCUMENTATION ENGINE TYPES
+// ==============================================================================
+
+export type RepoOriginType = 'GITHUB' | 'GITLAB' | 'CUSTOM' | 'LOCAL';
+
+export type DesignCategory = 
+  | 'ARCHITECTURE'
+  | 'ALGORITHM'
+  | 'CONCURRENCY'
+  | 'DESIGN_PATTERN'
+  | 'PERFORMANCE'
+  | 'SECURITY'
+  | 'SPOF_TRADEOFF'
+  | 'GENERAL_NOTE';
+
+export interface RepositoryRow {
+  id: string;
+  name: string;
+  owner: string;
+  full_name: string;
+  origin_type: RepoOriginType;
+  clone_url: string;
+  default_branch: string;
+  active_commit_sha: string;
+  description: string | null;
+  language: string | null;
+  stars_count: number;
+  forks_count: number;
+  is_archived: boolean;
+  tree_cached_at: string | Date | null;
+  created_at: string | Date;
+  updated_at: string | Date;
+}
+
+export interface RepositoryDTO {
+  id: string;
+  name: string;
+  owner: string;
+  fullName: string;
+  originType: RepoOriginType;
+  cloneUrl: string;
+  defaultBranch: string;
+  activeCommitSha: string;
+  description: string | null;
+  language: string | null;
+  starsCount: number;
+  forksCount: number;
+  isArchived: boolean;
+  treeCachedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ImportRepositoryInput {
+  url?: string;
+  fullName?: string;
+  owner?: string;
+  name?: string;
+  branch?: string;
+  originType?: RepoOriginType;
+  description?: string;
+  language?: string;
+  customFiles?: Array<{ path: string; content: string }>;
+}
+
+export interface RepositoryCachedBlobRow {
+  id: string;
+  repository_id: string;
+  commit_sha: string;
+  file_path: string;
+  file_size_bytes: number;
+  content: string;
+  encoding: string;
+  is_compressed: boolean;
+  etag: string | null;
+  last_accessed_at: string | Date;
+  created_at: string | Date;
+}
+
+export interface CachedBlobDTO {
+  id: string;
+  repositoryId: string;
+  commitSha: string;
+  filePath: string;
+  fileSizeBytes: number;
+  content: string;
+  encoding: string;
+  isCompressed: boolean;
+  etag: string | null;
+  lastAccessedAt: string;
+  createdAt: string;
+}
+
+export interface CodeAnnotationRow {
+  id: string;
+  repository_id: string;
+  commit_sha: string;
+  file_path: string;
+  start_line: number;
+  end_line: number;
+  title: string;
+  content: string;
+  anchor_code_snippet: string;
+  design_category: DesignCategory;
+  ai_explanation: any | null;
+  topic_id: string | null;
+  created_at: string | Date;
+  updated_at: string | Date;
+}
+
+export interface CodeAnnotationDTO {
+  id: string;
+  repositoryId: string;
+  commitSha: string;
+  filePath: string;
+  startLine: number;
+  endLine: number;
+  title: string;
+  content: string;
+  anchorCodeSnippet: string;
+  designCategory: DesignCategory;
+  aiExplanation: any | null;
+  topicId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateCodeAnnotationInput {
+  repositoryId: string;
+  commitSha?: string;
+  filePath: string;
+  startLine: number;
+  endLine: number;
+  title: string;
+  content: string;
+  anchorCodeSnippet: string;
+  designCategory?: DesignCategory;
+  topicId?: string | null;
+}
+
+export interface UpdateCodeAnnotationInput {
+  title?: string;
+  content?: string;
+  designCategory?: DesignCategory;
+  topicId?: string | null;
+}
+
+export interface CodeAnnotationThreadRow {
+  id: string;
+  annotation_id: string;
+  sender: 'USER' | 'SOL_AI' | 'SYSTEM';
+  message: string;
+  suggested_quizzes: any | null;
+  created_at: string | Date;
+}
+
+export interface CodeAnnotationThreadDTO {
+  id: string;
+  annotationId: string;
+  sender: 'USER' | 'SOL_AI' | 'SYSTEM';
+  message: string;
+  suggestedQuizzes: any | null;
+  createdAt: string;
+}
+
+export interface RepoTreeNode {
+  path: string;
+  name: string;
+  type: 'file' | 'dir';
+  size?: number;
+  sha?: string;
+  children?: RepoTreeNode[];
+}
+
+export interface RepoTreeManifest {
+  repositoryId: string;
+  commitSha: string;
+  tree: RepoTreeNode[];
+  totalFiles: number;
+  truncated: boolean;
+}

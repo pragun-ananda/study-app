@@ -221,5 +221,89 @@ CREATE TABLE IF NOT EXISTS problem_follow_up_responses (
 
 CREATE INDEX IF NOT EXISTS idx_problem_follow_up_responses_problem_id ON problem_follow_up_responses(problem_id);
 
+-- ==============================================================================
+-- CODE REPOSITORIES & SOURCE CODE LEARNING ENGINE
+-- ==============================================================================
+
+-- 14. Repositories (Imported Open-Source or User-Authored Repos)
+CREATE TABLE IF NOT EXISTS repositories (
+    id VARCHAR(64) PRIMARY KEY,
+    name VARCHAR(128) NOT NULL,
+    owner VARCHAR(128) NOT NULL,
+    full_name VARCHAR(256) UNIQUE NOT NULL, -- e.g. "redis/redis"
+    origin_type VARCHAR(32) NOT NULL CHECK (origin_type IN ('GITHUB', 'GITLAB', 'CUSTOM', 'LOCAL')),
+    clone_url TEXT NOT NULL,
+    default_branch VARCHAR(64) NOT NULL DEFAULT 'main',
+    active_commit_sha VARCHAR(64) NOT NULL, -- Pinned commit SHA to prevent line drift
+    description TEXT,
+    language VARCHAR(64),
+    stars_count INTEGER NOT NULL DEFAULT 0,
+    forks_count INTEGER NOT NULL DEFAULT 0,
+    is_archived BOOLEAN NOT NULL DEFAULT FALSE,
+    tree_cached_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_repositories_full_name ON repositories(full_name);
+CREATE INDEX IF NOT EXISTS idx_repositories_language ON repositories(language);
+CREATE INDEX IF NOT EXISTS idx_repositories_stars ON repositories(stars_count DESC);
+
+-- 15. Cached Repository File Blobs (LRU Bounded Storage with Gzip Support)
+CREATE TABLE IF NOT EXISTS repository_cached_blobs (
+    id VARCHAR(64) PRIMARY KEY,
+    repository_id VARCHAR(64) NOT NULL REFERENCES repositories(id) ON DELETE CASCADE,
+    commit_sha VARCHAR(64) NOT NULL,
+    file_path TEXT NOT NULL,
+    file_size_bytes INTEGER NOT NULL,
+    content TEXT NOT NULL,
+    encoding VARCHAR(16) NOT NULL DEFAULT 'utf-8',
+    is_compressed BOOLEAN NOT NULL DEFAULT FALSE,
+    etag VARCHAR(128),
+    last_accessed_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE (repository_id, commit_sha, file_path)
+);
+
+CREATE INDEX IF NOT EXISTS idx_cached_blobs_lookup ON repository_cached_blobs(repository_id, commit_sha, file_path);
+CREATE INDEX IF NOT EXISTS idx_cached_blobs_eviction ON repository_cached_blobs(last_accessed_at ASC);
+
+-- 16. Code Annotations (Line-anchored study notes and architecture explanations)
+CREATE TABLE IF NOT EXISTS code_annotations (
+    id VARCHAR(64) PRIMARY KEY,
+    repository_id VARCHAR(64) NOT NULL REFERENCES repositories(id) ON DELETE CASCADE,
+    commit_sha VARCHAR(64) NOT NULL,
+    file_path TEXT NOT NULL,
+    start_line INTEGER NOT NULL,
+    end_line INTEGER NOT NULL,
+    title VARCHAR(256) NOT NULL,
+    content TEXT NOT NULL DEFAULT '',
+    anchor_code_snippet TEXT NOT NULL DEFAULT '',
+    design_category VARCHAR(64) NOT NULL DEFAULT 'GENERAL_NOTE' CHECK (design_category IN (
+        'ARCHITECTURE', 'ALGORITHM', 'CONCURRENCY', 'DESIGN_PATTERN', 
+        'PERFORMANCE', 'SECURITY', 'SPOF_TRADEOFF', 'GENERAL_NOTE'
+    )),
+    ai_explanation JSONB,
+    topic_id VARCHAR(64) REFERENCES topics(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_code_annotations_file ON code_annotations(repository_id, commit_sha, file_path);
+CREATE INDEX IF NOT EXISTS idx_code_annotations_topic ON code_annotations(topic_id);
+CREATE INDEX IF NOT EXISTS idx_code_annotations_category ON code_annotations(design_category);
+
+-- 17. Interactive AI Learning Threads (Q&A conversation linked to annotations)
+CREATE TABLE IF NOT EXISTS code_annotation_threads (
+    id VARCHAR(64) PRIMARY KEY,
+    annotation_id VARCHAR(64) NOT NULL REFERENCES code_annotations(id) ON DELETE CASCADE,
+    sender VARCHAR(32) NOT NULL CHECK (sender IN ('USER', 'SOL_AI', 'SYSTEM')),
+    message TEXT NOT NULL,
+    suggested_quizzes JSONB,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_annotation_threads_annotation_id ON code_annotation_threads(annotation_id);
+
 
 
