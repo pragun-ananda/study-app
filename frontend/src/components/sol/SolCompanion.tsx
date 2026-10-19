@@ -4,6 +4,7 @@ import { Sparkles, MessageCircle } from 'lucide-react';
 import SolAvatar from './SolAvatar';
 import { useSolStore } from '../../store/useSolStore';
 import { useStore } from '../../store/useStore';
+import { useRepoStore } from '../../store/useRepoStore';
 
 export default function SolCompanion() {
   const isOpen = useSolStore((state) => state.isOpen);
@@ -13,7 +14,8 @@ export default function SolCompanion() {
   const dismissGreeting = useSolStore((state) => state.dismissGreeting);
   const theme = useStore((state) => state.theme);
   const activeProblem = useStore((state) => state.activeProblem);
-  const isModalOpen = Boolean(activeProblem);
+  const isRepoViewerOpen = useRepoStore((state) => state.isRepoViewerOpen);
+  const isModalOpen = Boolean(activeProblem || isRepoViewerOpen);
 
   const [isHovered, setIsHovered] = useState(false);
   const [topicGreeting, setTopicGreeting] = useState<string | null>(null);

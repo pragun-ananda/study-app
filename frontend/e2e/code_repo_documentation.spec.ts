@@ -93,7 +93,8 @@ test.describe('Code Repository Documentation & Architectural Learning Engine (Mi
     // 6. Test Spaced Repetition Quiz Export
     const exportQuizBtn = annCard.getByTestId('export-quiz-btn-ANN-SEED-001');
     await expect(exportQuizBtn).toBeVisible();
-    await exportQuizBtn.click();
+    await exportQuizBtn.scrollIntoViewIfNeeded();
+    await exportQuizBtn.click({ force: true });
 
     // Verify confirmation and thread update
     await expect(annCard.getByText(/Quiz Created!/i)).toBeVisible({ timeout: 10000 });
