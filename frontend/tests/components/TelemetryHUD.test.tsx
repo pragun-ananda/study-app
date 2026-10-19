@@ -3,10 +3,12 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, beforeEach } from 'vitest';
 import TelemetryHUD from '../../src/components/hud/TelemetryHUD';
 import { useStore } from '../../src/store/useStore';
+import { useRepoStore } from '../../src/store/useRepoStore';
 
 describe('TelemetryHUD Component', () => {
   beforeEach(() => {
     useStore.getState().resetState();
+    useRepoStore.getState().resetState();
   });
 
   it('renders top navigation buttons and telemetry counters', () => {
@@ -636,6 +638,65 @@ describe('TelemetryHUD Component', () => {
       expect(useStore.getState().activeProblem?.id).toBe('PROB-TEST-2');
       expect(useStore.getState().isInspectorOpen).toBe(false);
       expect(useStore.getState().isSidebarOpen).toBe(false);
+    });
+
+    it('displays CODE REPOSITORY ANNOTATIONS in inspector when a topic linked to an annotation is selected', async () => {
+      const topic = useStore.getState().topicNodes[0];
+      useRepoStore.setState({
+        repositories: [
+          {
+            id: 'REPO-1',
+            owner: 'redis',
+            name: 'redis',
+            fullName: 'redis/redis',
+            remoteUrl: 'https://github.com/redis/redis',
+            defaultBranch: 'unstable',
+            originType: 'GITHUB',
+            isCloned: false,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          }
+        ],
+        annotations: [
+          {
+            id: 'ANN-TOPIC-1',
+            repositoryId: 'REPO-1',
+            commitSha: 'latest',
+            filePath: 'src/ae.c',
+            startLine: 120,
+            endLine: 145,
+            title: 'Epoll Multiplexing Loop',
+            content: 'Event-driven reactor core',
+            anchorCodeSnippet: 'int aeProcessEvents(aeEventLoop *eventLoop) { ... }',
+            designCategory: 'ARCHITECTURE',
+            aiExplanation: null,
+            topicId: topic.id,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          }
+        ]
+      });
+
+      useStore.getState().setSelectedTopicId(topic.id);
+      useStore.getState().setIsInspectorOpen(true);
+
+      render(<TelemetryHUD />);
+
+      await waitFor(() => {
+        expect(screen.getByText('CODE REPOSITORY ANNOTATIONS')).toBeInTheDocument();
+      });
+
+      expect(screen.getByText('Epoll Multiplexing Loop')).toBeInTheDocument();
+
+      const annItems = screen.getAllByTestId('inspector-repo-annotation-item');
+      expect(annItems.length).toBeGreaterThan(0);
+
+      fireEvent.click(annItems[0]);
+
+      await waitFor(() => {
+        expect(useRepoStore.getState().isRepoViewerOpen).toBe(true);
+        expect(useRepoStore.getState().activeAnnotationId).toBe('ANN-TOPIC-1');
+      });
     });
   });
 

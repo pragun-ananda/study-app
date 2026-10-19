@@ -29,7 +29,9 @@ import {
   AlertTriangle,
   Layers,
   Sparkles,
-  Code
+  Code,
+  FolderGit2,
+  GitBranch
 } from 'lucide-react';
 import NoteViewerModal from './NoteViewerModal';
 import ApplicationViewerModal from './ApplicationViewerModal';
@@ -39,9 +41,11 @@ import DiffViewerModal from './DiffViewerModal';
 import IngestionWalkthroughModal from './IngestionWalkthroughModal';
 import CreateNodeModal from './CreateNodeModal';
 import CreateQuizModal from './CreateQuizModal';
+import { RepoViewerModal } from '../code_repo/RepoViewerModal';
 import { TopologicalSubgraph } from './TopologicalSubgraph';
 import { useStore } from '../../store/useStore';
-import { TopicNode, DomainCategory, DEFAULT_DOMAINS, TopicStatus } from '../../types/telemetry';
+import { useRepoStore } from '../../store/useRepoStore';
+import { TopicNode, DomainCategory, DEFAULT_DOMAINS, TopicStatus, ApplicationItem } from '../../types/telemetry';
 import { DOMAIN_BASE_COLORS, DOMAIN_LIGHT_COLORS, getCategoryShade } from '../../utils/theme';
 import { getTopologicalPrerequisites } from '../../utils/graph';
 
@@ -78,13 +82,31 @@ export default function TelemetryHUD() {
   const activeQuiz = useStore((state) => state.activeQuiz);
   const activeProblem = useStore((state) => state.activeProblem);
 
+  // Repository Documentation Engine State & Actions
+  const repositories = useRepoStore((state) => state.repositories);
+  const fetchRepositories = useRepoStore((state) => state.fetchRepositories);
+  const openRepoViewer = useRepoStore((state) => state.openRepoViewer);
+  const setIsImportModalOpen = useRepoStore((state) => state.setIsImportModalOpen);
+  const rawTopicAnnotations = useRepoStore((state) => state.topicAnnotations);
+  const topicAnnotations = Array.isArray(rawTopicAnnotations) ? rawTopicAnnotations : [];
+  const fetchTopicAnnotations = useRepoStore((state) => state.fetchTopicAnnotations);
+  const openAnnotationInViewer = useRepoStore((state) => state.openAnnotationInViewer);
+
   // Ingestion State & Actions
   const ingestUrl = useStore((state) => state.ingestUrl);
   const isIngesting = useStore((state) => state.isIngesting);
   const ingestError = useStore((state) => state.ingestError);
 
-  const [activeTab, setActiveTab] = useState<'TOPICS' | 'APPLICATIONS' | 'PROBLEMS'>('TOPICS');
+  const [activeTab, setActiveTab] = useState<'TOPICS' | 'APPLICATIONS' | 'PROBLEMS' | 'REPOSITORIES'>('TOPICS');
+  const [caseStudyTypeFilter, setCaseStudyTypeFilter] = useState<'ALL' | 'OPEN_SOURCE_PROJECT' | 'PAPER' | 'BLOG' | 'PROJECT_BLUEPRINT'>('ALL');
   const [isSubgraphsOpen, setIsSubgraphsOpen] = useState(false);
+
+  useEffect(() => {
+    if (activeTab === 'REPOSITORIES') {
+      setActiveTab('APPLICATIONS');
+      setCaseStudyTypeFilter('OPEN_SOURCE_PROJECT');
+    }
+  }, [activeTab]);
 
   // URL Ingest Plus-Icon Textbox State
   const [isUrlInputOpen, setIsUrlInputOpen] = useState(false);
@@ -278,24 +300,64 @@ export default function TelemetryHUD() {
     return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
   }, [isDeleteModalOpen, isDeletingTopic]);
 
+  // Combine applications with repositories so each repo is a case study
+  const combinedApplications = useMemo(() => {
+    const list: ApplicationItem[] = [...applications];
+    const existingRepoIds = new Set(list.map((a) => a.repositoryId).filter(Boolean));
+
+    if (Array.isArray(repositories)) {
+      for (const repo of repositories) {
+        if (!existingRepoIds.has(repo.id)) {
+          list.push({
+            id: repo.id,
+            title: `${repo.name}${repo.language ? ` (${repo.language})` : ''}`,
+            type: 'OPEN_SOURCE_PROJECT',
+            domain: 'SYSTEMS',
+            difficulty: 'ADVANCED',
+            organization: repo.owner,
+            readTimeMinutes: 15,
+            summary: repo.description || `Source code repository and architecture of ${repo.fullName}`,
+            content: `## ${repo.fullName}\n\n${repo.description || ''}\n\n**Primary Language:** ${repo.language || 'N/A'}\n**Active SHA:** \`${repo.activeCommitSha}\`\n\nClick **Open in Code Studio** to inspect files and annotations.`,
+            topicIds: ['TOPIC-001'],
+            repositoryId: repo.id,
+            repoFullName: repo.fullName,
+            starsCount: repo.starsCount,
+            forksCount: repo.forksCount,
+            language: repo.language || undefined,
+            activeCommitSha: repo.activeCommitSha
+          });
+        }
+      }
+    }
+    return list;
+  }, [applications, repositories]);
+
   const filteredApplications = useMemo(() => {
-    return applications.filter((app) => {
+    return combinedApplications.filter((app) => {
       const categoryMatch = !selectedCategory || selectedCategory === 'ALL' || app.domain === selectedCategory;
+      const typeMatch =
+        caseStudyTypeFilter === 'ALL' ||
+        (caseStudyTypeFilter === 'OPEN_SOURCE_PROJECT' && app.type === 'OPEN_SOURCE_PROJECT') ||
+        (caseStudyTypeFilter === 'PAPER' && app.type === 'PAPER') ||
+        (caseStudyTypeFilter === 'BLOG' && app.type === 'BLOG') ||
+        (caseStudyTypeFilter === 'PROJECT_BLUEPRINT' && app.type === 'PROJECT_BLUEPRINT');
       const searchMatch =
         !searchQuery ||
         app.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        app.summary.toLowerCase().includes(searchQuery.toLowerCase());
-      return categoryMatch && searchMatch;
+        app.summary.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (app.repoFullName && app.repoFullName.toLowerCase().includes(searchQuery.toLowerCase()));
+      return categoryMatch && typeMatch && searchMatch;
     });
-  }, [applications, selectedCategory, searchQuery]);
+  }, [combinedApplications, selectedCategory, caseStudyTypeFilter, searchQuery]);
 
   const topicApplications = useMemo(() => {
     if (!selectedNode) return [];
-    return applications.filter((app) => app.topicIds.includes(selectedNode.id));
-  }, [selectedNode, applications]);
+    return combinedApplications.filter((app) => app.topicIds.includes(selectedNode.id));
+  }, [selectedNode, combinedApplications]);
 
   const filteredProblems = useMemo(() => {
-    return (problems || []).filter((prob) => {
+    if (!Array.isArray(problems)) return [];
+    return problems.filter((prob) => {
       const categoryMatch = !selectedCategory || selectedCategory === 'ALL' || prob.domain === selectedCategory;
       const searchMatch =
         !searchQuery ||
@@ -307,11 +369,37 @@ export default function TelemetryHUD() {
   }, [problems, selectedCategory, searchQuery]);
 
   const topicProblems = useMemo(() => {
-    if (!selectedNode) return [];
-    return (problems || []).filter((prob) =>
+    if (!selectedNode || !Array.isArray(problems)) return [];
+    return problems.filter((prob) =>
       prob.prerequisiteTopics?.some((pt) => pt.id === selectedNode.id)
     );
   }, [selectedNode, problems]);
+
+  // Load repositories on HUD mount
+  useEffect(() => {
+    fetchRepositories();
+  }, [fetchRepositories]);
+
+  // Load topic annotations when selected node changes
+  useEffect(() => {
+    if (selectedNode?.id) {
+      fetchTopicAnnotations(selectedNode.id);
+    }
+  }, [selectedNode?.id, fetchTopicAnnotations]);
+
+  const filteredRepositories = useMemo(() => {
+    if (!Array.isArray(repositories)) return [];
+    return repositories.filter((repo) => {
+      if (!searchQuery) return true;
+      const q = searchQuery.toLowerCase();
+      return (
+        repo.name.toLowerCase().includes(q) ||
+        repo.owner.toLowerCase().includes(q) ||
+        (repo.description && repo.description.toLowerCase().includes(q)) ||
+        (repo.language && repo.language.toLowerCase().includes(q))
+      );
+    });
+  }, [repositories, searchQuery]);
 
   // Dynamic Mastery Score calculated per active Subgraph
   const activeSubgraphNodes = selectedCategory && selectedCategory !== 'ALL'
@@ -770,39 +858,39 @@ export default function TelemetryHUD() {
             <div className="flex flex-col h-full space-y-4 overflow-hidden">
 
               <div className={`flex items-center justify-between border-b pb-2 ${isLight ? 'border-slate-200' : 'border-white/10'}`}>
-                <div className={`flex items-center gap-1 p-1 rounded-lg w-full justify-between ${isLight ? 'bg-slate-200/70' : 'bg-slate-950/60'}`}>
+                <div className={`grid grid-cols-3 gap-1 p-1 rounded-lg w-full ${isLight ? 'bg-slate-200/70' : 'bg-slate-950/60'}`}>
                   <button
                     onClick={() => setActiveTab('TOPICS')}
                     data-testid="sidebar-tab-concepts"
-                    className={`flex-1 px-1.5 py-1 rounded text-[11px] font-bold transition-all flex items-center justify-center gap-1 ${
+                    className={`px-1 py-1 rounded text-[10.5px] font-bold transition-all flex items-center justify-center gap-1 ${
                       activeTab === 'TOPICS'
                         ? (isLight ? 'bg-sky-600 text-white shadow-sm' : 'bg-[#00f0ff] text-slate-950 shadow-[0_0_10px_rgba(0,240,255,0.3)]')
                         : (isLight ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-slate-200')
                     }`}
                   >
-                    <BookOpen size={11} /> CONCEPTS ({filteredTopics.length})
+                    <BookOpen size={10} /> CONCEPTS ({filteredTopics.length})
                   </button>
                   <button
                     onClick={() => setActiveTab('APPLICATIONS')}
                     data-testid="sidebar-tab-applications"
-                    className={`flex-1 px-1.5 py-1 rounded text-[11px] font-bold transition-all flex items-center justify-center gap-1 ${
+                    className={`px-1 py-1 rounded text-[10.5px] font-bold transition-all flex items-center justify-center gap-1 ${
                       activeTab === 'APPLICATIONS'
                         ? (isLight ? 'bg-sky-600 text-white shadow-sm' : 'bg-[#00f0ff] text-slate-950 shadow-[0_0_10px_rgba(0,240,255,0.3)]')
                         : (isLight ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-slate-200')
                     }`}
                   >
-                    <Layers size={11} /> CASE STUDIES ({filteredApplications.length})
+                    <Layers size={10} /> CASE STUDIES ({combinedApplications.length})
                   </button>
                   <button
                     onClick={() => setActiveTab('PROBLEMS')}
                     data-testid="sidebar-tab-problems"
-                    className={`flex-1 px-1.5 py-1 rounded text-[11px] font-bold transition-all flex items-center justify-center gap-1 ${
+                    className={`px-1 py-1 rounded text-[10.5px] font-bold transition-all flex items-center justify-center gap-1 ${
                       activeTab === 'PROBLEMS'
                         ? (isLight ? 'bg-sky-600 text-white shadow-sm' : 'bg-[#00f0ff] text-slate-950 shadow-[0_0_10px_rgba(0,240,255,0.3)]')
                         : (isLight ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-slate-200')
                     }`}
                   >
-                    <Code size={11} /> PROBLEMS ({filteredProblems.length})
+                    <Code size={10} /> PROBLEMS ({filteredProblems.length})
                   </button>
                 </div>
               </div>
@@ -871,7 +959,7 @@ export default function TelemetryHUD() {
                 </div>
               )}
 
-              {/* TAB 2: APPLIED CONTENT (CASE STUDIES & INTERVIEWS) */}
+              {/* TAB 2: APPLIED CONTENT (CASE STUDIES & REPOSITORIES) */}
               {activeTab === 'APPLICATIONS' && (
                 <div className="flex-1 flex flex-col space-y-3 overflow-hidden">
                   <div className={`flex justify-between items-center text-[11px] ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
@@ -879,70 +967,238 @@ export default function TelemetryHUD() {
                       <Sparkles size={12} className={isLight ? 'text-sky-600' : 'text-[#00f0ff]'} />
                       <span>REAL-WORLD SCENARIOS</span>
                     </span>
-                    <span className={`font-bold ${isLight ? 'text-sky-600' : 'text-[#00f0ff]'}`}>
-                      {filteredApplications.length} Items
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsImportModalOpen(true);
+                          openRepoViewer();
+                        }}
+                        className={`text-[11px] font-bold hover:underline flex items-center gap-1 cursor-pointer ${
+                          isLight ? 'text-sky-600' : 'text-[#00f0ff]'
+                        }`}
+                        data-testid="sidebar-import-repo-btn"
+                      >
+                        <Plus size={12} />
+                        <span>IMPORT REPO</span>
+                      </button>
+                      <span className={`font-bold ${isLight ? 'text-sky-600' : 'text-[#00f0ff]'}`}>
+                        {filteredApplications.length} Items
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Case Study Type Filter Pills */}
+                  <div className="flex items-center gap-1 overflow-x-auto pb-1 text-[10px] font-mono no-scrollbar">
+                    <button
+                      type="button"
+                      onClick={() => setCaseStudyTypeFilter('ALL')}
+                      data-testid="case-study-filter-all"
+                      className={`px-2 py-0.5 rounded-md font-semibold transition-all shrink-0 cursor-pointer ${
+                        caseStudyTypeFilter === 'ALL'
+                          ? isLight ? 'bg-sky-600 text-white shadow-xs' : 'bg-[#00f0ff] text-slate-950 font-bold shadow-xs'
+                          : isLight ? 'bg-slate-100 text-slate-600 hover:bg-slate-200' : 'bg-slate-900 text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      ALL ({combinedApplications.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCaseStudyTypeFilter('OPEN_SOURCE_PROJECT')}
+                      data-testid="sidebar-tab-repositories"
+                      className={`px-2 py-0.5 rounded-md font-semibold transition-all shrink-0 cursor-pointer flex items-center gap-1 ${
+                        caseStudyTypeFilter === 'OPEN_SOURCE_PROJECT'
+                          ? isLight ? 'bg-purple-600 text-white shadow-xs' : 'bg-purple-400 text-slate-950 font-bold shadow-xs'
+                          : isLight ? 'bg-slate-100 text-slate-600 hover:bg-slate-200' : 'bg-slate-900 text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <FolderGit2 size={10} />
+                      OPEN SOURCE ({combinedApplications.filter((a) => a.type === 'OPEN_SOURCE_PROJECT').length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCaseStudyTypeFilter('PAPER')}
+                      data-testid="case-study-filter-papers"
+                      className={`px-2 py-0.5 rounded-md font-semibold transition-all shrink-0 cursor-pointer flex items-center gap-1 ${
+                        caseStudyTypeFilter === 'PAPER'
+                          ? isLight ? 'bg-indigo-600 text-white shadow-xs' : 'bg-indigo-400 text-slate-950 font-bold shadow-xs'
+                          : isLight ? 'bg-slate-100 text-slate-600 hover:bg-slate-200' : 'bg-slate-900 text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <FileText size={10} />
+                      PAPERS ({combinedApplications.filter((a) => a.type === 'PAPER').length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCaseStudyTypeFilter('BLOG')}
+                      data-testid="case-study-filter-blogs"
+                      className={`px-2 py-0.5 rounded-md font-semibold transition-all shrink-0 cursor-pointer flex items-center gap-1 ${
+                        caseStudyTypeFilter === 'BLOG'
+                          ? isLight ? 'bg-emerald-600 text-white shadow-xs' : 'bg-emerald-400 text-slate-950 font-bold shadow-xs'
+                          : isLight ? 'bg-slate-100 text-slate-600 hover:bg-slate-200' : 'bg-slate-900 text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <Sparkles size={10} />
+                      BLOGS ({combinedApplications.filter((a) => a.type === 'BLOG').length})
+                    </button>
                   </div>
 
                   <div className="flex-1 overflow-y-auto space-y-2.5 pr-1.5 pb-6 overscroll-contain" onWheel={(e) => e.stopPropagation()}>
                     {filteredApplications.length > 0 ? (
                       filteredApplications.map((app) => (
-                        <div
-                          key={app.id}
-                          data-testid="sidebar-application-card"
-                          onClick={() => {
-                            setActiveApplication(app);
-                            setIsSidebarOpen(false);
-                          }}
-                          className={`p-3 rounded-xl border text-xs cursor-pointer transition-all ${
-                            isLight
-                              ? 'border-slate-200 bg-white/95 hover:border-sky-400 hover:shadow-md shadow-sm'
-                              : 'border-white/10 bg-slate-950/70 hover:border-[#00f0ff]/50 hover:bg-slate-900/80'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between gap-1.5 mb-1.5">
-                            <span
-                              className={`text-[9px] font-mono px-1.5 py-0.5 rounded font-bold uppercase tracking-wider ${
-                                isLight
-                                  ? 'bg-sky-100 text-sky-700'
-                                  : 'bg-cyan-950/60 text-cyan-300 border border-cyan-500/20'
+                        app.type === 'OPEN_SOURCE_PROJECT' ? (
+                          <div
+                            key={app.id}
+                            data-testid="sidebar-repo-card"
+                            onClick={() => openRepoViewer(app.repositoryId || app.id)}
+                            className={`p-3 rounded-xl border text-xs cursor-pointer transition-all group ${
+                              isLight
+                                ? 'border-slate-200 bg-white/95 hover:border-purple-400 hover:shadow-md shadow-sm'
+                                : 'border-white/10 bg-slate-950/70 hover:border-purple-400/50 hover:shadow-[0_0_15px_rgba(168,85,247,0.15)]'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-1.5 mb-1.5">
+                              <span
+                                className={`text-[9px] font-mono px-1.5 py-0.5 rounded font-bold uppercase tracking-wider flex items-center gap-1 ${
+                                  isLight
+                                    ? 'bg-purple-100 text-purple-700'
+                                    : 'bg-purple-950/60 text-purple-300 border border-purple-500/20'
+                                }`}
+                              >
+                                <FolderGit2 size={9} />
+                                OPEN-SOURCE PROJECT
+                              </span>
+                              <span
+                                className={`text-[9px] font-mono px-1.5 py-0.5 rounded font-bold uppercase ${
+                                  app.difficulty === 'ADVANCED'
+                                    ? isLight ? 'bg-rose-100 text-rose-700' : 'bg-rose-950/50 text-rose-400'
+                                    : app.difficulty === 'INTERMEDIATE'
+                                    ? isLight ? 'bg-amber-100 text-amber-700' : 'bg-amber-950/50 text-amber-400'
+                                    : isLight ? 'bg-emerald-100 text-emerald-700' : 'bg-emerald-950/50 text-emerald-400'
+                                }`}
+                              >
+                                {app.difficulty}
+                              </span>
+                            </div>
+
+                            <h4
+                              role="heading"
+                              aria-level={4}
+                              className={`font-sans font-bold text-xs leading-snug mb-1 group-hover:text-purple-600 dark:group-hover:text-purple-300 transition-colors ${
+                                isLight ? 'text-slate-900' : 'text-slate-100'
                               }`}
                             >
-                              {app.type.replace('_', ' ')}
-                            </span>
-                            <span
-                              className={`text-[9px] font-mono px-1.5 py-0.5 rounded font-bold uppercase ${
-                                app.difficulty === 'ADVANCED'
-                                  ? isLight ? 'bg-rose-100 text-rose-700' : 'bg-rose-950/50 text-rose-400'
-                                  : app.difficulty === 'INTERMEDIATE'
-                                  ? isLight ? 'bg-amber-100 text-amber-700' : 'bg-amber-950/50 text-amber-400'
-                                  : isLight ? 'bg-emerald-100 text-emerald-700' : 'bg-emerald-950/50 text-emerald-400'
-                              }`}
-                            >
-                              {app.difficulty}
-                            </span>
+                              {app.title}
+                            </h4>
+
+                            <p className={`text-[10.5px] line-clamp-2 leading-relaxed mb-2 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                              {app.summary}
+                            </p>
+
+                            <div className="flex items-center justify-between text-[10px] font-mono pt-1.5 border-t border-slate-100 dark:border-white/5">
+                              <span className="text-slate-400">
+                                {app.language || 'Code'} • {app.starsCount ? `★ ${(app.starsCount / 1000).toFixed(0)}k` : '15 min read'}
+                              </span>
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  data-testid={`open-study-overview-btn-${app.id}`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setActiveApplication(app);
+                                    setIsSidebarOpen(false);
+                                  }}
+                                  className={`px-2 py-0.5 rounded font-semibold text-[9.5px] transition-all flex items-center gap-1 cursor-pointer ${
+                                    isLight
+                                      ? 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                                      : 'bg-white/5 hover:bg-white/10 text-slate-300'
+                                  }`}
+                                  title="Read architecture overview & concepts"
+                                >
+                                  <FileText size={10} />
+                                  <span>OVERVIEW</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  data-testid={`open-studio-btn-${app.repositoryId || app.id}`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openRepoViewer(app.repositoryId || app.id);
+                                  }}
+                                  className={`px-2 py-0.5 rounded font-bold text-[9.5px] transition-all flex items-center gap-1 cursor-pointer ${
+                                    isLight
+                                      ? 'bg-purple-100 hover:bg-purple-200 text-purple-700'
+                                      : 'bg-purple-900/40 hover:bg-purple-900/60 text-purple-300 border border-purple-500/30'
+                                  }`}
+                                >
+                                  <FolderGit2 size={10} />
+                                  <span>CODE STUDIO</span>
+                                </button>
+                              </div>
+                            </div>
                           </div>
+                        ) : (
+                          <div
+                            key={app.id}
+                            data-testid="sidebar-application-card"
+                            onClick={() => {
+                              setActiveApplication(app);
+                              setIsSidebarOpen(false);
+                            }}
+                            className={`p-3 rounded-xl border text-xs cursor-pointer transition-all ${
+                              isLight
+                                ? 'border-slate-200 bg-white/95 hover:border-sky-400 hover:shadow-md shadow-sm'
+                                : 'border-white/10 bg-slate-950/70 hover:border-[#00f0ff]/50 hover:bg-slate-900/80'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-1.5 mb-1.5">
+                              <span
+                                className={`text-[9px] font-mono px-1.5 py-0.5 rounded font-bold uppercase tracking-wider flex items-center gap-1 ${
+                                  app.type === 'PAPER'
+                                    ? isLight ? 'bg-indigo-100 text-indigo-700' : 'bg-indigo-950/60 text-indigo-300 border border-indigo-500/20'
+                                    : app.type === 'BLOG'
+                                    ? isLight ? 'bg-emerald-100 text-emerald-700' : 'bg-emerald-950/60 text-emerald-300 border border-emerald-500/20'
+                                    : isLight ? 'bg-sky-100 text-sky-700' : 'bg-cyan-950/60 text-cyan-300 border border-cyan-500/20'
+                                }`}
+                              >
+                                {app.type === 'PAPER' && <FileText size={9} />}
+                                {app.type === 'BLOG' && <Sparkles size={9} />}
+                                {app.type.replace('_', ' ')}
+                              </span>
+                              <span
+                                className={`text-[9px] font-mono px-1.5 py-0.5 rounded font-bold uppercase ${
+                                  app.difficulty === 'ADVANCED'
+                                    ? isLight ? 'bg-rose-100 text-rose-700' : 'bg-rose-950/50 text-rose-400'
+                                    : app.difficulty === 'INTERMEDIATE'
+                                    ? isLight ? 'bg-amber-100 text-amber-700' : 'bg-amber-950/50 text-amber-400'
+                                    : isLight ? 'bg-emerald-100 text-emerald-700' : 'bg-emerald-950/50 text-emerald-400'
+                                }`}
+                              >
+                                {app.difficulty}
+                              </span>
+                            </div>
 
-                          <h4 className={`font-sans font-bold text-xs leading-snug mb-1 ${isLight ? 'text-slate-900' : 'text-slate-100'}`}>
-                            {app.title}
-                          </h4>
+                            <h4 className={`font-sans font-bold text-xs leading-snug mb-1 ${isLight ? 'text-slate-900' : 'text-slate-100'}`}>
+                              {app.title}
+                            </h4>
 
-                          <p className={`text-[10.5px] line-clamp-2 leading-relaxed mb-2 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
-                            {app.summary}
-                          </p>
+                            <p className={`text-[10.5px] line-clamp-2 leading-relaxed mb-2 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                              {app.summary}
+                            </p>
 
-                          <div className="flex items-center justify-between text-[10px] font-mono pt-1.5 border-t border-slate-100 dark:border-white/5">
-                            <span className="text-slate-400">{app.domain} • {app.readTimeMinutes} min</span>
-                            <span className={`font-bold flex items-center gap-1 ${isLight ? 'text-sky-600' : 'text-[#00f0ff]'}`}>
-                              <Layers size={10} />
-                              {app.topicIds.length} Concepts
-                            </span>
+                            <div className="flex items-center justify-between text-[10px] font-mono pt-1.5 border-t border-slate-100 dark:border-white/5">
+                              <span className="text-slate-400">{app.domain} • {app.readTimeMinutes} min</span>
+                              <span className={`font-bold flex items-center gap-1 ${isLight ? 'text-sky-600' : 'text-[#00f0ff]'}`}>
+                                <Layers size={10} />
+                                {app.topicIds.length} Concepts
+                              </span>
+                            </div>
                           </div>
-                        </div>
+                        )
                       ))
                     ) : (
                       <div className={`p-4 text-center text-xs italic ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
-                        No applications found matching criteria.
+                        No case studies found matching criteria.
                       </div>
                     )}
                     <div className="h-10 w-full flex-shrink-0 pointer-events-none" />
@@ -1056,6 +1312,7 @@ export default function TelemetryHUD() {
               <BookOpen size={18} />
               <Layers size={18} />
               <Code size={18} />
+              <FolderGit2 size={18} />
             </div>
           )}
         </motion.div>
@@ -1801,6 +2058,72 @@ export default function TelemetryHUD() {
                     </div>
                   )}
 
+                  {/* 6. ASSOCIATED CODE REPOSITORIES & ANNOTATIONS */}
+                  {topicAnnotations.length > 0 && (
+                    <div className={`pt-2.5 border-t space-y-2 ${isLight ? 'border-slate-200' : 'border-white/10'}`}>
+                      <div className="flex items-center justify-between text-[11px] font-bold">
+                        <div className="flex items-center gap-1.5" style={{ color: selectedNodeColor }}>
+                          <FolderGit2 size={13} />
+                          <span>CODE REPOSITORY ANNOTATIONS</span>
+                        </div>
+                        <span className="text-[10px] font-mono opacity-80" style={{ color: selectedNodeColor }}>
+                          {topicAnnotations.length} ANNOTATION{topicAnnotations.length > 1 ? 'S' : ''}
+                        </span>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        {topicAnnotations.map((ann) => (
+                          <div
+                            key={ann.id}
+                            data-testid="inspector-repo-annotation-item"
+                            onClick={() => {
+                              openAnnotationInViewer(ann.repositoryId, ann.filePath, ann.id);
+                              setIsInspectorOpen(false);
+                              setIsSidebarOpen(false);
+                            }}
+                            style={{
+                              borderColor: `${selectedNodeColor}40`
+                            }}
+                            className={`p-2.5 rounded-lg border text-[11px] cursor-pointer transition-all flex items-center justify-between group shadow-sm hover:scale-[1.02] ${
+                              isLight
+                                ? 'bg-white/95 hover:bg-slate-50 text-slate-800 hover:border-sky-400'
+                                : 'bg-slate-950/80 hover:bg-slate-900 text-slate-200 hover:border-[#00f0ff]/60'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5 truncate">
+                              <GitBranch
+                                size={14}
+                                className="flex-shrink-0 group-hover:scale-110 transition-transform"
+                                style={{ color: selectedNodeColor }}
+                              />
+                              <div className="truncate min-w-0">
+                                <span className="truncate font-semibold block group-hover:text-sky-500 dark:group-hover:text-[#00f0ff] transition-colors">
+                                  {ann.title}
+                                </span>
+                                <span className="text-[9.5px] font-mono text-slate-400">
+                                  {ann.repoName || 'Repo'} • {ann.filePath.split('/').pop()}:{ann.startLine}-{ann.endLine}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1.5 ml-2 flex-shrink-0">
+                              <span
+                                className="text-[9px] font-mono px-1.5 py-0.5 rounded font-bold uppercase bg-purple-500/10 text-purple-400"
+                              >
+                                {ann.designCategory}
+                              </span>
+                              <span
+                                className="text-xs font-bold opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all"
+                                style={{ color: selectedNodeColor }}
+                              >
+                                →
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   <div className="h-4 w-full flex-shrink-0 pointer-events-none" />
                 </div>
               )}
@@ -1989,6 +2312,9 @@ export default function TelemetryHUD() {
 
       {/* Manual Create Quiz Modal */}
       <CreateQuizModal />
+
+      {/* Code Repository Documentation Engine Modal */}
+      <RepoViewerModal />
     </div>
   );
 }

@@ -11,9 +11,11 @@ import {
   HelpCircle,
   Compass,
   ArrowLeft,
-  ChevronRight
+  ChevronRight,
+  FolderGit2
 } from 'lucide-react';
 import { useStore } from '../../store/useStore';
+import { useRepoStore } from '../../store/useRepoStore';
 import { getCategoryShade } from '../../utils/theme';
 import { MarkdownContent } from './MarkdownContent';
 import { ApplicationSubgraph } from './ApplicationSubgraph';
@@ -32,6 +34,7 @@ export default function ApplicationViewerModal() {
   const selectedTopicId = useStore((state) => state.selectedTopicId);
   const setSelectedTopicId = useStore((state) => state.setSelectedTopicId);
   const setIsInspectorOpen = useStore((state) => state.setIsInspectorOpen);
+  const openRepoViewer = useRepoStore((state) => state.openRepoViewer);
 
   const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'QUIZ'>('OVERVIEW');
   const [selectedSubgraphTopicId, setSelectedSubgraphTopicId] = useState<string | null>(null);
@@ -184,18 +187,53 @@ export default function ApplicationViewerModal() {
 
   const typeBadge = (type: ApplicationType) => {
     const labels: Record<ApplicationType, string> = {
+      OPEN_SOURCE_PROJECT: 'Open-Source Project',
+      PAPER: 'Research Paper',
+      BLOG: 'Engineering Blog',
       CASE_STUDY: 'Case Study',
       INTERVIEW_PROBLEM: 'Interview Problem',
       PROJECT_BLUEPRINT: 'Project Blueprint'
     };
+    const colors: Record<ApplicationType, { bg: string; text: string; border: string }> = {
+      OPEN_SOURCE_PROJECT: {
+        bg: isLight ? 'bg-purple-50' : 'bg-purple-950/40',
+        text: isLight ? 'text-purple-700' : 'text-purple-300',
+        border: isLight ? 'border-purple-200' : 'border-purple-500/30'
+      },
+      PAPER: {
+        bg: isLight ? 'bg-indigo-50' : 'bg-indigo-950/40',
+        text: isLight ? 'text-indigo-700' : 'text-indigo-300',
+        border: isLight ? 'border-indigo-200' : 'border-indigo-500/30'
+      },
+      BLOG: {
+        bg: isLight ? 'bg-emerald-50' : 'bg-emerald-950/40',
+        text: isLight ? 'text-emerald-700' : 'text-emerald-300',
+        border: isLight ? 'border-emerald-200' : 'border-emerald-500/30'
+      },
+      CASE_STUDY: {
+        bg: isLight ? 'bg-sky-50' : 'bg-cyan-950/40',
+        text: isLight ? 'text-sky-700' : 'text-cyan-300',
+        border: isLight ? 'border-sky-200' : 'border-cyan-500/30'
+      },
+      INTERVIEW_PROBLEM: {
+        bg: isLight ? 'bg-amber-50' : 'bg-amber-950/40',
+        text: isLight ? 'text-amber-700' : 'text-amber-300',
+        border: isLight ? 'border-amber-200' : 'border-amber-500/30'
+      },
+      PROJECT_BLUEPRINT: {
+        bg: isLight ? 'bg-blue-50' : 'bg-blue-950/40',
+        text: isLight ? 'text-blue-700' : 'text-blue-300',
+        border: isLight ? 'border-blue-200' : 'border-blue-500/30'
+      }
+    };
+    const c = colors[type] || colors.CASE_STUDY;
     return (
       <span
-        className={`px-2 py-0.5 rounded text-[10px] font-mono uppercase tracking-wider font-semibold border ${
-          isLight
-            ? 'bg-sky-50 text-sky-700 border-sky-200'
-            : 'bg-cyan-950/40 text-cyan-300 border-cyan-500/30'
-        }`}
+        className={`px-2 py-0.5 rounded text-[10px] font-mono uppercase tracking-wider font-semibold border flex items-center gap-1 ${c.bg} ${c.text} ${c.border}`}
       >
+        {type === 'OPEN_SOURCE_PROJECT' && <FolderGit2 size={10} />}
+        {type === 'PAPER' && <FileText size={10} />}
+        {type === 'BLOG' && <Sparkles size={10} />}
         {labels[type] || type}
       </span>
     );
@@ -314,6 +352,25 @@ export default function ApplicationViewerModal() {
               </div>
             )}
 
+            {(activeApplication.repositoryId || activeApplication.type === 'OPEN_SOURCE_PROJECT') && (
+              <button
+                type="button"
+                data-testid="application-open-code-studio"
+                onClick={() => {
+                  openRepoViewer(activeApplication.repositoryId || activeApplication.id);
+                }}
+                className={`p-1.5 px-2.5 rounded-lg border transition-all flex items-center gap-1.5 text-xs font-bold cursor-pointer ${
+                  isLight
+                    ? 'bg-purple-50 hover:bg-purple-100 border-purple-300 text-purple-700 shadow-2xs'
+                    : 'bg-purple-950/40 hover:bg-purple-900/60 border-purple-500/30 text-purple-300 shadow-[0_0_8px_rgba(168,85,247,0.2)]'
+                }`}
+                title="Explore repository source code in Code Studio"
+              >
+                <FolderGit2 size={13} />
+                <span className="hidden sm:inline text-[11px]">Code Studio</span>
+              </button>
+            )}
+
             {activeApplication.externalUrl && (
               <a
                 href={activeApplication.externalUrl}
@@ -327,7 +384,15 @@ export default function ApplicationViewerModal() {
                 title="Open original source"
               >
                 <ExternalLink size={13} />
-                <span className="hidden sm:inline text-[11px]">Source</span>
+                <span className="hidden sm:inline text-[11px]">
+                  {activeApplication.type === 'PAPER'
+                    ? 'Paper'
+                    : activeApplication.type === 'BLOG'
+                    ? 'Blog'
+                    : activeApplication.type === 'OPEN_SOURCE_PROJECT'
+                    ? 'GitHub'
+                    : 'Source'}
+                </span>
               </a>
             )}
             <button
@@ -438,6 +503,43 @@ export default function ApplicationViewerModal() {
           ) : (
             /* OVERVIEW TAB (DEFAULT) */
             <>
+              {/* Repository Code Studio Banner */}
+              {(activeApplication.repositoryId || activeApplication.type === 'OPEN_SOURCE_PROJECT') && (
+                <div
+                  className={`p-3.5 rounded-xl border mb-5 flex items-center justify-between text-xs ${
+                    isLight
+                      ? 'bg-purple-50/80 border-purple-200 text-purple-900'
+                      : 'bg-purple-950/20 border-purple-500/20 text-purple-200'
+                  }`}
+                >
+                  <div className="space-y-0.5">
+                    <div className="font-bold flex items-center gap-1.5 text-xs">
+                      <FolderGit2 size={13} className="text-purple-500" />
+                      <span>Interactive Source Code Repository</span>
+                      {activeApplication.language && (
+                        <span className="text-[10px] px-1.5 py-0.2 rounded font-mono bg-purple-500/10 border border-purple-500/20">
+                          {activeApplication.language}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] opacity-80">
+                      Explore virtualized directory tree, line-anchored annotations, and Staff+ AI architectural critiques.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => openRepoViewer(activeApplication.repositoryId || activeApplication.id)}
+                    className={`px-3 py-1.5 rounded-lg font-bold text-xs transition-all shrink-0 ml-3 cursor-pointer ${
+                      isLight
+                        ? 'bg-purple-600 hover:bg-purple-700 text-white shadow-sm'
+                        : 'bg-purple-500 hover:bg-purple-400 text-slate-950 shadow-[0_0_10px_rgba(168,85,247,0.4)]'
+                    }`}
+                  >
+                    Open Studio
+                  </button>
+                </div>
+              )}
+
               {/* Executive Context */}
               <div
                 className={`p-3.5 rounded-xl border mb-5 text-xs leading-relaxed ${

@@ -1,6 +1,7 @@
 import '@testing-library/jest-dom';
 import { beforeEach, vi } from 'vitest';
 import { useStore, INITIAL_TOPICS } from '../src/store/useStore';
+import { useRepoStore } from '../src/store/useRepoStore';
 import { INITIAL_TODOS } from '../src/data/test';
 import { setCustomFetch } from '../src/api/client';
 
@@ -336,12 +337,311 @@ const mockFetch: typeof fetch = async (input: RequestInfo | URL, init?: RequestI
     });
   }
 
-  // GET /api/problems
-  if (url.startsWith('/api/problems') && method === 'GET') {
-    return new Response(JSON.stringify(useStore.getState().problems || []), {
+  // GET /api/repositories
+  if (url === '/api/repositories' && method === 'GET') {
+    return new Response(
+      JSON.stringify([
+        {
+          id: 'REPO-1',
+          owner: 'torvalds',
+          name: 'linux',
+          fullName: 'torvalds/linux',
+          remoteUrl: 'https://github.com/torvalds/linux',
+          defaultBranch: 'master',
+          activeCommitSha: 'abc1234',
+          isPublic: true,
+          description: 'Linux kernel source tree',
+          language: 'C',
+          starsCount: 170000,
+          forksCount: 50000,
+          storageBudgetBytes: 104857600,
+          cachedBytes: 1024,
+          cachedBlobsCount: 1,
+          annotationsCount: 2,
+          createdAt: '2026-10-19T00:00:00Z',
+          updatedAt: '2026-10-19T00:00:00Z'
+        }
+      ]),
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+
+  // POST /api/repositories/import or /api/repositories
+  if ((url === '/api/repositories/import' || url === '/api/repositories') && method === 'POST') {
+    return new Response(
+      JSON.stringify({
+        id: `REPO-${Date.now()}`,
+        owner: body.url?.split('/')[3] || 'facebook',
+        name: body.url?.split('/')[4] || 'react',
+        fullName: 'facebook/react',
+        remoteUrl: body.url || 'https://github.com/facebook/react',
+        defaultBranch: 'main',
+        activeCommitSha: 'def5678',
+        isPublic: true,
+        description: 'React library',
+        language: 'TypeScript',
+        starsCount: 220000,
+        forksCount: 45000,
+        storageBudgetBytes: 104857600,
+        cachedBytes: 0,
+        cachedBlobsCount: 0,
+        annotationsCount: 0,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      }),
+      { status: 201, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+
+  // GET /api/repositories/:id/tree
+  if (url.match(/\/api\/repositories\/[^/]+\/tree/) && method === 'GET') {
+    return new Response(
+      JSON.stringify({
+        repositoryId: 'REPO-1',
+        commitSha: 'abc1234',
+        truncated: false,
+        fileCount: 2,
+        tree: [
+          { path: 'README.md', name: 'README.md', type: 'file', size: 120 },
+          {
+            path: 'src',
+            name: 'src',
+            type: 'directory',
+            children: [{ path: 'src/index.ts', name: 'index.ts', type: 'file', size: 450 }]
+          }
+        ]
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+
+  // GET /api/repositories/:id/blob
+  if (url.match(/\/api\/repositories\/[^/]+\/blob/) && method === 'GET') {
+    return new Response(
+      JSON.stringify({
+        content: '# Linux Kernel\n\nWelcome to Linux.',
+        fileSizeBytes: 33,
+        encoding: 'utf-8',
+        fromCache: true,
+        isTruncated: false
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+
+  // GET /api/repositories/:id/annotations
+  if (url.match(/\/api\/repositories\/[^/]+\/annotations$/) && method === 'GET') {
+    return new Response(JSON.stringify([]), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }
     });
+  }
+
+  // POST /api/repositories/:id/annotations
+  if (url.match(/\/api\/repositories\/[^/]+\/annotations$/) && method === 'POST') {
+    return new Response(
+      JSON.stringify({
+        id: `ANN-${Date.now()}`,
+        repositoryId: 'REPO-1',
+        filePath: body.filePath,
+        startLine: body.startLine,
+        endLine: body.endLine,
+        title: body.title,
+        content: body.content,
+        category: body.category || 'ARCHITECTURE',
+        codeSnippet: body.codeSnippet || '',
+        threadCount: 0,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      }),
+      { status: 201, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+
+  // POST /api/repositories/:id/explain-code
+  if (url.match(/\/api\/repositories\/[^/]+\/explain-code$/) && method === 'POST') {
+    return new Response(
+      JSON.stringify({
+        summary: 'Mock execution summary for test snippet.',
+        architecturalRationale: 'Engineers designed this component using an event loop to minimize context switching.',
+        designPatterns: ['Reactor Pattern', 'Non-blocking I/O'],
+        concurrencyAndFailureModes: {
+          raceConditionsAndDeadlocks: 'Thread-confined; minimal hazard.',
+          memoryTradeoffs: 'Linear heap overhead.',
+          spofOrBottleneck: 'Socket backlog buffer limit.'
+        },
+        complexityAnalysis: {
+          timeComplexity: 'O(1)',
+          spaceComplexity: 'O(1)',
+          scalabilityNotes: 'Horizontally scalable.'
+        },
+        suggestedStudyQuestions: [
+          {
+            question: 'Why avoid multithreading here?',
+            rationale: 'Tests concurrency tradeoffs.'
+          }
+        ]
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+
+  // POST /api/repositories/:id/annotations/:annId/explain
+  if (url.match(/\/api\/repositories\/[^/]+\/annotations\/[^/]+\/explain$/) && method === 'POST') {
+    return new Response(
+      JSON.stringify({
+        id: url.split('/')[5],
+        repositoryId: 'REPO-1',
+        filePath: 'README.md',
+        startLine: 1,
+        endLine: 5,
+        title: 'Mock Explained Annotation',
+        content: 'Explaining code...',
+        designCategory: 'ARCHITECTURE',
+        anchorCodeSnippet: '# Linux Kernel',
+        aiExplanation: {
+          summary: 'Mock execution summary.',
+          architecturalRationale: 'Why this was designed this way.',
+          designPatterns: ['Architecture Pattern'],
+          concurrencyAndFailureModes: {
+            raceConditionsAndDeadlocks: 'None',
+            memoryTradeoffs: 'None',
+            spofOrBottleneck: 'None'
+          },
+          complexityAnalysis: {
+            timeComplexity: 'O(1)',
+            spaceComplexity: 'O(1)',
+            scalabilityNotes: 'None'
+          },
+          suggestedStudyQuestions: []
+        },
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+
+  // GET /api/repositories/:id/annotations/:annId/threads
+  if (url.match(/\/api\/repositories\/[^/]+\/annotations\/[^/]+\/threads$/) && method === 'GET') {
+    return new Response(JSON.stringify([]), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
+  // POST /api/repositories/:id/annotations/:annId/threads
+  if (url.match(/\/api\/repositories\/[^/]+\/annotations\/[^/]+\/threads$/) && method === 'POST') {
+    return new Response(
+      JSON.stringify({
+        id: `TH-${Date.now()}`,
+        annotationId: url.split('/')[5],
+        sender: body.sender || 'USER',
+        message: body.message,
+        suggestedQuizzes: null,
+        createdAt: new Date().toISOString()
+      }),
+      { status: 201, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+
+  // PUT /api/repositories/:id/annotations/:annId
+  if (url.match(/\/api\/repositories\/[^/]+\/annotations\/[^/]+$/) && method === 'PUT') {
+    const annId = url.split('/').pop()!;
+    const existing = useRepoStore.getState().annotations.find((a) => a.id === annId);
+    return new Response(
+      JSON.stringify({
+        id: annId,
+        repositoryId: existing?.repositoryId || 'REPO-1',
+        filePath: existing?.filePath || body.filePath || 'README.md',
+        startLine: existing?.startLine ?? 1,
+        endLine: existing?.endLine ?? 5,
+        title: body.title || existing?.title || 'Updated Title',
+        content: body.content !== undefined ? body.content : (existing?.content || ''),
+        designCategory: body.designCategory || existing?.designCategory || 'ARCHITECTURE',
+        anchorCodeSnippet: existing?.anchorCodeSnippet || '# Linux Kernel',
+        aiExplanation: existing?.aiExplanation || null,
+        topicId: body.topicId !== undefined ? body.topicId : (existing?.topicId || null),
+        createdAt: existing?.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+
+  // DELETE /api/repositories/:id/annotations/:annId
+  if (url.match(/\/api\/repositories\/[^/]+\/annotations\/[^/]+$/) && method === 'DELETE') {
+    return new Response(JSON.stringify({ success: true, id: url.split('/').pop() }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
+  // GET /api/repositories/annotations/by-topic/:topicId
+  if (url.match(/\/api\/repositories\/annotations\/by-topic\/[^/]+$/) && method === 'GET') {
+    const topicId = url.split('/').pop();
+    const annotations = useRepoStore.getState().annotations || [];
+    const filtered = annotations.filter((a) => a.topicId === topicId).map((a) => ({
+      ...a,
+      repoName: 'redis'
+    }));
+    return new Response(JSON.stringify(filtered), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
+  // POST /api/repositories/:id/annotations/:annId/export-quiz
+  if (url.match(/\/api\/repositories\/[^/]+\/annotations\/[^/]+\/export-quiz$/) && method === 'POST') {
+    const parts = url.split('/');
+    const repoId = parts[3];
+    const annId = parts[5];
+    const annotation = (useRepoStore.getState().annotations || []).find((a) => a.id === annId);
+    const quizResponse = {
+      success: true,
+      quizId: 'QUIZ-MOCK-1',
+      questionId: 'QUESTION-MOCK-1',
+      topicId: body.topicId || annotation?.topicId || 'TOPIC-1',
+      prompt: `In repository "${repoId}": ${annotation?.title || 'Quiz Question'}`,
+      correctAnswer: 'A',
+      options: [
+        { id: 'A', text: annotation?.content || 'Primary rationale' },
+        { id: 'B', text: 'Alternative distractor pattern' },
+        { id: 'C', text: 'Secondary distractor pattern' },
+        { id: 'D', text: 'Unbounded memory distractor' }
+      ]
+    };
+    return new Response(JSON.stringify(quizResponse), {
+      status: 201,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
+  // GET /api/repositories/:id
+  if (url.match(/\/api\/repositories\/[^/]+$/) && method === 'GET') {
+    return new Response(
+      JSON.stringify({
+        id: 'REPO-1',
+        owner: 'torvalds',
+        name: 'linux',
+        fullName: 'torvalds/linux',
+        remoteUrl: 'https://github.com/torvalds/linux',
+        defaultBranch: 'master',
+        activeCommitSha: 'abc1234',
+        isPublic: true,
+        description: 'Linux kernel source tree',
+        language: 'C',
+        starsCount: 170000,
+        forksCount: 50000,
+        storageBudgetBytes: 104857600,
+        cachedBytes: 1024,
+        cachedBlobsCount: 1,
+        annotationsCount: 2,
+        createdAt: '2026-10-19T00:00:00Z',
+        updatedAt: '2026-10-19T00:00:00Z'
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
+    );
   }
 
   return new Response(JSON.stringify({}), { status: 200 });
@@ -359,6 +659,7 @@ beforeEach(() => {
   setCustomFetch(mockFetch);
   useStore.getState().resetState();
   useStore.getState().hydrate(INITIAL_TOPICS, INITIAL_TODOS);
+  useRepoStore.getState().resetState();
   vi.clearAllMocks();
 });
 

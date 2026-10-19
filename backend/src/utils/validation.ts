@@ -117,4 +117,3 @@ export function validateQuizInput(data: Record<string, unknown>): { error?: stri
   }
   return {};
 }
-

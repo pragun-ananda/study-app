@@ -1,4 +1,15 @@
-import { TopicRow, NoteRow, StudyTodoRow, TopicDTO, NoteDTO, StudyTodoDTO, QuizRow, QuizQuestionRow, QuizDTO, QuizQuestionDTO } from '../types.js';
+import {
+  TopicRow,
+  NoteRow,
+  StudyTodoRow,
+  TopicDTO,
+  NoteDTO,
+  StudyTodoDTO,
+  QuizRow,
+  QuizQuestionRow,
+  QuizDTO,
+  QuizQuestionDTO
+} from '../types.js';
 
 export function toTopicDTO(
   row: TopicRow,
