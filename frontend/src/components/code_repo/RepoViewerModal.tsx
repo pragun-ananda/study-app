@@ -119,7 +119,7 @@ export const RepoViewerModal: React.FC = () => {
   return (
     <div
       data-testid="repo-viewer-modal"
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 md:p-8 bg-black/75 backdrop-blur-md"
+      className="fixed inset-0 z-[60] pointer-events-auto flex items-center justify-center p-3 sm:p-5 md:p-8 bg-black/75 backdrop-blur-md"
     >
       <motion.div
         initial={{ opacity: 0, scale: 0.98 }}
@@ -250,7 +250,8 @@ export const RepoViewerModal: React.FC = () => {
             <button
               data-testid="close-repo-viewer-button"
               onClick={closeRepoViewer}
-              className="p-1.5 rounded hover:bg-white/10 text-neutral-400 hover:text-white transition-all"
+              title="Close Studio (Esc)"
+              className="p-1.5 rounded hover:bg-white/10 text-neutral-400 hover:text-white transition-all cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -376,7 +377,7 @@ export const RepoViewerModal: React.FC = () => {
           {isImportModalOpen && (
             <div
               data-testid="import-repo-dialog"
-              className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+              className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm pointer-events-auto"
             >
               <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}

@@ -21,16 +21,16 @@ test.describe('Code Repository Documentation & Architectural Learning Engine (Mi
     await expect(page.getByText(/CODE REPOSITORIES/i)).toBeVisible();
     const repoCard = page.getByTestId('sidebar-repo-card').first();
     await expect(repoCard).toBeVisible();
-    await expect(repoCard.getByText('redis')).toBeVisible();
+    await expect(repoCard.getByRole('heading', { name: 'redis' })).toBeVisible();
 
     // 3. Open Code Studio Modal
-    const openStudioBtn = repoCard.getByTestId('open-repo-studio-btn');
-    await openStudioBtn.click();
+    await repoCard.click();
 
     // Verify Studio Modal opened
     const studioModal = page.getByTestId('repo-viewer-modal');
     await expect(studioModal).toBeVisible();
-    await expect(studioModal.getByText(/redis\/redis/i)).toBeVisible();
+    await expect(studioModal.getByText('Code Repository Studio')).toBeVisible();
+    await expect(studioModal.locator('option', { hasText: 'redis/redis' })).toBeAttached();
 
     // 4. Verify File Tree Explorer
     const treeExplorer = page.getByTestId('file-tree-explorer');
@@ -51,7 +51,7 @@ test.describe('Code Repository Documentation & Architectural Learning Engine (Mi
     await expect(monacoViewer).toBeVisible();
 
     // Close Studio Modal
-    const closeBtn = page.getByTitle('Close Studio (Esc)');
+    const closeBtn = page.getByTestId('close-repo-viewer-button');
     await closeBtn.click();
     await expect(studioModal).not.toBeVisible();
   });
@@ -62,12 +62,13 @@ test.describe('Code Repository Documentation & Architectural Learning Engine (Mi
     await page.getByTestId('sidebar-tab-repositories').click();
 
     // 2. Open Code Studio Modal
-    await page.getByTestId('sidebar-repo-card').first().getByTestId('open-repo-studio-btn').click();
+    const repoCard = page.getByTestId('sidebar-repo-card').first();
+    await repoCard.click();
     const studioModal = page.getByTestId('repo-viewer-modal');
     await expect(studioModal).toBeVisible();
 
     // 3. Switch to SPLIT_ANNOTATIONS mode
-    const splitModeBtn = page.getByTestId('view-mode-split');
+    const splitModeBtn = page.getByTestId('viewmode-split-notes');
     await splitModeBtn.click();
 
     // Open file with annotations
@@ -109,7 +110,7 @@ test.describe('Code Repository Documentation & Architectural Learning Engine (Mi
 
     // Close Sol drawer and studio modal
     await page.getByTitle('Close conversation').click();
-    await page.getByTitle('Close Studio (Esc)').click();
+    await page.getByTestId('close-repo-viewer-button').click();
   });
 
   test('Links code repository annotations to Knowledge Graph topic inspector', async ({ page }) => {
@@ -147,7 +148,7 @@ test.describe('Code Repository Documentation & Architectural Learning Engine (Mi
     await expect(page.getByTestId('annotation-card-ANN-SEED-001')).toBeVisible();
 
     // Close studio
-    await page.getByTitle('Close Studio (Esc)').click();
+    await page.getByTestId('close-repo-viewer-button').click();
   });
 
   test('Imports a new repository from GitHub URL shorthand', async ({ page }) => {
@@ -165,14 +166,15 @@ test.describe('Code Repository Documentation & Architectural Learning Engine (Mi
     await inputField.fill('tokio-rs/tokio');
 
     const submitImportBtn = page.getByTestId('submit-import-button');
+    await expect(submitImportBtn).toBeEnabled();
     await submitImportBtn.click();
 
     // 4. Verify Studio opens with the newly imported repository
     const studioModal = page.getByTestId('repo-viewer-modal');
     await expect(studioModal).toBeVisible({ timeout: 15000 });
-    await expect(studioModal.getByText(/tokio/i).first()).toBeVisible();
+    await expect(studioModal.locator('option', { hasText: /tokio/i })).toBeAttached({ timeout: 15000 });
 
     // Close Studio
-    await page.getByTitle('Close Studio (Esc)').click();
+    await page.getByTestId('close-repo-viewer-button').click();
   });
 });
