@@ -110,7 +110,9 @@ export const FileTreeExplorer: React.FC<FileTreeExplorerProps> = ({
     return (
       <div key={node.path} className="select-none">
         <div
-          data-testid={`tree-node-${node.path.replace(/\//g, '-')}`}
+          data-testid={isDir ? `tree-dir-${node.path}` : `tree-file-${node.path}`}
+          data-node-id={`tree-node-${node.path.replace(/\//g, '-')}`}
+          data-test-node={`tree-node-${node.path.replace(/\//g, '-')}`}
           onClick={() => {
             if (isDir) {
               toggleFolder(node.path);

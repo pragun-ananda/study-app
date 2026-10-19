@@ -560,3 +560,26 @@ export async function explainAnnotation(
     }
   );
 }
+
+export async function getAnnotationsByTopic(
+  topicId: string
+): Promise<(CodeAnnotationDTO & { repoName?: string })[]> {
+  return request<(CodeAnnotationDTO & { repoName?: string })[]>(
+    `/api/repositories/annotations/by-topic/${encodeURIComponent(topicId)}`
+  );
+}
+
+export async function exportAnnotationToQuiz(
+  id: string,
+  annId: string,
+  topicId?: string
+): Promise<any> {
+  return request<any>(
+    `/api/repositories/${encodeURIComponent(id)}/annotations/${encodeURIComponent(annId)}/export-quiz`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ topicId })
+    }
+  );
+}

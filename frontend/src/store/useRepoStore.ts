@@ -4,6 +4,7 @@ import {
   ImportRepositoryInput,
   RepoTreeManifest,
   CodeAnnotationDTO,
+  CodeAnnotationThreadDTO,
   CreateCodeAnnotationInput,
   UpdateCodeAnnotationInput
 } from '../types/telemetry';
@@ -42,6 +43,7 @@ export interface RepoState {
   error: string | null;
   viewMode: RepoViewMode;
 
+  topicAnnotations: (CodeAnnotationDTO & { repoName?: string })[];
   // Actions
   fetchRepositories: () => Promise<void>;
   importRepo: (input: ImportRepositoryInput) => Promise<RepositoryDTO>;
@@ -69,6 +71,9 @@ export interface RepoState {
     language?: string;
     userNote?: string;
   }) => Promise<any>;
+  fetchTopicAnnotations: (topicId: string) => Promise<void>;
+  exportAnnotationToQuiz: (annId: string, topicId?: string) => Promise<any>;
+  openAnnotationInViewer: (repoId: string, filePath: string, annId?: string) => Promise<void>;
   resetState: () => void;
 }
 
@@ -81,6 +86,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
   activeFilePath: null,
   fileBlobs: {},
   annotations: [],
+  topicAnnotations: [],
   activeAnnotationId: null,
   threads: {},
   isExplaining: false,
@@ -366,6 +372,36 @@ export const useRepoStore = create<RepoState>((set, get) => ({
     }
   },
 
+  fetchTopicAnnotations: async (topicId: string) => {
+    try {
+      const anns = await api.getAnnotationsByTopic(topicId);
+      set({ topicAnnotations: anns });
+    } catch (err: any) {
+      console.error('[FETCH_TOPIC_ANNOTATIONS_ERROR]:', err);
+      set({ topicAnnotations: [] });
+    }
+  },
+
+  exportAnnotationToQuiz: async (annId: string, topicId?: string) => {
+    const activeRepoId = get().activeRepoId;
+    if (!activeRepoId) throw new Error('No active repository selected');
+    const result = await api.exportAnnotationToQuiz(activeRepoId, annId, topicId);
+    // Refresh threads for this annotation so system message appears
+    await get().fetchThreads(annId);
+    return result;
+  },
+
+  openAnnotationInViewer: async (repoId: string, filePath: string, annId?: string) => {
+    set({ isRepoViewerOpen: true, viewMode: 'SPLIT_ANNOTATIONS' });
+    if (get().activeRepoId !== repoId) {
+      await get().selectRepository(repoId);
+    }
+    await get().openFile(filePath);
+    if (annId) {
+      set({ activeAnnotationId: annId });
+    }
+  },
+
   resetState: () => {
     set({
       repositories: [],
@@ -376,6 +412,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
       activeFilePath: null,
       fileBlobs: {},
       annotations: [],
+      topicAnnotations: [],
       activeAnnotationId: null,
       threads: {},
       isExplaining: false,

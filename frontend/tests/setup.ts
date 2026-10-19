@@ -573,6 +573,46 @@ const mockFetch: typeof fetch = async (input: RequestInfo | URL, init?: RequestI
     });
   }
 
+  // GET /api/repositories/annotations/by-topic/:topicId
+  if (url.match(/\/api\/repositories\/annotations\/by-topic\/[^/]+$/) && method === 'GET') {
+    const topicId = url.split('/').pop();
+    const annotations = useRepoStore.getState().annotations || [];
+    const filtered = annotations.filter((a) => a.topicId === topicId).map((a) => ({
+      ...a,
+      repoName: 'redis'
+    }));
+    return new Response(JSON.stringify(filtered), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
+  // POST /api/repositories/:id/annotations/:annId/export-quiz
+  if (url.match(/\/api\/repositories\/[^/]+\/annotations\/[^/]+\/export-quiz$/) && method === 'POST') {
+    const parts = url.split('/');
+    const repoId = parts[3];
+    const annId = parts[5];
+    const annotation = (useRepoStore.getState().annotations || []).find((a) => a.id === annId);
+    const quizResponse = {
+      success: true,
+      quizId: 'QUIZ-MOCK-1',
+      questionId: 'QUESTION-MOCK-1',
+      topicId: body.topicId || annotation?.topicId || 'TOPIC-1',
+      prompt: `In repository "${repoId}": ${annotation?.title || 'Quiz Question'}`,
+      correctAnswer: 'A',
+      options: [
+        { id: 'A', text: annotation?.content || 'Primary rationale' },
+        { id: 'B', text: 'Alternative distractor pattern' },
+        { id: 'C', text: 'Secondary distractor pattern' },
+        { id: 'D', text: 'Unbounded memory distractor' }
+      ]
+    };
+    return new Response(JSON.stringify(quizResponse), {
+      status: 201,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
   // GET /api/repositories/:id
   if (url.match(/\/api\/repositories\/[^/]+$/) && method === 'GET') {
     return new Response(

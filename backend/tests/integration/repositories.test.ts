@@ -254,5 +254,96 @@ describe('Integration: Repositories & Annotations REST API (/api/repositories)',
       expect(explainRes.body.aiExplanation).toBeDefined();
       expect(explainRes.body.aiExplanation.architecturalRationale).toBeDefined();
     });
+
+    it('retrieves annotations linked to a Knowledge Graph topic via GET /api/repositories/annotations/by-topic/:topicId', async () => {
+      // Create annotation attached to TOPIC-001 (seeded in DB)
+      await request(app)
+        .post(`/api/repositories/${repoId}/annotations`)
+        .send({
+          filePath: 'src/autograd.py',
+          startLine: 10,
+          endLine: 25,
+          title: 'Reverse Mode Gradient Graph',
+          content: 'Dynamic tape recording backward passes',
+          anchorCodeSnippet: 'def backward(self): ...',
+          designCategory: 'ARCHITECTURE',
+          topicId: 'TOPIC-001'
+        });
+
+      const res = await request(app).get('/api/repositories/annotations/by-topic/TOPIC-001');
+      expect(res.status).toBe(200);
+      expect(Array.isArray(res.body)).toBe(true);
+      expect(res.body.length).toBeGreaterThanOrEqual(1);
+
+      const found = res.body.find((a: any) => a.title === 'Reverse Mode Gradient Graph');
+      expect(found).toBeDefined();
+      expect(found.topicId).toBe('TOPIC-001');
+      expect(found.repoName).toBeDefined();
+    });
+
+    it('exports annotation to spaced repetition quiz via POST /api/repositories/:id/annotations/:annId/export-quiz', async () => {
+      const createRes = await request(app)
+        .post(`/api/repositories/${repoId}/annotations`)
+        .send({
+          filePath: 'src/autograd.py',
+          startLine: 10,
+          endLine: 25,
+          title: 'Gradient Tape Architecture',
+          content: 'Why tape-based autograd requires topological sorting',
+          anchorCodeSnippet: 'def backward(self): ...',
+          designCategory: 'ARCHITECTURE',
+          topicId: 'TOPIC-001'
+        });
+
+      const annId = createRes.body.id;
+
+      // Attach AI explanation first
+      await request(app).post(`/api/repositories/${repoId}/annotations/${annId}/explain`);
+
+      const exportRes = await request(app)
+        .post(`/api/repositories/${repoId}/annotations/${annId}/export-quiz`)
+        .send({ topicId: 'TOPIC-001' });
+
+      expect(exportRes.status).toBe(201);
+      expect(exportRes.body.success).toBe(true);
+      expect(exportRes.body.quizId).toMatch(/^QUIZ-/);
+      expect(exportRes.body.questionId).toMatch(/^QUESTION-/);
+      expect(exportRes.body.prompt).toContain('autograd.py');
+      expect(exportRes.body.options.length).toBe(4);
+
+      // Verify quiz exists in quizzes table
+      const quizRes = await request(app).get(`/api/quizzes/${exportRes.body.quizId}`);
+      expect(quizRes.status).toBe(200);
+      expect(quizRes.body.questions.length).toBeGreaterThanOrEqual(1);
+
+      // Verify thread notification was created
+      const threadRes = await request(app).get(`/api/repositories/${repoId}/annotations/${annId}/threads`);
+      expect(threadRes.status).toBe(200);
+      const systemMsg = threadRes.body.find((t: any) => t.sender === 'SYSTEM');
+      expect(systemMsg).toBeDefined();
+      expect(systemMsg.message).toContain('Exported to Spaced Repetition Quiz');
+    });
+
+    it('returns 400 when exporting quiz without a linked topic', async () => {
+      const createRes = await request(app)
+        .post(`/api/repositories/${repoId}/annotations`)
+        .send({
+          filePath: 'src/unlinked.py',
+          startLine: 1,
+          endLine: 5,
+          title: 'Unlinked Note',
+          content: 'No topic assigned',
+          anchorCodeSnippet: 'x = 1'
+        });
+
+      const annId = createRes.body.id;
+
+      const exportRes = await request(app)
+        .post(`/api/repositories/${repoId}/annotations/${annId}/export-quiz`)
+        .send({});
+
+      expect(exportRes.status).toBe(400);
+      expect(exportRes.body.error).toContain('Topic association required');
+    });
   });
 });

@@ -15,7 +15,8 @@ import {
   Cpu,
   Layers,
   ExternalLink,
-  BookOpen
+  BookOpen,
+  GraduationCap
 } from 'lucide-react';
 import { useRepoStore } from '../../store/useRepoStore';
 import { useStore } from '../../store/useStore';
@@ -61,6 +62,18 @@ export const CATEGORY_CONFIG: Record<
     text: 'text-rose-400',
     border: 'border-rose-500/30'
   },
+  DESIGN_PATTERN: {
+    label: 'Design Pattern',
+    bg: 'bg-indigo-500/10',
+    text: 'text-indigo-400',
+    border: 'border-indigo-500/30'
+  },
+  SECURITY: {
+    label: 'Security & Auth',
+    bg: 'bg-red-500/10',
+    text: 'text-red-400',
+    border: 'border-red-500/30'
+  },
   GENERAL_NOTE: {
     label: 'General Study Note',
     bg: 'bg-slate-500/10',
@@ -86,6 +99,7 @@ export const AnnotationDock: React.FC<AnnotationDockProps> = ({
   const threads = useRepoStore((state) => state.threads);
   const fetchThreads = useRepoStore((state) => state.fetchThreads);
   const addThreadMessage = useRepoStore((state) => state.addThreadMessage);
+  const exportAnnotationToQuiz = useRepoStore((state) => state.exportAnnotationToQuiz);
 
   const topicNodes = useStore((state) => state.topicNodes);
   const openSolChat = useSolStore((state) => state.openChat);
@@ -101,6 +115,27 @@ export const AnnotationDock: React.FC<AnnotationDockProps> = ({
   const [expandedAiIds, setExpandedAiIds] = useState<Record<string, boolean>>({});
   const [threadInputs, setThreadInputs] = useState<Record<string, string>>({});
   const [isSendingThreadMsg, setIsSendingThreadMsg] = useState<Record<string, boolean>>({});
+  const [exportingQuizId, setExportingQuizId] = useState<string | null>(null);
+  const [exportedSuccessId, setExportedSuccessId] = useState<string | null>(null);
+
+  const handleExportQuiz = async (ann: CodeAnnotationDTO) => {
+    if (!ann.topicId) {
+      alert('Please attach this annotation to a Knowledge Graph topic first (click Edit and select a topic).');
+      return;
+    }
+    setExportingQuizId(ann.id);
+    try {
+      await exportAnnotationToQuiz(ann.id, ann.topicId);
+      setExportedSuccessId(ann.id);
+      setTimeout(() => {
+        setExportedSuccessId((prev) => (prev === ann.id ? null : prev));
+      }, 4000);
+    } catch (err: any) {
+      alert(err.message || 'Failed to export to quiz');
+    } finally {
+      setExportingQuizId(null);
+    }
+  };
 
   // Filter annotations for active file and category
   const fileAnnotations = useMemo(() => {
@@ -512,17 +547,42 @@ export const AnnotationDock: React.FC<AnnotationDockProps> = ({
                     <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">
                       Discussion ({annThreads.length})
                     </span>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleAskSolAboutAnnotation(ann);
-                      }}
-                      className="flex items-center gap-1 text-[10px] font-bold text-purple-400 hover:text-purple-300 hover:underline cursor-pointer"
-                      title="Open full conversation with Sol AI Companion"
-                    >
-                      <Sparkles className="w-3 h-3" />
-                      <span>Ask Sol AI in Chat</span>
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        data-testid={`export-quiz-btn-${ann.id}`}
+                        disabled={exportingQuizId === ann.id}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleExportQuiz(ann);
+                        }}
+                        className={`flex items-center gap-1 text-[10px] font-bold transition-colors cursor-pointer ${
+                          exportedSuccessId === ann.id
+                            ? 'text-emerald-400 font-bold'
+                            : 'text-amber-400 hover:text-amber-300 hover:underline'
+                        }`}
+                        title="Export this code concept to Spaced Repetition Quiz queue"
+                      >
+                        <GraduationCap className="w-3 h-3" />
+                        <span>
+                          {exportedSuccessId === ann.id
+                            ? 'Quiz Created!'
+                            : exportingQuizId === ann.id
+                            ? 'Exporting...'
+                            : 'Export Quiz'}
+                        </span>
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleAskSolAboutAnnotation(ann);
+                        }}
+                        className="flex items-center gap-1 text-[10px] font-bold text-purple-400 hover:text-purple-300 hover:underline cursor-pointer"
+                        title="Open full conversation with Sol AI Companion"
+                      >
+                        <Sparkles className="w-3 h-3" />
+                        <span>Ask Sol AI in Chat</span>
+                      </button>
+                    </div>
                   </div>
 
                   {/* Thread Messages */}
@@ -534,11 +594,13 @@ export const AnnotationDock: React.FC<AnnotationDockProps> = ({
                           className={`p-1.5 rounded text-[10.5px] leading-relaxed ${
                             t.sender === 'SOL_AI'
                               ? 'bg-purple-950/40 border border-purple-500/20 text-purple-200'
+                              : t.sender === 'SYSTEM'
+                              ? 'bg-emerald-950/40 border border-emerald-500/30 text-emerald-200'
                               : 'bg-white/5 text-neutral-200'
                           }`}
                         >
                           <div className="font-bold text-[9px] text-neutral-400 mb-0.5">
-                            {t.sender === 'SOL_AI' ? '✨ Sol AI' : 'You'}
+                            {t.sender === 'SOL_AI' ? '✨ Sol AI' : t.sender === 'SYSTEM' ? '⚡ System' : 'You'}
                           </div>
                           <div>{t.message}</div>
                         </div>

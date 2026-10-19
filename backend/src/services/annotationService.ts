@@ -100,6 +100,21 @@ export class AnnotationService {
     return res.rows.map(toCodeAnnotationDTO);
   }
 
+  public async getAnnotationsByTopic(topicId: string): Promise<(CodeAnnotationDTO & { repoName?: string })[]> {
+    const res = await query<CodeAnnotationRow & { repo_name?: string }>(
+      `SELECT ca.*, r.name as repo_name 
+       FROM code_annotations ca
+       LEFT JOIN repositories r ON r.id = ca.repository_id
+       WHERE ca.topic_id = $1 
+       ORDER BY ca.updated_at DESC`,
+      [topicId]
+    );
+    return res.rows.map((row) => ({
+      ...toCodeAnnotationDTO(row),
+      repoName: row.repo_name || undefined
+    }));
+  }
+
   public async getAnnotationById(id: string): Promise<CodeAnnotationDTO | null> {
     const res = await query<CodeAnnotationRow>(
       `SELECT * FROM code_annotations WHERE id = $1`,

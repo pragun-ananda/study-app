@@ -86,6 +86,10 @@ export default function TelemetryHUD() {
   const fetchRepositories = useRepoStore((state) => state.fetchRepositories);
   const openRepoViewer = useRepoStore((state) => state.openRepoViewer);
   const setIsImportModalOpen = useRepoStore((state) => state.setIsImportModalOpen);
+  const rawTopicAnnotations = useRepoStore((state) => state.topicAnnotations);
+  const topicAnnotations = Array.isArray(rawTopicAnnotations) ? rawTopicAnnotations : [];
+  const fetchTopicAnnotations = useRepoStore((state) => state.fetchTopicAnnotations);
+  const openAnnotationInViewer = useRepoStore((state) => state.openAnnotationInViewer);
 
   // Ingestion State & Actions
   const ingestUrl = useStore((state) => state.ingestUrl);
@@ -325,6 +329,13 @@ export default function TelemetryHUD() {
   useEffect(() => {
     fetchRepositories();
   }, [fetchRepositories]);
+
+  // Load topic annotations when selected node changes
+  useEffect(() => {
+    if (selectedNode?.id) {
+      fetchTopicAnnotations(selectedNode.id);
+    }
+  }, [selectedNode?.id, fetchTopicAnnotations]);
 
   const filteredRepositories = useMemo(() => {
     if (!Array.isArray(repositories)) return [];
@@ -1123,7 +1134,10 @@ export default function TelemetryHUD() {
                             <span className={isLight ? 'text-slate-500' : 'text-slate-400'}>
                               ★ {repo.starsCount ? repo.starsCount.toLocaleString() : '0'}
                             </span>
-                            <span className={`font-bold flex items-center gap-1 ${isLight ? 'text-sky-600' : 'text-[#00f0ff]'}`}>
+                            <span
+                              data-testid="open-repo-studio-btn"
+                              className={`font-bold flex items-center gap-1 ${isLight ? 'text-sky-600' : 'text-[#00f0ff]'}`}
+                            >
                               <span>{repo.annotationsCount || 0} Notes</span>
                               <ArrowRight size={10} className="group-hover:translate-x-0.5 transition-transform" />
                             </span>
@@ -1878,6 +1892,72 @@ export default function TelemetryHUD() {
                                 }`}
                               >
                                 {prob.difficulty}
+                              </span>
+                              <span
+                                className="text-xs font-bold opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all"
+                                style={{ color: selectedNodeColor }}
+                              >
+                                →
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 6. ASSOCIATED CODE REPOSITORIES & ANNOTATIONS */}
+                  {topicAnnotations.length > 0 && (
+                    <div className={`pt-2.5 border-t space-y-2 ${isLight ? 'border-slate-200' : 'border-white/10'}`}>
+                      <div className="flex items-center justify-between text-[11px] font-bold">
+                        <div className="flex items-center gap-1.5" style={{ color: selectedNodeColor }}>
+                          <FolderGit2 size={13} />
+                          <span>CODE REPOSITORY ANNOTATIONS</span>
+                        </div>
+                        <span className="text-[10px] font-mono opacity-80" style={{ color: selectedNodeColor }}>
+                          {topicAnnotations.length} ANNOTATION{topicAnnotations.length > 1 ? 'S' : ''}
+                        </span>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        {topicAnnotations.map((ann) => (
+                          <div
+                            key={ann.id}
+                            data-testid="inspector-repo-annotation-item"
+                            onClick={() => {
+                              openAnnotationInViewer(ann.repositoryId, ann.filePath, ann.id);
+                              setIsInspectorOpen(false);
+                              setIsSidebarOpen(false);
+                            }}
+                            style={{
+                              borderColor: `${selectedNodeColor}40`
+                            }}
+                            className={`p-2.5 rounded-lg border text-[11px] cursor-pointer transition-all flex items-center justify-between group shadow-sm hover:scale-[1.02] ${
+                              isLight
+                                ? 'bg-white/95 hover:bg-slate-50 text-slate-800 hover:border-sky-400'
+                                : 'bg-slate-950/80 hover:bg-slate-900 text-slate-200 hover:border-[#00f0ff]/60'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5 truncate">
+                              <GitBranch
+                                size={14}
+                                className="flex-shrink-0 group-hover:scale-110 transition-transform"
+                                style={{ color: selectedNodeColor }}
+                              />
+                              <div className="truncate min-w-0">
+                                <span className="truncate font-semibold block group-hover:text-sky-500 dark:group-hover:text-[#00f0ff] transition-colors">
+                                  {ann.title}
+                                </span>
+                                <span className="text-[9.5px] font-mono text-slate-400">
+                                  {ann.repoName || 'Repo'} • {ann.filePath.split('/').pop()}:{ann.startLine}-{ann.endLine}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1.5 ml-2 flex-shrink-0">
+                              <span
+                                className="text-[9px] font-mono px-1.5 py-0.5 rounded font-bold uppercase bg-purple-500/10 text-purple-400"
+                              >
+                                {ann.designCategory}
                               </span>
                               <span
                                 className="text-xs font-bold opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all"

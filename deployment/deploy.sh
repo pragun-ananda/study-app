@@ -97,6 +97,68 @@ case "$ACTION" in
     update)
         "$DIR/auto-update.sh" --force
         ;;
+    server-start)
+        PID_FILE="/tmp/study_app_server.pid"
+        if [ -f "$PID_FILE" ]; then
+            EXISTING_PID="$(cat "$PID_FILE" 2>/dev/null || echo "")"
+            if [ -n "$EXISTING_PID" ] && kill -0 "$EXISTING_PID" 2>/dev/null; then
+                echo "ℹ️  Server daemon is already running (PID: $EXISTING_PID)."
+                exit 0
+            fi
+        fi
+        echo "🚀 Starting Study App background server daemon on port 3000..."
+        nohup "$DIR/server-daemon.sh" >/dev/null 2>&1 &
+        sleep 2
+        NEW_PID="$(cat "$PID_FILE" 2>/dev/null || echo "")"
+        echo "✅ Server daemon started successfully (PID: ${NEW_PID:-unknown})."
+        ;;
+    server-stop)
+        PID_FILE="/tmp/study_app_server.pid"
+        STOPPED=false
+        if [ -f "$PID_FILE" ]; then
+            EXISTING_PID="$(cat "$PID_FILE" 2>/dev/null || echo "")"
+            if [ -n "$EXISTING_PID" ] && kill -0 "$EXISTING_PID" 2>/dev/null; then
+                kill "$EXISTING_PID" 2>/dev/null || true
+                rm -f "$PID_FILE"
+                echo "🛑 Stopped server daemon (PID: $EXISTING_PID)."
+                STOPPED=true
+            fi
+        fi
+        pkill -f "server-daemon.sh" 2>/dev/null && STOPPED=true || true
+        lsof -ti:3000 | xargs kill -9 2>/dev/null || true
+        if [ "$STOPPED" = false ]; then
+            echo "ℹ️  No active server daemon process found."
+        fi
+        ;;
+    server-status)
+        echo "=== Study App Background Server Status ==="
+        DAEMON_PID="$(pgrep -f "deployment/server-daemon.sh" 2>/dev/null | head -n 1 || echo "")"
+        if [ -n "$DAEMON_PID" ] && kill -0 "$DAEMON_PID" 2>/dev/null; then
+            echo "✅ Server Supervisor Daemon: RUNNING (PID: $DAEMON_PID)"
+            echo "$DAEMON_PID" > "/tmp/study_app_server.pid"
+        else
+            echo "ℹ️  Server Supervisor Daemon: INACTIVE"
+        fi
+
+        if lsof -i :3000 >/dev/null 2>&1; then
+            echo "✅ Port 3000 Listener: ACTIVE"
+            lsof -i :3000 | grep LISTEN || true
+        else
+            echo "⚠️  Port 3000 Listener: INACTIVE"
+        fi
+
+        if curl -fsS "http://localhost:3000/health" >/dev/null 2>&1; then
+            echo "✅ Health Endpoint: http://localhost:3000/health (Status: OK)"
+        else
+            echo "⚠️  Health Endpoint: http://localhost:3000/health NOT REACHABLE"
+        fi
+        ;;
+    server-logs)
+        LOG_FILE="/Users/cheese/Library/Logs/study-app.log"
+        touch "$LOG_FILE"
+        echo "📄 Streaming $LOG_FILE (Ctrl+C to exit)..."
+        tail -f "$LOG_FILE"
+        ;;
     autoupdate-start)
         PID_FILE="/tmp/study_app_daemon.pid"
         if [ -f "$PID_FILE" ]; then
@@ -219,7 +281,7 @@ EOF
         tail -f "$LOG_FILE"
         ;;
     *)
-        echo "Usage: $0 {up|down|restart|build|logs [service]|status|backup|seed|update|autoupdate-start|autoupdate-stop|autoupdate-status|autoupdate-logs|autoupdate-install|autoupdate-uninstall}"
+        echo "Usage: $0 {server-start|server-stop|server-status|server-logs|up|down|restart|build|logs [service]|status|backup|seed|update|autoupdate-start|autoupdate-stop|autoupdate-status|autoupdate-logs|autoupdate-install|autoupdate-uninstall}"
         exit 1
         ;;
 esac

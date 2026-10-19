@@ -170,4 +170,22 @@ describe('AnnotationDock', () => {
     const lastMsg = messages[messages.length - 1];
     expect(lastMsg.text).toContain('src/server.c');
   });
+
+  it('exports annotation to spaced repetition quiz on export quiz click', async () => {
+    const anns = useRepoStore.getState().annotations;
+    useRepoStore.setState({
+      activeRepoId: 'REPO-1',
+      annotations: anns.map((a) => (a.id === 'ANN-101' ? { ...a, topicId: 'TOPIC-1' } : a))
+    });
+
+    render(<AnnotationDock currentFileContent="" />);
+
+    const exportBtn = screen.getByTestId('export-quiz-btn-ANN-101');
+    expect(exportBtn).toBeInTheDocument();
+    fireEvent.click(exportBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText('Quiz Created!')).toBeInTheDocument();
+    });
+  });
 });
