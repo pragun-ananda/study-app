@@ -109,7 +109,7 @@ test.describe('Code Repository Documentation & Architectural Learning Engine (Mi
     await expect(solDrawer.getByText(/src\/ae.c/i)).toBeVisible();
 
     // Close Sol drawer and studio modal
-    await page.getByTitle('Close conversation').click();
+    await page.getByLabel('Close Sol Chat').click();
     await page.getByTestId('close-repo-viewer-button').click();
   });
 
