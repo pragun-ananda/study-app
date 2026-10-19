@@ -91,7 +91,9 @@ export default function CreateNodeModal() {
     setErrorMessage(null);
 
     try {
-      const coordinates = calculateNewNodeCoordinates(category, topicNodes);
+      const coordinates = calculateNewNodeCoordinates(category, topicNodes, {
+        prerequisiteIds: selectedPrereqs
+      });
 
       const created = await addTopicNode({
         name: trimmedName,

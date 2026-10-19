@@ -234,46 +234,176 @@ export function calculateOverviewFramingDistance(
   return Math.max(54.0, Math.min(75.0, Number(calculatedZ.toFixed(1))));
 }
 
+export interface NewNodeCoordinateOptions {
+  prerequisiteIds?: string[];
+  minSeparation?: number;
+}
+
 /**
  * Calculates responsive 3D Cartesian coordinates [x, y, z] for a newly created topic node.
- * Automatically clusters the node near existing peers in the same domain category,
- * or positions it on a radial orbit for empty / emergent categories.
+ * Natural outward expansion: Nodes grow the graph outwards away from the cosmos center and cluster frontier,
+ * preserving natural branching angles while strictly avoiding collisions with existing nodes so they never
+ * overlap when clicked on or otherwise.
  */
 export function calculateNewNodeCoordinates(
   category: string,
-  existingNodes: TopicNode[]
+  existingNodes: TopicNode[],
+  options?: NewNodeCoordinateOptions
 ): [number, number, number] {
-  const categoryNodes = existingNodes.filter((n) => n.category === category);
+  const minSeparation = options?.minSeparation ?? 4.2;
 
-  if (categoryNodes.length > 0) {
-    const sumX = categoryNodes.reduce((acc, n) => acc + (Number(n.coordinates[0]) || 0), 0);
-    const sumY = categoryNodes.reduce((acc, n) => acc + (Number(n.coordinates[1]) || 0), 0);
-    const sumZ = categoryNodes.reduce((acc, n) => acc + (Number(n.coordinates[2]) || 0), 0);
+  // 1. Identify Anchor Nodes: Prerequisite nodes take precedence if provided, otherwise category peers
+  let anchorNodes: TopicNode[] = [];
+  if (options?.prerequisiteIds && options.prerequisiteIds.length > 0) {
+    const prereqSet = new Set(options.prerequisiteIds);
+    anchorNodes = existingNodes.filter((n) => prereqSet.has(n.id));
+  }
+  if (anchorNodes.length === 0) {
+    anchorNodes = existingNodes.filter((n) => n.category === category);
+  }
 
-    const avgX = sumX / categoryNodes.length;
-    const avgY = sumY / categoryNodes.length;
-    const avgZ = sumZ / categoryNodes.length;
+  // Distance calculator to all existing nodes in graph
+  const getMinDistanceToExisting = (x: number, y: number, z: number): number => {
+    if (!existingNodes || existingNodes.length === 0) return Infinity;
+    let minDist = Infinity;
+    for (const node of existingNodes) {
+      const [nx, ny, nz] = node.coordinates;
+      const dx = x - nx;
+      const dy = y - ny;
+      const dz = z - nz;
+      const d = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      if (d < minDist) minDist = d;
+    }
+    return minDist;
+  };
 
-    // Radial jitter around cluster centroid
-    const angle = Math.random() * Math.PI * 2;
-    const distance = 3.5 + Math.random() * 2.0;
-    const newX = avgX + Math.cos(angle) * distance;
-    const newY = avgY + Math.sin(angle) * distance;
-    const newZ = avgZ + (Math.random() - 0.5) * 2.5;
+  // 2. Case A: Anchor Nodes Exist (Category Cluster or Prerequisite Branch)
+  if (anchorNodes.length > 0) {
+    const sumX = anchorNodes.reduce((acc, n) => acc + (Number(n.coordinates[0]) || 0), 0);
+    const sumY = anchorNodes.reduce((acc, n) => acc + (Number(n.coordinates[1]) || 0), 0);
+    const sumZ = anchorNodes.reduce((acc, n) => acc + (Number(n.coordinates[2]) || 0), 0);
 
+    const avgX = sumX / anchorNodes.length;
+    const avgY = sumY / anchorNodes.length;
+    const avgZ = sumZ / anchorNodes.length;
+
+    // Outward radial unit vector from cosmos center (0, 0, 0) through cluster centroid
+    const centroidOriginDist = Math.sqrt(avgX * avgX + avgY * avgY + avgZ * avgZ);
+    let outX = centroidOriginDist > 0.001 ? avgX / centroidOriginDist : 1;
+    let outY = centroidOriginDist > 0.001 ? avgY / centroidOriginDist : 0;
+    let outZ = centroidOriginDist > 0.001 ? avgZ / centroidOriginDist : 0;
+
+    // Compute outward frontier: furthest reach of cluster nodes along outward direction
+    let maxProjection = -Infinity;
+    for (const node of anchorNodes) {
+      const [nx, ny, nz] = node.coordinates;
+      const proj = nx * outX + ny * outY + nz * outZ;
+      if (proj > maxProjection) maxProjection = proj;
+    }
+
+    const centroidProjection = avgX * outX + avgY * outY + avgZ * outZ;
+    const frontierOffset = Math.max(0, maxProjection - centroidProjection);
+
+    // Orthonormal tangent basis perpendicular to outward direction
+    const upX = Math.abs(outZ) > 0.85 ? 0 : 0;
+    const upY = Math.abs(outZ) > 0.85 ? 1 : 0;
+    const upZ = Math.abs(outZ) > 0.85 ? 0 : 1;
+
+    let t1X = outY * upZ - outZ * upY;
+    let t1Y = outZ * upX - outX * upZ;
+    let t1Z = outX * upY - outY * upX;
+    const t1Len = Math.sqrt(t1X * t1X + t1Y * t1Y + t1Z * t1Z) || 1;
+    t1X /= t1Len;
+    t1Y /= t1Len;
+    t1Z /= t1Len;
+
+    const t2X = outY * t1Z - outZ * t1Y;
+    const t2Y = outZ * t1X - outX * t1Z;
+    const t2Z = outX * t1Y - outY * t1X;
+
+    // Start search distance beyond cluster frontier
+    const initialBaseDist = Math.max(3.8 + Math.random() * 0.8, frontierOffset + minSeparation * 0.85);
+
+    let bestCandidate: [number, number, number] | null = null;
+    let bestScore = -Infinity;
+
+    // Progressive outward expansion search (up to 12 outward expansion steps)
+    for (let expandStep = 0; expandStep < 12; expandStep++) {
+      const currentRadius = initialBaseDist + expandStep * 1.5;
+      const numSamples = 20;
+
+      for (let i = 0; i < numSamples; i++) {
+        const phi = i * Math.PI * (3 - Math.sqrt(5)); // Golden spiral distribution
+        const theta = (i / numSamples) * (Math.PI / 4.5); // Natural fan cone (up to 40 deg)
+
+        const sinT = Math.sin(theta);
+        const cosT = Math.cos(theta);
+        const cosP = Math.cos(phi);
+        const sinP = Math.sin(phi);
+
+        const dirX = outX * cosT + (t1X * cosP + t2X * sinP) * sinT;
+        const dirY = outY * cosT + (t1Y * cosP + t2Y * sinP) * sinT;
+        const dirZ = outZ * cosT + (t1Z * cosP + t2Z * sinP) * sinT;
+
+        const candX = avgX + dirX * currentRadius;
+        const candY = avgY + dirY * currentRadius;
+        const candZ = avgZ + dirZ * currentRadius;
+
+        const dist = getMinDistanceToExisting(candX, candY, candZ);
+
+        if (dist >= minSeparation) {
+          // Zero overlap collision-free candidate found
+          const proj = candX * outX + candY * outY + candZ * outZ;
+          const score = dist * 2.0 + proj * 1.2 - expandStep * 2.5;
+          if (score > bestScore) {
+            bestScore = score;
+            bestCandidate = [candX, candY, candZ];
+          }
+        }
+      }
+
+      if (bestCandidate) {
+        break;
+      }
+    }
+
+    if (bestCandidate) {
+      return [
+        Number(bestCandidate[0].toFixed(2)),
+        Number(bestCandidate[1].toFixed(2)),
+        Number(bestCandidate[2].toFixed(2))
+      ];
+    }
+
+    // High density fallback: step cleanly outward along outDir
+    const safeDist = frontierOffset + minSeparation + 2.0;
+    const fbX = avgX + outX * safeDist;
+    const fbY = avgY + outY * safeDist;
+    const fbZ = avgZ + outZ * safeDist;
     return [
-      Number(newX.toFixed(2)),
-      Number(newY.toFixed(2)),
-      Number(newZ.toFixed(2))
+      Number(fbX.toFixed(2)),
+      Number(fbY.toFixed(2)),
+      Number(fbZ.toFixed(2))
     ];
   }
 
-  // Fallback for empty/emergent categories or empty graph
+  // 3. Case B: Empty category or empty graph (Radial Orbit Fallback)
+  let maxGraphRadius = 0;
+  for (const n of existingNodes) {
+    const [nx, ny] = n.coordinates;
+    const d = Math.sqrt(nx * nx + ny * ny);
+    if (d > maxGraphRadius) maxGraphRadius = d;
+  }
+
+  // Preserve 18.0 base orbit for initial graphs; expand outward if graph has grown beyond 18.0
+  const baseRadius = existingNodes.length > 0 && maxGraphRadius > 18.0
+    ? maxGraphRadius + 4.5
+    : 18.0;
+
   const angle = Math.random() * Math.PI * 2;
-  const radius = 18.0;
-  const newX = Math.cos(angle) * radius;
-  const newY = Math.sin(angle) * radius;
-  const newZ = (Math.random() - 0.5) * 5.0;
+  const newX = Math.cos(angle) * baseRadius;
+  const newY = Math.sin(angle) * baseRadius;
+  const newZ = (Math.random() - 0.5) * 4.0;
 
   return [
     Number(newX.toFixed(2)),
