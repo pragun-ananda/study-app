@@ -278,6 +278,98 @@ describe('Graph Spatial Layout: calculateNewNodeCoordinates', () => {
     expect(coords).toHaveLength(3);
     expect(coords.every((c) => typeof c === 'number' && !isNaN(c) && isFinite(c))).toBe(true);
   });
+
+  it('progressively expands cluster outward when adding sequential nodes without overlapping', () => {
+    const nodes: TopicNode[] = [
+      { ...createMockNode('N0', 'Root'), category: 'SYSTEMS', coordinates: [15, 10, 0] }
+    ];
+
+    // Sequentially add 8 new nodes to the SYSTEMS category
+    for (let i = 1; i <= 8; i++) {
+      const coords = calculateNewNodeCoordinates('SYSTEMS', nodes);
+      const newNode: TopicNode = {
+        ...createMockNode(`N${i}`, `Node ${i}`),
+        category: 'SYSTEMS',
+        coordinates: coords
+      };
+
+      // Verify that the new node does not collide with ANY existing node
+      for (const existing of nodes) {
+        const dx = coords[0] - existing.coordinates[0];
+        const dy = coords[1] - existing.coordinates[1];
+        const dz = coords[2] - existing.coordinates[2];
+        const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        expect(dist).toBeGreaterThanOrEqual(4.1);
+      }
+
+      nodes.push(newNode);
+    }
+
+    // Verify cluster boundary expanded outward from origin
+    const initialDistFromOrigin = Math.sqrt(15 * 15 + 10 * 10);
+    const maxFinalDist = Math.max(
+      ...nodes.map((n) => Math.sqrt(n.coordinates[0] ** 2 + n.coordinates[1] ** 2 + n.coordinates[2] ** 2))
+    );
+    expect(maxFinalDist).toBeGreaterThan(initialDistFromOrigin + 6.0);
+  });
+
+  it('branches outward from prerequisite node when prerequisiteIds are provided', () => {
+    const prereqNode: TopicNode = {
+      ...createMockNode('PREREQ', 'Prereq Concept'),
+      category: 'AI & ML',
+      coordinates: [25, 20, 5]
+    };
+    const otherNode: TopicNode = {
+      ...createMockNode('OTHER', 'Other Concept'),
+      category: 'AI & ML',
+      coordinates: [-10, -10, 0]
+    };
+
+    const coords = calculateNewNodeCoordinates('AI & ML', [prereqNode, otherNode], {
+      prerequisiteIds: ['PREREQ']
+    });
+
+    // Distance from the prerequisite anchor should be close, branching outward from it
+    const distToPrereq = Math.sqrt(
+      (coords[0] - prereqNode.coordinates[0]) ** 2 +
+      (coords[1] - prereqNode.coordinates[1]) ** 2 +
+      (coords[2] - prereqNode.coordinates[2]) ** 2
+    );
+    expect(distToPrereq).toBeGreaterThanOrEqual(4.0);
+    expect(distToPrereq).toBeLessThan(12.0);
+
+    // Far from the unrelated category node
+    const distToOther = Math.sqrt(
+      (coords[0] - otherNode.coordinates[0]) ** 2 +
+      (coords[1] - otherNode.coordinates[1]) ** 2 +
+      (coords[2] - otherNode.coordinates[2]) ** 2
+    );
+    expect(distToOther).toBeGreaterThan(30.0);
+  });
+
+  it('leaves sufficient clearance for enlarged node scale (1.85x) and orbital rings when clicked', () => {
+    const existing: TopicNode[] = [
+      { ...createMockNode('A', 'Existing A'), category: 'CS', coordinates: [10, 10, 2] },
+      { ...createMockNode('B', 'Existing B'), category: 'CS', coordinates: [14, 12, 1] }
+    ];
+
+    const coords = calculateNewNodeCoordinates('CS', existing);
+
+    // When clicked, node scales to 1.85x (sphere radius 0.52 * 1.85 = 0.962, ring radius 0.82 * 1.85 = 1.517)
+    // Neighbor node radius is 0.52 (or 0.754 if hovered).
+    // Sum of max radii: 0.962 + 0.754 = 1.716; sum of orbital rings: 1.517 + 1.189 = 2.706.
+    for (const node of existing) {
+      const dist = Math.sqrt(
+        (coords[0] - node.coordinates[0]) ** 2 +
+        (coords[1] - node.coordinates[1]) ** 2 +
+        (coords[2] - node.coordinates[2]) ** 2
+      );
+      // Ensure zero geometric overlap even when clicked: distance > sum of clicked radii + generous clearance
+      expect(dist).toBeGreaterThanOrEqual(4.1);
+      const surfaceGapWhenClicked = dist - (0.962 + 0.754);
+      expect(surfaceGapWhenClicked).toBeGreaterThan(2.0);
+    }
+  });
 });
 
 describe('Graph 2D Topological Sort Layout: calculateTopological2DLayout', () => {
