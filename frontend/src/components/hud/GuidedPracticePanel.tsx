@@ -14,7 +14,7 @@ interface GuidedPracticePanelProps {
   onRevealSolution: () => void;
 }
 
-type Mode = 'intro' | 'diagnostics' | 'stages' | 'transfer' | 'complete';
+type Mode = 'intro' | 'initial-attempt' | 'diagnostics' | 'stages' | 'transfer' | 'complete';
 
 export default function GuidedPracticePanel({ problemId, isLight, onAttemptStarted, onRevealSolution }: GuidedPracticePanelProps) {
   const [path, setPath] = useState<InterviewLearningPath | null>(null);
@@ -66,7 +66,7 @@ export default function GuidedPracticePanel({ problemId, isLight, onAttemptStart
       const started = await startInterviewLearningAttempt(problemId);
       setAttempt(started);
       onAttemptStarted();
-      setMode('diagnostics');
+      setMode(path.initialAttemptPrompt ? 'initial-attempt' : 'diagnostics');
       setIndex(0);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not start this practice attempt.');
@@ -92,6 +92,22 @@ export default function GuidedPracticePanel({ problemId, isLight, onAttemptStart
       setSaved(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not save this response.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const saveInitialAttempt = async () => {
+    if (!attempt || !response.trim()) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await sendEvent('INITIAL_ATTEMPT', undefined, { response: response.trim() });
+      setResponse('');
+      setMode('diagnostics');
+      setIndex(0);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not save your first attempt.');
     } finally {
       setBusy(false);
     }
@@ -224,6 +240,26 @@ export default function GuidedPracticePanel({ problemId, isLight, onAttemptStart
             </button>
           </>
         )}
+
+      {mode === 'initial-attempt' && <div className={`rounded-xl border p-4 ${cardClass}`}>
+        <div className={`text-[10px] font-mono uppercase tracking-widest ${secondaryClass}`}>Your first model · before the breakdown</div>
+        <p className="mt-3 text-sm font-medium">{path.initialAttemptPrompt}</p>
+        <textarea value={response} onChange={(event) => setResponse(event.target.value)} rows={5} className={`mt-3 w-full rounded-lg border p-3 text-xs ${isLight ? 'border-slate-300 bg-slate-50' : 'border-slate-700 bg-slate-900'}`} aria-label="Your initial problem analysis" />
+        <button type="button" onClick={saveInitialAttempt} disabled={busy || !response.trim()} className={`mt-3 rounded-lg border px-3 py-2 text-xs font-bold disabled:opacity-50 ${buttonClass}`}>Save first attempt and continue</button>
+      </div>}
+
+      {attempt && path.problemBreakdown && mode !== 'intro' && mode !== 'initial-attempt' && <details className={`rounded-xl border p-4 ${cardClass}`} data-testid="problem-breakdown">
+        <summary className="cursor-pointer text-sm font-bold">Checked problem breakdown</summary>
+        <div className="mt-4 space-y-4 text-xs">
+          <section><h3 className="font-bold">Contract and scope</h3><p className={`mt-1 ${secondaryClass}`}>{path.problemBreakdown.framing.userGoal}</p><ul className={`mt-1 list-disc pl-4 ${secondaryClass}`}>{path.problemBreakdown.framing.assumptions.map((item) => <li key={item}>{item}</li>)}</ul></section>
+          <section><h3 className="font-bold">Operations</h3><ul className={`mt-1 list-disc pl-4 ${secondaryClass}`}>{path.problemBreakdown.contract.map((item) => <li key={item.operation}><strong>{item.operation}</strong>: {item.behavior} ({item.complexity})</li>)}</ul></section>
+          <section><h3 className="font-bold">States and transitions</h3><p className={`mt-1 ${secondaryClass}`}>{path.problemBreakdown.states.map((state) => `${state.id}: ${state.meaning}`).join(' · ')}</p><ul className={`mt-1 list-disc pl-4 ${secondaryClass}`}>{path.problemBreakdown.transitions.map((item, i) => <li key={`${item.from}-${item.to}-${i}`}>{item.from} → {item.to} on {item.event}: {item.effect}</li>)}</ul></section>
+          <section><h3 className="font-bold">Invariants</h3><ul className={`mt-1 list-disc pl-4 ${secondaryClass}`}>{path.problemBreakdown.invariants.map((item) => <li key={item.id}>{item.statement}</li>)}</ul></section>
+          <section><h3 className="font-bold">Failure analysis and test coverage</h3><ul className={`mt-1 list-disc pl-4 ${secondaryClass}`}>{path.problemBreakdown.failureScenarios.map((item) => <li key={item.id}><strong>{item.id}</strong>: {item.queueBehavior}{item.sourceTestNames.length ? ` · source tests: ${item.sourceTestNames.join(', ')}` : ` · coverage gap: ${item.additionalTestRecommendation}`}</li>)}</ul></section>
+          <section><h3 className="font-bold">Complexity and guarantees</h3><ul className={`mt-1 list-disc pl-4 ${secondaryClass}`}>{path.problemBreakdown.complexity.map((item) => <li key={item.operation}>{item.operation}: {item.time} time, {item.space} space — {item.qualification}</li>)}</ul><p className={`mt-2 ${secondaryClass}`}>{path.problemBreakdown.deliverySemantics.guarantee} {path.problemBreakdown.deliverySemantics.exactlyOnceEffectRequires}</p></section>
+          <p className={secondaryClass}>Source review: {path.problemBreakdown.sourceReview.status}. This review checks structure and traceability; it does not execute or prove the supplied implementation.</p>
+        </div>
+      </details>}
       </header>
 
       {mode === 'diagnostics' && path.concepts[index] && (() => {

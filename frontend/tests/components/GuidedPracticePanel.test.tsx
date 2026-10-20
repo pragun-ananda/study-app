@@ -63,4 +63,36 @@ describe('GuidedPracticePanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Reveal the canonical solution' }));
     await waitFor(() => expect(onRevealSolution).toHaveBeenCalledOnce());
   });
+
+  it('records an initial attempt before revealing the checked breakdown', async () => {
+    const queuePath = {
+      ...pilotPath,
+      initialAttemptPrompt: 'Explain your task states and crash recovery.',
+      problemBreakdown: {
+        framing: { userGoal: 'Keep each task accounted for.', assumptions: ['Workers may crash.'], outOfScope: [], clarifications: [] },
+        contract: [{ operation: 'claim', behavior: 'Lease oldest pending task.', complexity: 'O(log n) amortized' }],
+        states: [{ id: 'PENDING', meaning: 'Waiting for a worker.', terminal: false }],
+        transitions: [{ from: 'PENDING', to: 'LEASED', event: 'claim', guard: 'Pending work exists.', effect: 'Assign lease.' }],
+        invariants: [{ id: 'conservation', statement: 'Every submitted task has one tracked state.' }],
+        failureScenarios: [{ id: 'worker_crash', situation: 'Worker exits.', queueBehavior: 'Lease expires and task is retried.', sourceTestNames: ['test_worker_crash'] }],
+        complexity: [{ operation: 'claim', time: 'O(log n)', space: 'O(1)', qualification: 'Heap entries are popped once.' }],
+        deliverySemantics: { guarantee: 'At-least-once.', duplicatesPossible: true, exactlyOnceEffectRequires: 'Idempotency at the destination.' },
+        sourceReview: { status: 'PILOT_REVIEWED' as const, notes: ['Source-linked review.'] }
+      }
+    } as any;
+    vi.mocked(api.fetchInterviewLearningPath).mockResolvedValue(queuePath);
+    render(<GuidedPracticePanel problemId={pilotPath.problemId} isLight onAttemptStarted={vi.fn()} onRevealSolution={vi.fn()} />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Start an attempt' }));
+    const response = await screen.findByRole('textbox', { name: 'Your initial problem analysis' });
+    fireEvent.change(response, { target: { value: 'PENDING moves to LEASED; the task remains in the task map.' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save first attempt and continue' }));
+
+    await waitFor(() => expect(api.recordInterviewLearningEvent).toHaveBeenCalledWith(
+      pilotPath.problemId, 'ATTEMPT-1', expect.objectContaining({ eventType: 'INITIAL_ATTEMPT' })
+    ));
+    expect(await screen.findByTestId('problem-breakdown')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Checked problem breakdown'));
+    expect(await screen.findByText('Keep each task accounted for.')).toBeInTheDocument();
+  });
 });
