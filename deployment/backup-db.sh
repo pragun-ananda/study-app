@@ -69,4 +69,23 @@ else
     echo "✅ No expired backups to prune (Retained ${#BACKUPS[@]}/14)."
 fi
 
+# ==============================================================================
+# Step 3: Offsite Backup Dispatch via Tailscale (Taildrop) if configured
+# ==============================================================================
+TAILSCALE_SYNC_DEVICE="${TAILSCALE_SYNC_DEVICE:-}"
+
+if [ -n "$TAILSCALE_SYNC_DEVICE" ]; then
+    echo "=== [3/3] Offsite Backup Dispatch via Tailscale ==="
+    if command -v tailscale >/dev/null 2>&1; then
+        echo "📡 Sending backup to Tailscale host '$TAILSCALE_SYNC_DEVICE' via Taildrop..."
+        if tailscale file cp "$BACKUP_FILE" "${TAILSCALE_SYNC_DEVICE}:" 2>/dev/null; then
+            echo "✅ Successfully dispatched offsite backup to '$TAILSCALE_SYNC_DEVICE'."
+        else
+            echo "⚠️ Warning: Failed to send backup to '$TAILSCALE_SYNC_DEVICE' (device may be offline or Taildrop not accepted). Local backup remains safe."
+        fi
+    else
+        echo "⚠️ Warning: 'tailscale' binary not found in PATH ($PATH). Skipping offsite sync."
+    fi
+fi
+
 echo "=== Database Backup Complete ==="
