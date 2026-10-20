@@ -67,7 +67,12 @@ describe('GuidedPracticePanel', () => {
   it('records an initial attempt before revealing the checked breakdown', async () => {
     const queuePath = {
       ...practicePath,
-      concepts: [{ ...practicePath.concepts[0], topicId: 'TOPIC-HASH-RING' }],
+      interpretation: { ...practicePath.interpretation, goal: 'Implement a thread-safe in-process queue that moves failed work to a dead-letter queue.' },
+      concepts: [
+        { ...practicePath.concepts[0], topicId: 'TOPIC-THREAD-SAFETY', terms: ['thread-safe'] },
+        { ...practicePath.concepts[0], id: 'process-boundary', name: 'Process boundary', topicId: 'TOPIC-IN-PROCESS', terms: ['in-process'] },
+        { ...practicePath.concepts[0], id: 'dead-letter', name: 'Dead letter queue', topicId: 'TOPIC-DEAD-LETTER', terms: ['dead-letter queue'] }
+      ],
       initialAttemptPrompt: 'Explain your task states and crash recovery.',
       problemBreakdown: {
         framing: { userGoal: 'Keep each task accounted for.', assumptions: ['Workers may crash.'], outOfScope: [], clarifications: [] },
@@ -82,12 +87,19 @@ describe('GuidedPracticePanel', () => {
       }
     } as any;
     vi.mocked(api.fetchInterviewLearningPath).mockResolvedValue(queuePath);
-    const topic = { id: 'TOPIC-HASH-RING', name: 'Consistent Hashing', category: 'SYSTEMS', mastery: 85, status: 'MASTERED', lastReviewed: new Date().toISOString(), coordinates: [0, 0, 0], prerequisites: [], unlocks: [], summary: 'Hashing' } as any;
+    const topic = { id: 'TOPIC-THREAD-SAFETY', name: 'Thread Safety', category: 'SYSTEMS', mastery: 0, status: 'NEW', lastReviewed: new Date().toISOString(), coordinates: [0, 0, 0], prerequisites: [], unlocks: [], summary: 'Shared state across concurrent operations.' } as any;
+    const topics = [
+      topic,
+      { ...topic, id: 'TOPIC-IN-PROCESS', name: 'In-Process Queue' },
+      { ...topic, id: 'TOPIC-DEAD-LETTER', name: 'Dead Letter Queue' }
+    ];
     const onOpenConcept = vi.fn();
-    render(<GuidedPracticePanel problemId={practicePath.problemId} isLight onAttemptStarted={vi.fn()} onRevealSolution={vi.fn()} topicNodes={[topic]} onOpenConcept={onOpenConcept} />);
+    render(<GuidedPracticePanel problemId={practicePath.problemId} isLight onAttemptStarted={vi.fn()} onRevealSolution={vi.fn()} topicNodes={topics} onOpenConcept={onOpenConcept} />);
 
     const startButton = await screen.findByRole('button', { name: 'Start practice' });
-    fireEvent.click(screen.getByRole('button', { name: /Consistent Hashing/ }));
+    expect(screen.getByRole('button', { name: 'Open concept: In-Process Queue' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Open concept: Dead Letter Queue' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Open concept: Thread Safety' }));
     expect(onOpenConcept).toHaveBeenCalledWith(topic);
     expect(screen.getByTestId('problem-breakdown')).toHaveAttribute('open');
     fireEvent.click(startButton);

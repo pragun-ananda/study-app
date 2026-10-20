@@ -34,6 +34,7 @@ import {
   GitBranch
 } from 'lucide-react';
 import NoteViewerModal from './NoteViewerModal';
+import MarkdownContent from './MarkdownContent';
 import ApplicationViewerModal from './ApplicationViewerModal';
 import ProblemViewerModal from './ProblemViewerModal';
 import NotificationsDropdown from './NotificationsDropdown';
@@ -1798,6 +1799,13 @@ export default function TelemetryHUD() {
                           No notes attached to this topic.
                         </div>
                       )}
+
+                      {activeProblem && selectedNode.notes?.filter((note) => note.content?.trim()).map((note) => (
+                        <article key={`problem-preview-${note.id}`} data-testid="problem-concept-note-preview" className={`mt-2 max-h-64 overflow-y-auto rounded-lg border p-3 ${isLight ? 'border-slate-200 bg-white/80' : 'border-white/10 bg-slate-950/60'}`}>
+                          <h4 className="mb-2 text-[11px] font-bold">{note.title}</h4>
+                          <MarkdownContent content={note.content || ''} accentColor={selectedNodeColor} />
+                        </article>
+                      ))}
 
                       {/* Add New Note Button */}
                       <button

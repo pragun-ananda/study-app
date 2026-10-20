@@ -202,6 +202,7 @@ export interface LearningPathConcept {
   diagnosticQuestion: string;
   diagnosticSuccessCriteria: string;
   topicId?: string;
+  terms?: string[];
 }
 
 export interface LearningPathStage {
@@ -243,6 +244,7 @@ export interface QueueProblemBreakdown {
   correctnessArguments: Array<{ claim: string; invariantIds: string[]; reasoning: string }>;
   failureScenarios: Array<{
     id: QueueFailureArea;
+    scope: 'CORE' | 'FOLLOW_UP';
     situation: string;
     queueBehavior: string;
     sourceTestNames: string[];

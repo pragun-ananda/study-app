@@ -22,11 +22,9 @@ describe('queue problem breakdown pipeline', () => {
     const report = validateQueueProblemBreakdown(source, FAULT_TOLERANT_WORK_QUEUE_LEARNING_PATH.problemBreakdown);
     expect(report.valid).toBe(true);
     expect(report.pilotReady).toBe(true);
-    expect(report.warnings).toEqual(expect.arrayContaining([
-      expect.stringContaining('duplicate_report'),
-      expect.stringContaining('process_restart'),
-      expect.stringContaining('duplicate_side_effect')
-    ]));
+    expect(report.warnings).toEqual(expect.arrayContaining([expect.stringContaining('duplicate_report')]));
+    expect(report.warnings.join(' ')).not.toContain('process_restart');
+    expect(report.warnings.join(' ')).not.toContain('duplicate_side_effect');
   });
 
   it('rejects a breakdown after its canonical prompt or solution changes', () => {

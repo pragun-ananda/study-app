@@ -151,13 +151,14 @@ Design a high-throughput, low-latency rate limiter service across multiple regio
     expect(screen.getByText('Consistent Hashing')).toBeInTheDocument();
     expect(screen.getByText('85%')).toBeInTheDocument();
 
-    // Clicking prerequisite chip focuses topic in store
+    // The problem stays open while the graph concept is selected beside it.
     const prereqChip = screen.getByTestId('prereq-topic-chip-TOPIC-HASH-RING');
     fireEvent.click(prereqChip);
 
     expect(useStore.getState().selectedTopicId).toBe('TOPIC-HASH-RING');
     expect(useStore.getState().isInspectorOpen).toBe(true);
-    expect(useStore.getState().activeProblem).toBeNull();
+    expect(useStore.getState().activeProblem?.id).toBe(mockProblem.id);
+    expect(screen.getByTestId('problem-viewer-modal')).toHaveClass('md:w-[58vw]');
   });
 
   it('closes modal on Escape key press', () => {

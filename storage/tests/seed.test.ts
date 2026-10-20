@@ -37,9 +37,9 @@ describe('Seed Test Database (storage/seeds/seed_test_db.sql)', () => {
   });
 
   describe('Entity Ingestion & Row Counts', () => {
-    it('seeds all 187 domain topics across 7 categories without error', () => {
+    it('seeds all 190 domain topics across 7 categories without error', () => {
       const topicCount = db.public.one('SELECT COUNT(*) as count FROM topics');
-      expect(Number(topicCount.count)).toBe(187);
+      expect(Number(topicCount.count)).toBe(190);
 
       const categoryCounts = db.public.many(
         'SELECT category, COUNT(*) as count FROM topics GROUP BY category ORDER BY category ASC'
@@ -48,11 +48,22 @@ describe('Seed Test Database (storage/seeds/seed_test_db.sql)', () => {
 
       expect(categoryMap.get('AI & ML')).toBe(33);
       expect(categoryMap.get('CS')).toBe(33);
-      expect(categoryMap.get('SYSTEMS')).toBe(31);
+      expect(categoryMap.get('SYSTEMS')).toBe(34);
       expect(categoryMap.get('MATH')).toBe(31);
       expect(categoryMap.get('PHYSICS')).toBe(29);
       expect(categoryMap.get('CYBERSECURITY')).toBe(18);
       expect(categoryMap.get('ARCH')).toBe(12);
+    });
+
+    it('seeds reusable concepts referenced by the queue problem guide', () => {
+      const queueConcepts = db.public.many(
+        "SELECT id, name FROM topics WHERE id IN ('TOPIC-188', 'TOPIC-189', 'TOPIC-190') ORDER BY id"
+      );
+      expect(queueConcepts.map((topic: any) => topic.name)).toEqual([
+        'Thread Safety',
+        'In-Process vs Distributed Work Queues',
+        'Dead Letter Queues'
+      ]);
     });
 
     it('seeds all deduplicated directed prerequisite edges', () => {
@@ -62,7 +73,7 @@ describe('Seed Test Database (storage/seeds/seed_test_db.sql)', () => {
 
     it('seeds all rich study notes and actionable todos', () => {
       const noteCount = db.public.one('SELECT COUNT(*) as count FROM notes');
-      expect(Number(noteCount.count)).toBe(4);
+      expect(Number(noteCount.count)).toBe(7);
 
       const todoCount = db.public.one('SELECT COUNT(*) as count FROM study_todos');
       expect(Number(todoCount.count)).toBe(5);
@@ -140,7 +151,7 @@ describe('Seed Test Database (storage/seeds/seed_test_db.sql)', () => {
     });
 
     it('correctly normalizes relative updated_at timestamps maintaining true recency ordering', () => {
-      const notes = db.public.many('SELECT id, updated_at FROM notes ORDER BY updated_at DESC');
+      const notes = db.public.many("SELECT id, updated_at FROM notes WHERE id NOT LIKE 'NOTE-Q-%' ORDER BY updated_at DESC");
       const noteIdsInRecencyOrder = notes.map((n: any) => n.id);
 
       // NOTE-001 (2 hours ago) > NOTE-003 (3 hours ago) > NOTE-004 (4 hours ago) > NOTE-002 (1 day ago)
@@ -185,7 +196,7 @@ describe('Seed Test Database (storage/seeds/seed_test_db.sql)', () => {
         };
       });
 
-      expect(hydratedNodes.length).toBe(187);
+      expect(hydratedNodes.length).toBe(190);
 
       // Backpropagation node check
       const backprop = hydratedNodes.find((n) => n.id === 'TOPIC-001')!;

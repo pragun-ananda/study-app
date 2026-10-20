@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 import { TopicNode, NoteItem, StudyTodo } from '../../frontend/src/types/telemetry';
+import { CURATED_PROBLEM_CONCEPT_NODES } from '../../frontend/src/data/test/problemConcepts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -216,6 +217,29 @@ export function generateSeedData() {
         coord_z: Number(z.toFixed(2)),
         notes: topic.notes || []
       });
+    });
+  });
+
+  CURATED_PROBLEM_CONCEPT_NODES.forEach((topic) => {
+    const expectedId = `TOPIC-${idCounter.toString().padStart(3, '0')}`;
+    if (topic.id !== expectedId) throw new Error(`Curated concept '${topic.name}' must use ${expectedId}.`);
+    idCounter++;
+    nameToIdMap.set(topic.name, topic.id);
+    topics.push({
+      id: topic.id,
+      name: topic.name,
+      category: topic.category,
+      summary: topic.summary,
+      mastery: 0,
+      status: 'NEW',
+      coord_x: topic.coordinates[0],
+      coord_y: topic.coordinates[1],
+      coord_z: topic.coordinates[2],
+      last_reviewed: 'Never',
+      notes: [{
+        ...topic.note,
+        content: fs.readFileSync(path.resolve(NOTES_DIR, topic.note.filename), 'utf8')
+      }]
     });
   });
 

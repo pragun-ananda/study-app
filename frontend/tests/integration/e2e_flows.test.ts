@@ -67,7 +67,7 @@ describe('E2E Full Stack Integration Flows (Frontend -> Express Server -> Postgr
     }
   });
 
-  it('Flow 1: Hydrates all 187 cosmos topics and 5 study todos from the PostgreSQL database', async () => {
+  it('Flow 1: Hydrates all 190 cosmos topics and 5 study todos from the PostgreSQL database', async () => {
     expect(useStore.getState().topicNodes.length).toBe(0);
     expect(useStore.getState().todos.length).toBe(0);
 
@@ -77,7 +77,7 @@ describe('E2E Full Stack Integration Flows (Frontend -> Express Server -> Postgr
     const state = useStore.getState();
     expect(state.isLoading).toBe(false);
     expect(state.error).toBeNull();
-    expect(state.topicNodes.length).toBe(187);
+    expect(state.topicNodes.length).toBe(190);
     expect(state.todos.length).toBe(5);
 
     // Verify backprop topic with spatial coordinates and directed edges

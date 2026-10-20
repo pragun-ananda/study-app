@@ -55,6 +55,9 @@ export function validateInterviewLearningPath(value: unknown): { valid: boolean;
     if (concept?.topicId !== undefined && (typeof concept.topicId !== 'string' || !concept.topicId.trim())) {
       errors.push(`Concept '${concept?.id || '(unknown)'}' has an invalid topic reference.`);
     }
+    if (concept?.terms !== undefined && (!Array.isArray(concept.terms) || concept.terms.some((term) => typeof term !== 'string' || !term.trim()))) {
+      errors.push(`Concept '${concept?.id || '(unknown)'}' has invalid phrase aliases.`);
+    }
   }
   for (const resource of Array.isArray(path.resources) ? path.resources : []) {
     if (!resource || typeof resource !== 'object') {
