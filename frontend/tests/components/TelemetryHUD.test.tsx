@@ -89,6 +89,18 @@ describe('TelemetryHUD Component', () => {
     expect(screen.getByText(/REAL-WORLD SCENARIOS/i)).toBeInTheDocument();
   });
 
+  it('maximizes left sidebar when clicking anywhere on the minimized panel', () => {
+    render(<TelemetryHUD />);
+
+    expect(useStore.getState().isSidebarOpen).toBe(false);
+
+    // Click anywhere on the left study sidebar while minimized
+    const sidebar = screen.getByTestId('left-study-sidebar');
+    fireEvent.click(sidebar);
+
+    expect(useStore.getState().isSidebarOpen).toBe(true);
+  });
+
   it('clicks a topic row in left sidebar list to select and focus it', () => {
     render(<TelemetryHUD />);
 

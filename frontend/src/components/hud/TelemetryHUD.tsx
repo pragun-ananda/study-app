@@ -838,14 +838,26 @@ export default function TelemetryHUD() {
           initial={{ x: -30, opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
           onWheel={(e) => e.stopPropagation()}
+          onClick={() => {
+            if (!isSidebarOpen) {
+              setIsSidebarOpen(true);
+            }
+          }}
           className={`pointer-events-auto glass-panel rounded-xl p-3 sm:p-4 transition-all duration-300 relative flex flex-col max-h-[calc(100vh-180px)] ${
-            isSidebarOpen ? 'w-[calc(100vw-24px)] max-w-sm sm:w-80 md:w-96' : 'w-12'
+            isSidebarOpen
+              ? 'w-[calc(100vw-24px)] max-w-sm sm:w-80 md:w-96'
+              : 'w-12 cursor-pointer hover:border-sky-500/40 hover:shadow-lg group'
           }`}
+          title={!isSidebarOpen ? 'Click to expand study panel' : undefined}
+          data-testid="left-study-sidebar"
         >
           <button
-            onClick={() => toggleSidebar()}
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleSidebar();
+            }}
             aria-label="Toggle study panel"
-            className={`absolute -right-3 top-4 border p-1 rounded-full transition-colors z-30 ${
+            className={`absolute -right-3 top-4 border p-1 rounded-full transition-colors z-30 cursor-pointer ${
               isLight
                 ? 'bg-white border-slate-300 text-slate-600 hover:text-sky-600 shadow-sm'
                 : 'bg-[#080c16] border-white/20 text-slate-300 hover:text-[#00f0ff]'
@@ -1308,7 +1320,11 @@ export default function TelemetryHUD() {
               {/* End Sidebar Tab Content */}
             </div>
           ) : (
-            <div className="flex flex-col items-center gap-4 py-4 text-slate-400">
+            <div
+              className={`flex flex-col items-center gap-4 py-4 transition-colors ${
+                isLight ? 'text-slate-400 group-hover:text-slate-600' : 'text-slate-400 group-hover:text-slate-200'
+              }`}
+            >
               <BookOpen size={18} />
               <Layers size={18} />
               <Code size={18} />
