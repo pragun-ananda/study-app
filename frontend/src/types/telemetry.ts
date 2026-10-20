@@ -157,6 +157,50 @@ export interface ProblemItem {
   updatedAt?: string;
 }
 
+export interface InterviewLearningPath {
+  problemId: string;
+  version: number;
+  publicationStatus: 'PILOT' | 'PUBLISHED' | 'RETIRED';
+  interpretation: { goal: string; constraints: string[]; observations: string[] };
+  concepts: Array<{
+    id: string;
+    name: string;
+    intuition: string;
+    relevance: string;
+    diagnosticQuestion: string;
+    diagnosticSuccessCriteria: string;
+    topicId?: string;
+  }>;
+  reasoningStages: Array<{
+    id: string;
+    title: string;
+    purpose: string;
+    learnerPrompt: string;
+    hint: string;
+    expectedOutcome: string;
+    verificationCriteria: string[];
+  }>;
+  misconceptions: string[];
+  implementationPlan: Array<{ id: string; task: string; verification: string }>;
+  edgeCases: Array<{ input: number[]; expected: number; why: string }>;
+  alternatives: Array<{ name: string; time: string; space: string; tradeoff: string }>;
+  transferExercise: { prompt: string; changedConstraint: string; assessmentCriteria: string[] };
+  assessmentRubric: Array<{ criterion: string; evidence: string }>;
+  resources: Array<{ title: string; url: string; conceptId: string; verified: boolean }>;
+  qualityReview: { status: 'PILOT_REVIEWED' | 'NEEDS_REVIEW'; notes: string[] };
+}
+
+export interface InterviewLearningAttempt {
+  id: string;
+  problemId: string;
+  pathVersion: number;
+  startedAt: string;
+  completedAt?: string | null;
+  durationSeconds?: number | null;
+  selfConfidence?: number | null;
+  reviewDueAt?: string | null;
+}
+
 export type SubmissionStatus = 'ACCEPTED' | 'WRONG_ANSWER' | 'TIME_LIMIT_EXCEEDED' | 'RUNTIME_ERROR' | 'PENDING';
 
 export interface ProblemSubmission {

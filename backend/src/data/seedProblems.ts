@@ -402,7 +402,9 @@ Civil engineers and insurance underwriters need to run historical queries over *
     ],
     targetCompanies: ['Google', 'Meta', 'Amazon', 'Bloomberg'],
     timeLimitMinutes: 30,
-    prerequisiteTopicIds: ['TOPIC-034', 'TOPIC-040']
+    // No matching two-pointer / array-boundary concepts exist in the current topic graph.
+    // Avoid linking this question to unrelated BST and segment-tree topics.
+    prerequisiteTopicIds: []
   },
   {
     id: 'PROB-LRU-LFU-CACHE',
