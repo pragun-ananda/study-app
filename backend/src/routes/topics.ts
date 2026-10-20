@@ -1,9 +1,10 @@
 import { Router, Request, Response } from 'express';
 import { query } from '../db.js';
-import { TopicRow, NoteRow, TopicPrerequisiteRow } from '../types.js';
-import { toTopicDTO, toNoteDTO } from '../utils/mappers.js';
+import { TopicRow, NoteRow, TopicPrerequisiteRow, QuizRow, QuizQuestionRow } from '../types.js';
+import { toTopicDTO, toNoteDTO, toQuizDTO, toQuizQuestionDTO } from '../utils/mappers.js';
 import {
   validateTopicInput,
+  validateQuizInput,
   isValidCategory,
   isValidStatus,
   isValidMastery,
@@ -11,6 +12,8 @@ import {
 } from '../utils/validation.js';
 import { generateEntityId } from '../utils/id.js';
 import { handleDatabaseError } from '../utils/errors.js';
+import { getDueTopics } from '../services/spacedRepetition.js';
+import { createQuiz } from './quizzes.js';
 
 const router = Router();
 
@@ -45,9 +48,11 @@ router.get('/', async (req: Request, res: Response) => {
       return res.json([]);
     }
 
-    const [edgesResult, notesResult] = await Promise.all([
+    const [edgesResult, notesResult, quizzesResult, questionsResult] = await Promise.all([
       query<TopicPrerequisiteRow>('SELECT topic_id, prerequisite_id FROM topic_prerequisites'),
-      query<NoteRow>('SELECT * FROM notes ORDER BY updated_at DESC')
+      query<NoteRow>('SELECT * FROM notes ORDER BY updated_at DESC'),
+      query<QuizRow>('SELECT * FROM quizzes ORDER BY updated_at DESC'),
+      query<QuizQuestionRow>('SELECT * FROM quiz_questions ORDER BY id ASC')
     ]);
 
     const prereqMap = new Map<string, string[]>();
@@ -67,11 +72,25 @@ router.get('/', async (req: Request, res: Response) => {
       notesMap.get(note.topic_id)!.push(toNoteDTO(note));
     });
 
+    const questionsByQuiz = new Map<string, ReturnType<typeof toQuizQuestionDTO>[]>();
+    questionsResult.rows.forEach((row) => {
+      const q = toQuizQuestionDTO(row);
+      if (!questionsByQuiz.has(row.quiz_id)) questionsByQuiz.set(row.quiz_id, []);
+      questionsByQuiz.get(row.quiz_id)!.push(q);
+    });
+
+    const quizzesMap = new Map<string, ReturnType<typeof toQuizDTO>[]>();
+    quizzesResult.rows.forEach((quiz) => {
+      if (!quizzesMap.has(quiz.topic_id)) quizzesMap.set(quiz.topic_id, []);
+      quizzesMap.get(quiz.topic_id)!.push(toQuizDTO(quiz, questionsByQuiz.get(quiz.id) || []));
+    });
+
     const dtos = topicsResult.rows.map((row) => {
       const prerequisites = prereqMap.get(row.id) || [];
       const unlocks = unlockMap.get(row.id) || [];
       const notes = notesMap.get(row.id) || [];
-      return toTopicDTO(row, prerequisites, unlocks, notes);
+      const quizzes = quizzesMap.get(row.id) || [];
+      return toTopicDTO(row, prerequisites, unlocks, notes, quizzes);
     });
 
     return res.json(dtos);
@@ -80,7 +99,17 @@ router.get('/', async (req: Request, res: Response) => {
   }
 });
 
-// GET /api/topics/:id - Retrieve a single topic with its prerequisites, unlocks, and notes
+// GET /api/topics/due - Retrieve topics due for review based on SM-2 scheduling
+router.get('/due', async (_req: Request, res: Response) => {
+  try {
+    const dueTopics = await getDueTopics();
+    return res.json(dueTopics);
+  } catch (error) {
+    return handleDatabaseError(res, error, 'Failed to retrieve due topics');
+  }
+});
+
+// GET /api/topics/:id - Retrieve a single topic with its prerequisites, unlocks, notes, and quizzes
 router.get('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
@@ -90,12 +119,17 @@ router.get('/:id', async (req: Request, res: Response) => {
       return res.status(404).json({ error: `Topic with id '${id}' not found` });
     }
 
-    const [edgesResult, notesResult] = await Promise.all([
+    const [edgesResult, notesResult, quizzesResult, questionsResult] = await Promise.all([
       query<TopicPrerequisiteRow>(
         'SELECT topic_id, prerequisite_id FROM topic_prerequisites WHERE topic_id = $1 OR prerequisite_id = $1',
         [id]
       ),
-      query<NoteRow>('SELECT * FROM notes WHERE topic_id = $1 ORDER BY updated_at DESC', [id])
+      query<NoteRow>('SELECT * FROM notes WHERE topic_id = $1 ORDER BY updated_at DESC', [id]),
+      query<QuizRow>('SELECT * FROM quizzes WHERE topic_id = $1 ORDER BY updated_at DESC', [id]),
+      query<QuizQuestionRow>(
+        'SELECT qq.* FROM quiz_questions qq JOIN quizzes q ON qq.quiz_id = q.id WHERE q.topic_id = $1 ORDER BY qq.id ASC',
+        [id]
+      )
     ]);
 
     const prerequisites: string[] = [];
@@ -107,11 +141,76 @@ router.get('/:id', async (req: Request, res: Response) => {
     });
 
     const notes = notesResult.rows.map(toNoteDTO);
-    const dto = toTopicDTO(topicResult.rows[0], prerequisites, unlocks, notes);
+
+    const questionsByQuiz = new Map<string, ReturnType<typeof toQuizQuestionDTO>[]>();
+    questionsResult.rows.forEach((row) => {
+      const q = toQuizQuestionDTO(row);
+      if (!questionsByQuiz.has(row.quiz_id)) questionsByQuiz.set(row.quiz_id, []);
+      questionsByQuiz.get(row.quiz_id)!.push(q);
+    });
+
+    const quizzes = quizzesResult.rows.map((q) => toQuizDTO(q, questionsByQuiz.get(q.id) || []));
+    const dto = toTopicDTO(topicResult.rows[0], prerequisites, unlocks, notes, quizzes);
 
     return res.json(dto);
   } catch (error) {
     return handleDatabaseError(res, error, 'Failed to retrieve topic');
+  }
+});
+
+// GET /api/topics/:id/quizzes - List quizzes for a topic
+router.get('/:id/quizzes', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const topicRes = await query('SELECT id FROM topics WHERE id = $1', [id]);
+    if (topicRes.rows.length === 0) {
+      return res.status(404).json({ error: `Topic with id '${id}' not found` });
+    }
+
+    const [quizzesRes, questionsRes] = await Promise.all([
+      query<QuizRow>('SELECT * FROM quizzes WHERE topic_id = $1 ORDER BY updated_at DESC', [id]),
+      query<QuizQuestionRow>(
+        'SELECT qq.* FROM quiz_questions qq JOIN quizzes q ON qq.quiz_id = q.id WHERE q.topic_id = $1 ORDER BY qq.id ASC',
+        [id]
+      )
+    ]);
+
+    const questionsByQuiz = new Map<string, ReturnType<typeof toQuizQuestionDTO>[]>();
+    questionsRes.rows.forEach((row) => {
+      const q = toQuizQuestionDTO(row);
+      if (!questionsByQuiz.has(row.quiz_id)) questionsByQuiz.set(row.quiz_id, []);
+      questionsByQuiz.get(row.quiz_id)!.push(q);
+    });
+
+    const dtos = quizzesRes.rows.map((q) => toQuizDTO(q, questionsByQuiz.get(q.id) || []));
+    return res.json(dtos);
+  } catch (error) {
+    return handleDatabaseError(res, error, 'Failed to retrieve quizzes for topic');
+  }
+});
+
+// POST /api/topics/:id/quizzes - Create a quiz attached directly to a topic
+router.post('/:id/quizzes', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const topicRes = await query('SELECT id FROM topics WHERE id = $1', [id]);
+    if (topicRes.rows.length === 0) {
+      return res.status(404).json({ error: `Topic with id '${id}' not found` });
+    }
+
+    const validation = validateQuizInput(req.body);
+    if (validation.error) {
+      return res.status(400).json({ error: validation.error });
+    }
+
+    const quiz = await createQuiz({
+      ...req.body,
+      topicId: id
+    });
+
+    return res.status(201).json(quiz);
+  } catch (error) {
+    return handleDatabaseError(res, error, 'Failed to create quiz for topic');
   }
 });
 

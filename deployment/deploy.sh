@@ -95,16 +95,193 @@ case "$ACTION" in
         fi
         ;;
     update)
-        echo "📥 Pulling latest git changes..."
-        git -C "$DIR/.." pull
-        echo "🔄 Rebuilding and redeploying..."
-        docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --build
-        echo "🧹 Pruning old dangling images..."
-        docker image prune -f
-        echo "✅ Update complete!"
+        "$DIR/auto-update.sh" --force
+        ;;
+    server-start)
+        PID_FILE="/tmp/study_app_server.pid"
+        if [ -f "$PID_FILE" ]; then
+            EXISTING_PID="$(cat "$PID_FILE" 2>/dev/null || echo "")"
+            if [ -n "$EXISTING_PID" ] && kill -0 "$EXISTING_PID" 2>/dev/null; then
+                echo "ℹ️  Server daemon is already running (PID: $EXISTING_PID)."
+                exit 0
+            fi
+        fi
+        echo "🚀 Starting Study App background server daemon on port 3000..."
+        nohup "$DIR/server-daemon.sh" >/dev/null 2>&1 &
+        sleep 2
+        NEW_PID="$(cat "$PID_FILE" 2>/dev/null || echo "")"
+        echo "✅ Server daemon started successfully (PID: ${NEW_PID:-unknown})."
+        ;;
+    server-stop)
+        PID_FILE="/tmp/study_app_server.pid"
+        STOPPED=false
+        if [ -f "$PID_FILE" ]; then
+            EXISTING_PID="$(cat "$PID_FILE" 2>/dev/null || echo "")"
+            if [ -n "$EXISTING_PID" ] && kill -0 "$EXISTING_PID" 2>/dev/null; then
+                kill "$EXISTING_PID" 2>/dev/null || true
+                rm -f "$PID_FILE"
+                echo "🛑 Stopped server daemon (PID: $EXISTING_PID)."
+                STOPPED=true
+            fi
+        fi
+        pkill -f "server-daemon.sh" 2>/dev/null && STOPPED=true || true
+        lsof -ti:3000 | xargs kill -9 2>/dev/null || true
+        if [ "$STOPPED" = false ]; then
+            echo "ℹ️  No active server daemon process found."
+        fi
+        ;;
+    server-status)
+        echo "=== Study App Background Server Status ==="
+        DAEMON_PID="$(pgrep -f "deployment/server-daemon.sh" 2>/dev/null | head -n 1 || echo "")"
+        if [ -n "$DAEMON_PID" ] && kill -0 "$DAEMON_PID" 2>/dev/null; then
+            echo "✅ Server Supervisor Daemon: RUNNING (PID: $DAEMON_PID)"
+            echo "$DAEMON_PID" > "/tmp/study_app_server.pid"
+        else
+            echo "ℹ️  Server Supervisor Daemon: INACTIVE"
+        fi
+
+        if lsof -i :3000 >/dev/null 2>&1; then
+            echo "✅ Port 3000 Listener: ACTIVE"
+            lsof -i :3000 | grep LISTEN || true
+        else
+            echo "⚠️  Port 3000 Listener: INACTIVE"
+        fi
+
+        if curl -fsS "http://localhost:3000/health" >/dev/null 2>&1; then
+            echo "✅ Health Endpoint: http://localhost:3000/health (Status: OK)"
+        else
+            echo "⚠️  Health Endpoint: http://localhost:3000/health NOT REACHABLE"
+        fi
+        ;;
+    server-logs)
+        LOG_FILE="/Users/cheese/Library/Logs/study-app.log"
+        touch "$LOG_FILE"
+        echo "📄 Streaming $LOG_FILE (Ctrl+C to exit)..."
+        tail -f "$LOG_FILE"
+        ;;
+    autoupdate-start)
+        PID_FILE="/tmp/study_app_daemon.pid"
+        if [ -f "$PID_FILE" ]; then
+            EXISTING_PID="$(cat "$PID_FILE" 2>/dev/null || echo "")"
+            if [ -n "$EXISTING_PID" ] && kill -0 "$EXISTING_PID" 2>/dev/null; then
+                echo "ℹ️  Auto-update background daemon is already running (PID: $EXISTING_PID)."
+                exit 0
+            fi
+        fi
+        echo "🚀 Starting Study App background auto-update daemon..."
+        nohup "$DIR/auto-update-daemon.sh" 120 >/dev/null 2>&1 &
+        sleep 1
+        NEW_PID="$(cat "$PID_FILE" 2>/dev/null || echo "")"
+        echo "✅ Daemon started successfully (PID: ${NEW_PID:-unknown}). Checks origin/main every 2 minutes."
+        ;;
+    autoupdate-stop)
+        PID_FILE="/tmp/study_app_daemon.pid"
+        STOPPED=false
+        if [ -f "$PID_FILE" ]; then
+            EXISTING_PID="$(cat "$PID_FILE" 2>/dev/null || echo "")"
+            if [ -n "$EXISTING_PID" ] && kill -0 "$EXISTING_PID" 2>/dev/null; then
+                kill "$EXISTING_PID" 2>/dev/null || true
+                rm -f "$PID_FILE"
+                echo "🛑 Stopped background auto-update daemon (PID: $EXISTING_PID)."
+                STOPPED=true
+            fi
+        fi
+        # Also check for any orphaned daemon processes
+        pkill -f "auto-update-daemon.sh" 2>/dev/null && STOPPED=true || true
+        if [ "$STOPPED" = false ]; then
+            echo "ℹ️  No active background daemon process found."
+        fi
+        ;;
+    autoupdate-install)
+        echo "📦 Installing Study App auto-update LaunchAgent..."
+        LAUNCHAGENT_DIR="$HOME/Library/LaunchAgents"
+        PLIST_FILE="$LAUNCHAGENT_DIR/com.studyapp.autoupdate.plist"
+        mkdir -p "$LAUNCHAGENT_DIR"
+        cat << EOF > "$PLIST_FILE"
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.studyapp.autoupdate</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>$DIR/auto-update.sh</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>$REPO_DIR</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <key>HOME</key>
+        <string>$HOME</string>
+    </dict>
+    <key>StartInterval</key>
+    <integer>120</integer>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>$DIR/auto-update.log</string>
+    <key>StandardErrorPath</key>
+    <string>$DIR/auto-update.log</string>
+</dict>
+</plist>
+EOF
+        launchctl unload "$PLIST_FILE" 2>/dev/null || true
+        launchctl load "$PLIST_FILE"
+        echo "✅ LaunchAgent generated and loaded successfully! Auto-sync will check for commits every 2 minutes."
+        ;;
+    autoupdate-uninstall)
+        echo "🛑 Unloading Study App auto-update LaunchAgent..."
+        PLIST_FILE="$HOME/Library/LaunchAgents/com.studyapp.autoupdate.plist"
+        if [ -f "$PLIST_FILE" ]; then
+            launchctl unload "$PLIST_FILE" 2>/dev/null || true
+            rm -f "$PLIST_FILE"
+            echo "✅ LaunchAgent unloaded and removed."
+        else
+            echo "ℹ️  LaunchAgent was not installed."
+        fi
+        ;;
+    autoupdate-status)
+        echo "=== Study App Auto-Update Daemon Status ==="
+        PID_FILE="/tmp/study_app_daemon.pid"
+        DAEMON_RUNNING=false
+        if [ -f "$PID_FILE" ]; then
+            EXISTING_PID="$(cat "$PID_FILE" 2>/dev/null || echo "")"
+            if [ -n "$EXISTING_PID" ] && kill -0 "$EXISTING_PID" 2>/dev/null; then
+                echo "✅ Background Session Daemon: RUNNING (PID: $EXISTING_PID)"
+                DAEMON_RUNNING=true
+            fi
+        fi
+        if [ "$DAEMON_RUNNING" = false ]; then
+            echo "ℹ️  Background Session Daemon: INACTIVE"
+        fi
+
+        if launchctl list | grep -q "com.studyapp.autoupdate"; then
+            echo "✅ macOS LaunchAgent: LOADED"
+            launchctl list | grep "com.studyapp.autoupdate" || true
+        else
+            echo "ℹ️  macOS LaunchAgent: NOT LOADED"
+        fi
+
+        echo ""
+        echo "=== Recent Auto-Update Log Entries ==="
+        if [ -f "$DIR/auto-update.log" ]; then
+            tail -n 20 "$DIR/auto-update.log"
+        else
+            echo "No log file found at $DIR/auto-update.log."
+        fi
+        ;;
+    autoupdate-logs)
+        LOG_FILE="$DIR/auto-update.log"
+        touch "$LOG_FILE"
+        echo "📄 Streaming $LOG_FILE (Ctrl+C to exit)..."
+        tail -f "$LOG_FILE"
         ;;
     *)
-        echo "Usage: $0 {up|down|restart|build|logs [service]|status|backup|seed|update}"
+        echo "Usage: $0 {server-start|server-stop|server-status|server-logs|up|down|restart|build|logs [service]|status|backup|seed|update|autoupdate-start|autoupdate-stop|autoupdate-status|autoupdate-logs|autoupdate-install|autoupdate-uninstall}"
         exit 1
         ;;
 esac

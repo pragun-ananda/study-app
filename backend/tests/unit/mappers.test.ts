@@ -73,6 +73,7 @@ describe('Unit: DTO Mappers (src/utils/mappers.ts)', () => {
       const row: NoteRow = {
         id: 'NOTE-001',
         topic_id: 'TOPIC-001',
+        source_id: 'SOURCE-001',
         title: 'Backprop Derivation',
         filename: 'backpropagation.md',
         content: '# Math formula $$ E = mc^2 $$',
@@ -82,6 +83,8 @@ describe('Unit: DTO Mappers (src/utils/mappers.ts)', () => {
 
       const dto = toNoteDTO(row);
       expect(dto.id).toBe('NOTE-001');
+      expect(dto.topicId).toBe('TOPIC-001');
+      expect(dto.sourceId).toBe('SOURCE-001');
       expect(dto.title).toBe('Backprop Derivation');
       expect(dto.filename).toBe('backpropagation.md');
       expect(dto.content).toContain('$$ E = mc^2 $$');

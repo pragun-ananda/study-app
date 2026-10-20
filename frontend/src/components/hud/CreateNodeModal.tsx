@@ -91,7 +91,9 @@ export default function CreateNodeModal() {
     setErrorMessage(null);
 
     try {
-      const coordinates = calculateNewNodeCoordinates(category, topicNodes);
+      const coordinates = calculateNewNodeCoordinates(category, topicNodes, {
+        prerequisiteIds: selectedPrereqs
+      });
 
       const created = await addTopicNode({
         name: trimmedName,
@@ -132,7 +134,7 @@ export default function CreateNodeModal() {
       {isCreateNodeOpen && (
         <div
           data-testid="create-node-modal"
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-6 pointer-events-auto font-sans"
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 md:p-6 pointer-events-auto font-sans"
         >
           {/* Backdrop Blur */}
           <motion.div

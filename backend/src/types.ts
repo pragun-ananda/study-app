@@ -37,9 +37,22 @@ export interface TopicPrerequisiteRow {
   prerequisite_id: string;
 }
 
+export interface SourceRow {
+  id: string;
+  url: string;
+  title: string;
+  author_or_org: string | null;
+  raw_markdown: string;
+  cleaned_markdown: string;
+  content_hash: string;
+  metadata: any;
+  created_at: string | Date;
+}
+
 export interface NoteRow {
   id: string;
   topic_id: string;
+  source_id?: string | null;
   title: string;
   filename: string | null;
   content: string;
@@ -50,6 +63,7 @@ export interface NoteRow {
 export interface QuizRow {
   id: string;
   topic_id: string;
+  source_id?: string | null;
   title: string;
   description: string | null;
   created_at: string | Date;
@@ -70,6 +84,47 @@ export interface QuizQuestionRow {
   explanation: string;
   difficulty: QuizQuestionDifficulty;
   created_at: string | Date;
+}
+
+export interface QuizAttemptRow {
+  id: string;
+  topic_id: string;
+  quiz_id: string;
+  score: number | string;
+  ease_factor: number | string;
+  interval_days: number;
+  repetition_count: number;
+  reviewed_at: string | Date;
+  next_due_at: string | Date;
+}
+
+export interface QuizAttemptDTO {
+  id: string;
+  topicId: string;
+  quizId: string;
+  score: number;
+  easeFactor: number;
+  intervalDays: number;
+  repetitionCount: number;
+  reviewedAt: string;
+  nextDueAt: string;
+}
+
+export interface SM2Input {
+  score: number;
+  previousEaseFactor?: number;
+  previousIntervalDays?: number;
+  previousRepetitionCount?: number;
+  previousMastery?: number;
+}
+
+export interface SM2Result {
+  easeFactor: number;
+  intervalDays: number;
+  repetitionCount: number;
+  nextDueAt: Date;
+  mastery: number;
+  status: TopicStatus;
 }
 
 export interface IngestReviewQueueRow {
@@ -93,6 +148,203 @@ export interface StudyTodoRow {
   created_at: string | Date;
 }
 
+// Problem Bank Entities (BAC-38)
+export type ProblemType = 'CODING' | 'SYSTEM_DESIGN' | 'ML_SYSTEM_DESIGN' | 'OBJECT_ORIENTED_DESIGN';
+export type ProblemDifficulty = 'EASY' | 'MEDIUM' | 'HARD';
+
+export interface SystemDesignFollowUp {
+  id: string;
+  title: string;
+  prompt: string;
+  rubric: Record<string, number>;
+  hints?: string[];
+  sampleArchitecture?: string;
+}
+
+export interface ProblemRow {
+  id: string;
+  title: string;
+  type: ProblemType;
+  difficulty: ProblemDifficulty;
+  domain: string;
+  summary: string;
+  prompt: string;
+  solution: string;
+  hints: any;
+  starter_code: any;
+  test_cases: any;
+  rubric: any;
+  follow_ups: any;
+  target_companies: string[];
+  time_limit_minutes: number;
+  created_at: string | Date;
+  updated_at: string | Date;
+}
+
+export interface ProblemPrerequisiteRow {
+  problem_id: string;
+  topic_id: string;
+}
+
+export interface ProblemQuizRow {
+  problem_id: string;
+  quiz_id: string;
+}
+
+export interface ProblemDTO {
+  id: string;
+  title: string;
+  type: ProblemType;
+  difficulty: ProblemDifficulty;
+  domain: string;
+  summary: string;
+  prompt: string;
+  solution: string;
+  hints: string[];
+  starterCode: Record<string, string>;
+  testCases: Array<{ input: any; expected: any; explanation?: string }>;
+  rubric?: Record<string, any>;
+  followUps?: SystemDesignFollowUp[];
+  targetCompanies: string[];
+  timeLimitMinutes: number;
+  prerequisiteTopicIds?: string[];
+  prerequisiteTopics?: TopicDTO[];
+  quizzes?: QuizDTO[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreateProblemPayload {
+  id?: string;
+  title: string;
+  type: ProblemType;
+  difficulty: ProblemDifficulty;
+  domain: string;
+  summary: string;
+  prompt: string;
+  solution: string;
+  hints?: string[];
+  starterCode?: Record<string, string>;
+  testCases?: Array<{ input: any; expected: any; explanation?: string }>;
+  rubric?: Record<string, any>;
+  followUps?: SystemDesignFollowUp[];
+  targetCompanies?: string[];
+  timeLimitMinutes?: number;
+  prerequisiteTopicIds?: string[];
+  quizIds?: string[];
+}
+
+export type SubmissionStatus = 'ACCEPTED' | 'WRONG_ANSWER' | 'TIME_LIMIT_EXCEEDED' | 'RUNTIME_ERROR' | 'PENDING';
+
+export interface ProblemSubmissionRow {
+  id: string;
+  problem_id: string;
+  language: string;
+  code: string;
+  status: SubmissionStatus;
+  passed_count: number;
+  total_count: number;
+  runtime_ms: number | string;
+  memory_kb: number;
+  failed_test_case: any;
+  stdout: string | null;
+  created_at: string | Date;
+}
+
+export interface ProblemSubmissionDTO {
+  id: string;
+  problemId: string;
+  language: string;
+  code: string;
+  status: SubmissionStatus;
+  passedCount: number;
+  totalCount: number;
+  runtimeMs: number;
+  memoryKb: number;
+  failedTestCase?: {
+    input: any;
+    expected: any;
+    actual?: any;
+    stdout?: string;
+    error?: string;
+    explanation?: string;
+  } | null;
+  stdout?: string | null;
+  createdAt: string;
+}
+
+export interface SubmitProblemPayload {
+  language: string;
+  code: string;
+  status?: SubmissionStatus;
+  passedCount?: number;
+  totalCount?: number;
+  runtimeMs?: number;
+  memoryKb?: number;
+  failedTestCase?: any;
+  stdout?: string;
+}
+
+export interface ProblemFollowUpResponseRow {
+  id: string;
+  problem_id: string;
+  follow_up_id: string;
+  response_text: string;
+  diagram_data: any;
+  score: number | string | null;
+  feedback: string | null;
+  created_at: string | Date;
+  updated_at: string | Date;
+}
+
+export interface ProblemFollowUpResponseDTO {
+  id: string;
+  problemId: string;
+  followUpId: string;
+  responseText: string;
+  diagramData?: any;
+  score?: number | null;
+  feedback?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SaveFollowUpResponsePayload {
+  responseText: string;
+  diagramData?: any;
+  score?: number;
+  feedback?: string;
+}
+
+export interface RubricCriterionScore {
+  score: number;
+  maxWeight: number;
+  feedback: string;
+}
+
+export interface SystemDesignGradingResult {
+  score: number;
+  rubricScores: Record<string, RubricCriterionScore>;
+  scalabilityAssessment: string;
+  singlePointsOfFailure: string[];
+  tradeOffCritique: string;
+  actionableImprovements: string[];
+}
+
+export interface GradeFollowUpResponseResult {
+  evaluation: SystemDesignGradingResult;
+  savedResponse: ProblemFollowUpResponseDTO;
+}
+
+export interface GradeSystemDesignPayload {
+  problemId?: string;
+  followUpId?: string;
+  prompt?: string;
+  rubric?: Record<string, number>;
+  responseText: string;
+  diagramData?: any;
+}
+
 // API DTOs (Data Transfer Objects) matching Frontend Types
 export interface TopicDTO {
   id: string;
@@ -106,10 +358,25 @@ export interface TopicDTO {
   prerequisites: string[];
   unlocks: string[];
   notes?: NoteDTO[];
+  quizzes?: QuizDTO[];
+}
+
+export interface SourceDTO {
+  id: string;
+  url: string;
+  title: string;
+  authorOrOrg?: string | null;
+  rawMarkdown: string;
+  cleanedMarkdown: string;
+  contentHash: string;
+  metadata?: any;
+  createdAt?: string;
 }
 
 export interface NoteDTO {
   id: string;
+  topicId?: string;
+  sourceId?: string | null;
   title: string;
   filename?: string;
   content?: string;
@@ -128,11 +395,19 @@ export interface QuizQuestionDTO {
   explanation: string;
   difficulty: QuizQuestionDifficulty;
   createdAt?: string;
+  options?: Record<string, string>;
+  distractorExplanations?: Record<string, string>;
+  pairs?: Array<{ term: string; definition: string }>;
+  sequence?: string[];
+  term?: string;
+  definition?: string;
+  memorizationReason?: string;
 }
 
 export interface QuizDTO {
   id: string;
   topicId: string;
+  sourceId?: string | null;
   title: string;
   description?: string;
   questions?: QuizQuestionDTO[];
@@ -222,6 +497,7 @@ export interface GeneratedNote {
   title: string;
   topicName: string;
   content: string;
+  sourceId?: string;
   keyFormulas?: string[];
   codeSnippetsCount?: number;
 }
@@ -291,6 +567,7 @@ export interface GeneratedQuizQuestion {
 export interface GeneratedQuiz {
   topicName: string;
   title: string;
+  sourceId?: string;
   description?: string;
   questions: GeneratedQuizQuestion[];
 }
@@ -365,6 +642,7 @@ export interface GraphUpdate {
   newContent: string; // The resulting content
   sourceUrl?: string; // Source article/document URL
   sourceTitle?: string; // Title of source article/document
+  sourceId?: string; // ID of the persisted source entity
   queueId?: string; // Associated parent review queue item ID
   createdAt: string;
   comments?: LineReviewComment[];
@@ -373,6 +651,7 @@ export interface GraphUpdate {
     topicId?: string;
     noteId?: string;
     quizId?: string;
+    sourceId?: string;
     summary?: string;
     coord_x?: number;
     coord_y?: number;
@@ -470,6 +749,8 @@ export interface IngestPipelineResult {
     reviewPassed?: boolean;
     overallScore?: number;
     queueId?: string | null;
+    sourceId?: string;
+    contentHash?: string;
     noteAudits?: NoteAuditReport[];
     quizAudits?: QuizAuditReport[];
     mergeAudits?: MergeAuditReport[];
@@ -479,3 +760,189 @@ export interface IngestPipelineResult {
   };
 }
 
+// ==============================================================================
+// CODE REPOSITORY DOCUMENTATION ENGINE TYPES
+// ==============================================================================
+
+export type RepoOriginType = 'GITHUB' | 'GITLAB' | 'CUSTOM' | 'LOCAL';
+
+export type DesignCategory = 
+  | 'ARCHITECTURE'
+  | 'ALGORITHM'
+  | 'CONCURRENCY'
+  | 'DESIGN_PATTERN'
+  | 'PERFORMANCE'
+  | 'SECURITY'
+  | 'SPOF_TRADEOFF'
+  | 'GENERAL_NOTE';
+
+export interface RepositoryRow {
+  id: string;
+  name: string;
+  owner: string;
+  full_name: string;
+  origin_type: RepoOriginType;
+  clone_url: string;
+  default_branch: string;
+  active_commit_sha: string;
+  description: string | null;
+  language: string | null;
+  stars_count: number;
+  forks_count: number;
+  is_archived: boolean;
+  tree_cached_at: string | Date | null;
+  created_at: string | Date;
+  updated_at: string | Date;
+}
+
+export interface RepositoryDTO {
+  id: string;
+  name: string;
+  owner: string;
+  fullName: string;
+  originType: RepoOriginType;
+  cloneUrl: string;
+  defaultBranch: string;
+  activeCommitSha: string;
+  description: string | null;
+  language: string | null;
+  starsCount: number;
+  forksCount: number;
+  isArchived: boolean;
+  treeCachedAt: string | null;
+  caseStudyType?: 'OPEN_SOURCE_PROJECT' | 'PAPER' | 'BLOG';
+  annotationsCount?: number;
+  cachedBlobsCount?: number;
+  cachedBytes?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ImportRepositoryInput {
+  url?: string;
+  fullName?: string;
+  owner?: string;
+  name?: string;
+  branch?: string;
+  originType?: RepoOriginType;
+  description?: string;
+  language?: string;
+  customFiles?: Array<{ path: string; content: string }>;
+}
+
+export interface RepositoryCachedBlobRow {
+  id: string;
+  repository_id: string;
+  commit_sha: string;
+  file_path: string;
+  file_size_bytes: number;
+  content: string;
+  encoding: string;
+  is_compressed: boolean;
+  etag: string | null;
+  last_accessed_at: string | Date;
+  created_at: string | Date;
+}
+
+export interface CachedBlobDTO {
+  id: string;
+  repositoryId: string;
+  commitSha: string;
+  filePath: string;
+  fileSizeBytes: number;
+  content: string;
+  encoding: string;
+  isCompressed: boolean;
+  etag: string | null;
+  lastAccessedAt: string;
+  createdAt: string;
+}
+
+export interface CodeAnnotationRow {
+  id: string;
+  repository_id: string;
+  commit_sha: string;
+  file_path: string;
+  start_line: number;
+  end_line: number;
+  title: string;
+  content: string;
+  anchor_code_snippet: string;
+  design_category: DesignCategory;
+  ai_explanation: any | null;
+  topic_id: string | null;
+  created_at: string | Date;
+  updated_at: string | Date;
+}
+
+export interface CodeAnnotationDTO {
+  id: string;
+  repositoryId: string;
+  commitSha: string;
+  filePath: string;
+  startLine: number;
+  endLine: number;
+  title: string;
+  content: string;
+  anchorCodeSnippet: string;
+  designCategory: DesignCategory;
+  aiExplanation: any | null;
+  topicId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateCodeAnnotationInput {
+  repositoryId: string;
+  commitSha?: string;
+  filePath: string;
+  startLine: number;
+  endLine: number;
+  title: string;
+  content: string;
+  anchorCodeSnippet: string;
+  designCategory?: DesignCategory;
+  topicId?: string | null;
+}
+
+export interface UpdateCodeAnnotationInput {
+  title?: string;
+  content?: string;
+  designCategory?: DesignCategory;
+  topicId?: string | null;
+}
+
+export interface CodeAnnotationThreadRow {
+  id: string;
+  annotation_id: string;
+  sender: 'USER' | 'SOL_AI' | 'SYSTEM';
+  message: string;
+  suggested_quizzes: any | null;
+  created_at: string | Date;
+}
+
+export interface CodeAnnotationThreadDTO {
+  id: string;
+  annotationId: string;
+  sender: 'USER' | 'SOL_AI' | 'SYSTEM';
+  message: string;
+  suggestedQuizzes: any | null;
+  createdAt: string;
+}
+
+export interface RepoTreeNode {
+  path: string;
+  name: string;
+  type: 'file' | 'dir';
+  size?: number;
+  sha?: string;
+  children?: RepoTreeNode[];
+}
+
+export interface RepoTreeManifest {
+  repositoryId: string;
+  commitSha: string;
+  tree: RepoTreeNode[];
+  totalFiles: number;
+  truncated: boolean;
+}

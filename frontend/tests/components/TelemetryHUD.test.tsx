@@ -3,10 +3,12 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, beforeEach } from 'vitest';
 import TelemetryHUD from '../../src/components/hud/TelemetryHUD';
 import { useStore } from '../../src/store/useStore';
+import { useRepoStore } from '../../src/store/useRepoStore';
 
 describe('TelemetryHUD Component', () => {
   beforeEach(() => {
     useStore.getState().resetState();
+    useRepoStore.getState().resetState();
   });
 
   it('renders top navigation buttons and telemetry counters', () => {
@@ -87,6 +89,18 @@ describe('TelemetryHUD Component', () => {
     expect(screen.getByText(/REAL-WORLD SCENARIOS/i)).toBeInTheDocument();
   });
 
+  it('maximizes left sidebar when clicking anywhere on the minimized panel', () => {
+    render(<TelemetryHUD />);
+
+    expect(useStore.getState().isSidebarOpen).toBe(false);
+
+    // Click anywhere on the left study sidebar while minimized
+    const sidebar = screen.getByTestId('left-study-sidebar');
+    fireEvent.click(sidebar);
+
+    expect(useStore.getState().isSidebarOpen).toBe(true);
+  });
+
   it('clicks a topic row in left sidebar list to select and focus it', () => {
     render(<TelemetryHUD />);
 
@@ -111,10 +125,15 @@ describe('TelemetryHUD Component', () => {
     expect(conceptsTab).toBeInTheDocument();
     expect(conceptsTab).toHaveTextContent(/CONCEPTS/i);
 
-    // Verify APPLICATIONS tab exists
+    // Verify CASE STUDIES tab exists
     const appliedTab = screen.getByTestId('sidebar-tab-applications');
     expect(appliedTab).toBeInTheDocument();
-    expect(appliedTab).toHaveTextContent(/APPLICATIONS/i);
+    expect(appliedTab).toHaveTextContent(/CASE STUDIES/i);
+
+    // Verify PROBLEMS tab exists
+    const problemsTab = screen.getByTestId('sidebar-tab-problems');
+    expect(problemsTab).toBeInTheDocument();
+    expect(problemsTab).toHaveTextContent(/PROBLEMS/i);
 
     // Verify TASKS tab does NOT exist
     expect(screen.queryByRole('button', { name: /TASKS/i })).not.toBeInTheDocument();
@@ -552,6 +571,177 @@ describe('TelemetryHUD Component', () => {
       expect(useStore.getState().activeApplication).toBe(appWithTopic);
       expect(useStore.getState().isInspectorOpen).toBe(false);
       expect(useStore.getState().isSidebarOpen).toBe(false);
+    });
+  });
+
+  describe('Problem Bank Integration', () => {
+    it('switches to PROBLEMS tab in sidebar and opens a problem card', async () => {
+      useStore.getState().setIsSidebarOpen(true);
+      useStore.getState().setProblems([
+        {
+          id: 'PROB-TEST-1',
+          title: 'Distributed Rate Limiter',
+          type: 'SYSTEM_DESIGN',
+          difficulty: 'HARD',
+          domain: 'SYSTEMS',
+          summary: 'Design a distributed rate limiter',
+          targetCompanies: ['Stripe', 'Google'],
+          timeLimitMinutes: 45,
+          prompt: '### Prompt\nDesign a rate limiter.',
+          hints: ['Token bucket algorithm'],
+          solution: '### Solution\nUse Redis with token bucket.',
+          starterCode: {},
+          prerequisiteTopics: [],
+          quizzes: []
+        }
+      ]);
+
+      render(<TelemetryHUD />);
+
+      const problemsTabBtn = screen.getByTestId('sidebar-tab-problems');
+      expect(problemsTabBtn).toBeInTheDocument();
+      fireEvent.click(problemsTabBtn);
+
+      await waitFor(() => {
+        expect(screen.getByText('PRACTICE PROBLEMS')).toBeInTheDocument();
+      });
+
+      const problemCards = screen.getAllByTestId('sidebar-problem-card');
+      expect(problemCards.length).toBe(1);
+
+      fireEvent.click(problemCards[0]);
+      expect(useStore.getState().activeProblem?.id).toBe('PROB-TEST-1');
+    });
+
+    it('displays PRACTICE PROBLEMS in inspector when a topic linked to a problem is selected', async () => {
+      const topic = useStore.getState().topicNodes[0];
+      useStore.getState().setProblems([
+        {
+          id: 'PROB-TEST-2',
+          title: 'Trapping Rain Water',
+          type: 'CODING',
+          difficulty: 'HARD',
+          domain: 'CS',
+          summary: 'Two-pointer water trapping',
+          targetCompanies: ['Google', 'Meta'],
+          timeLimitMinutes: 45,
+          prompt: '### Prompt\nTrapping rain water.',
+          hints: ['Two pointers'],
+          solution: '### Solution\nTwo pointers technique.',
+          starterCode: {},
+          prerequisiteTopics: [topic],
+          quizzes: []
+        }
+      ]);
+
+      useStore.getState().setSelectedTopicId(topic.id);
+      useStore.getState().setIsInspectorOpen(true);
+
+      render(<TelemetryHUD />);
+
+      await waitFor(() => {
+        expect(screen.getByText('PRACTICE PROBLEMS')).toBeInTheDocument();
+      });
+
+      const problemItems = screen.getAllByTestId('inspector-problem-item');
+      expect(problemItems.length).toBeGreaterThan(0);
+
+      fireEvent.click(problemItems[0]);
+      expect(useStore.getState().activeProblem?.id).toBe('PROB-TEST-2');
+      expect(useStore.getState().isInspectorOpen).toBe(false);
+      expect(useStore.getState().isSidebarOpen).toBe(false);
+    });
+
+    it('displays CODE REPOSITORY ANNOTATIONS in inspector when a topic linked to an annotation is selected', async () => {
+      const topic = useStore.getState().topicNodes[0];
+      useRepoStore.setState({
+        repositories: [
+          {
+            id: 'REPO-1',
+            owner: 'redis',
+            name: 'redis',
+            fullName: 'redis/redis',
+            remoteUrl: 'https://github.com/redis/redis',
+            defaultBranch: 'unstable',
+            originType: 'GITHUB',
+            isCloned: false,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          }
+        ],
+        annotations: [
+          {
+            id: 'ANN-TOPIC-1',
+            repositoryId: 'REPO-1',
+            commitSha: 'latest',
+            filePath: 'src/ae.c',
+            startLine: 120,
+            endLine: 145,
+            title: 'Epoll Multiplexing Loop',
+            content: 'Event-driven reactor core',
+            anchorCodeSnippet: 'int aeProcessEvents(aeEventLoop *eventLoop) { ... }',
+            designCategory: 'ARCHITECTURE',
+            aiExplanation: null,
+            topicId: topic.id,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          }
+        ]
+      });
+
+      useStore.getState().setSelectedTopicId(topic.id);
+      useStore.getState().setIsInspectorOpen(true);
+
+      render(<TelemetryHUD />);
+
+      await waitFor(() => {
+        expect(screen.getByText('CODE REPOSITORY ANNOTATIONS')).toBeInTheDocument();
+      });
+
+      expect(screen.getByText('Epoll Multiplexing Loop')).toBeInTheDocument();
+
+      const annItems = screen.getAllByTestId('inspector-repo-annotation-item');
+      expect(annItems.length).toBeGreaterThan(0);
+
+      fireEvent.click(annItems[0]);
+
+      await waitFor(() => {
+        expect(useRepoStore.getState().isRepoViewerOpen).toBe(true);
+        expect(useRepoStore.getState().activeAnnotationId).toBe('ANN-TOPIC-1');
+      });
+    });
+  });
+
+  describe('Manual Quiz Creation Integration', () => {
+    it('opens CreateQuizModal with target node preselected when + ADD QUIZ is clicked in inspector', () => {
+      const topic = useStore.getState().topicNodes[0];
+      useStore.getState().setSelectedTopicId(topic.id);
+      useStore.getState().setIsInspectorOpen(true);
+
+      render(<TelemetryHUD />);
+
+      const addQuizBtn = screen.getByTestId('add-quiz-button');
+      expect(addQuizBtn).toBeInTheDocument();
+      fireEvent.click(addQuizBtn);
+
+      expect(useStore.getState().isCreateQuizOpen).toBe(true);
+      expect(useStore.getState().createQuizTargetTopicId).toBe(topic.id);
+    });
+
+    it('opens CreateQuizModal when top bar plus menu "Create Quiz Manually" is clicked', async () => {
+      render(<TelemetryHUD />);
+
+      const plusBtn = screen.getByTestId('ingest-url-btn');
+      fireEvent.click(plusBtn);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('create-quiz-manually-btn')).toBeInTheDocument();
+      });
+
+      const createQuizBtn = screen.getByTestId('create-quiz-manually-btn');
+      fireEvent.click(createQuizBtn);
+
+      expect(useStore.getState().isCreateQuizOpen).toBe(true);
     });
   });
 });

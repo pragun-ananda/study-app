@@ -376,4 +376,317 @@ describe('PostgreSQL Storage Schema (storage/schema.sql)', () => {
       expect(hydratedTodo.priority).toBe('HIGH');
     });
   });
+
+  describe('Sources Table: Provenance & Foreign Key Relations (BAC-31)', () => {
+    beforeEach(() => {
+      db.public.none(`
+        INSERT INTO topics (id, name, category, summary)
+        VALUES ('TOPIC-AI', 'Deep Learning Architectures', 'AI & ML', 'Deep neural net concepts.');
+      `);
+    });
+
+    it('inserts a valid source record with raw markdown and metadata', () => {
+      db.public.none(`
+        INSERT INTO sources (id, url, title, author_or_org, raw_markdown, cleaned_markdown, content_hash, metadata)
+        VALUES (
+          'SRC-001',
+          'https://arxiv.org/html/1706.03762',
+          'Attention Is All You Need',
+          'Vaswani et al. (Google Brain)',
+          '# Attention Is All You Need\nRaw latex and math.',
+          '# Attention Is All You Need\nClean markdown.',
+          'sha256-hash-value',
+          '{"domain": "AI & ML", "readTime": 12}'
+        );
+      `);
+
+      const source = db.public.one("SELECT * FROM sources WHERE id = 'SRC-001'");
+      expect(source.title).toBe('Attention Is All You Need');
+      expect(source.author_or_org).toBe('Vaswani et al. (Google Brain)');
+      expect(source.cleaned_markdown).toContain('Clean markdown.');
+      expect(source.content_hash).toBe('sha256-hash-value');
+    });
+
+    it('enforces unique URL constraint on sources', () => {
+      db.public.none(`
+        INSERT INTO sources (id, url, title, raw_markdown, cleaned_markdown, content_hash)
+        VALUES ('SRC-001', 'https://example.com/article', 'Title 1', 'Raw', 'Clean', 'hash1');
+      `);
+
+      expect(() => {
+        db.public.none(`
+          INSERT INTO sources (id, url, title, raw_markdown, cleaned_markdown, content_hash)
+          VALUES ('SRC-002', 'https://example.com/article', 'Duplicate URL', 'Raw 2', 'Clean 2', 'hash2');
+        `);
+      }).toThrow();
+    });
+
+    it('links notes and quizzes to source_id and sets source_id to NULL on source deletion (ON DELETE SET NULL)', () => {
+      db.public.none(`
+        INSERT INTO sources (id, url, title, raw_markdown, cleaned_markdown, content_hash)
+        VALUES ('SRC-PAPER', 'https://arxiv.org/abs/attention', 'Attention Paper', 'Raw', 'Clean', 'hash');
+
+        INSERT INTO notes (id, topic_id, source_id, title, content)
+        VALUES ('NOTE-ATTN', 'TOPIC-AI', 'SRC-PAPER', 'Attention Derivations', 'Softmax QK^T');
+
+        INSERT INTO quizzes (id, topic_id, source_id, title)
+        VALUES ('QUIZ-ATTN', 'TOPIC-AI', 'SRC-PAPER', 'Transformer Assessment');
+      `);
+
+      const linkedNote = db.public.one("SELECT * FROM notes WHERE id = 'NOTE-ATTN'");
+      const linkedQuiz = db.public.one("SELECT * FROM quizzes WHERE id = 'QUIZ-ATTN'");
+      expect(linkedNote.source_id).toBe('SRC-PAPER');
+      expect(linkedQuiz.source_id).toBe('SRC-PAPER');
+
+      // Delete the source
+      db.public.none("DELETE FROM sources WHERE id = 'SRC-PAPER'");
+
+      // Note and quiz should remain intact with source_id set to NULL
+      const noteAfterDelete = db.public.one("SELECT * FROM notes WHERE id = 'NOTE-ATTN'");
+      const quizAfterDelete = db.public.one("SELECT * FROM quizzes WHERE id = 'QUIZ-ATTN'");
+      expect(noteAfterDelete).toBeDefined();
+      expect(noteAfterDelete.source_id).toBeNull();
+      expect(quizAfterDelete).toBeDefined();
+      expect(quizAfterDelete.source_id).toBeNull();
+    });
+  });
+
+  describe('Quiz Attempts & Spaced Repetition (BAC-33)', () => {
+    it('records quiz attempts with score, ease factor, interval, and next due date', () => {
+      db.public.none(`
+        INSERT INTO topics (id, name, category, summary)
+        VALUES ('TOPIC-AI', 'Deep Learning', 'AI & ML', 'Deep learning summary');
+
+        INSERT INTO quizzes (id, topic_id, title)
+        VALUES ('QUIZ-01', 'TOPIC-AI', 'AI Quiz');
+
+        INSERT INTO quiz_attempts (id, topic_id, quiz_id, score, ease_factor, interval_days, repetition_count, next_due_at)
+        VALUES ('ATTEMPT-01', 'TOPIC-AI', 'QUIZ-01', 95.50, 2.60, 6, 2, '2026-10-20T00:00:00Z');
+      `);
+
+      const attempt = db.public.one("SELECT * FROM quiz_attempts WHERE id = 'ATTEMPT-01'");
+      expect(attempt.id).toBe('ATTEMPT-01');
+      expect(attempt.topic_id).toBe('TOPIC-AI');
+      expect(attempt.quiz_id).toBe('QUIZ-01');
+      expect(Number(attempt.score)).toBe(95.5);
+      expect(Number(attempt.ease_factor)).toBe(2.6);
+      expect(attempt.interval_days).toBe(6);
+      expect(attempt.repetition_count).toBe(2);
+      expect(attempt.next_due_at).toBeDefined();
+    });
+
+    it('cascades deletion when parent topic or quiz is removed', () => {
+      db.public.none(`
+        INSERT INTO topics (id, name, category, summary)
+        VALUES ('TOPIC-AI', 'Deep Learning', 'AI & ML', 'Deep learning summary');
+
+        INSERT INTO quizzes (id, topic_id, title)
+        VALUES ('QUIZ-CASCADE', 'TOPIC-AI', 'Cascade Quiz');
+
+        INSERT INTO quiz_attempts (id, topic_id, quiz_id, score, ease_factor, interval_days, next_due_at)
+        VALUES ('ATTEMPT-CAS', 'TOPIC-AI', 'QUIZ-CASCADE', 80.0, 2.50, 1, '2026-10-15T00:00:00Z');
+      `);
+
+      db.public.none("DELETE FROM quizzes WHERE id = 'QUIZ-CASCADE'");
+      const attempt = db.public.many("SELECT * FROM quiz_attempts WHERE id = 'ATTEMPT-CAS'");
+      expect(attempt.length).toBe(0);
+    });
+
+    it('enforces score check constraint (0 to 100)', () => {
+      db.public.none(`
+        INSERT INTO topics (id, name, category, summary)
+        VALUES ('TOPIC-AI', 'Deep Learning', 'AI & ML', 'Deep learning summary');
+
+        INSERT INTO quizzes (id, topic_id, title)
+        VALUES ('QUIZ-01', 'TOPIC-AI', 'AI Quiz');
+      `);
+
+      expect(() => {
+        db.public.none(`
+          INSERT INTO quiz_attempts (id, topic_id, quiz_id, score, ease_factor, interval_days, next_due_at)
+          VALUES ('ATTEMPT-BAD', 'TOPIC-AI', 'QUIZ-01', 105.0, 2.50, 1, '2026-10-15T00:00:00Z');
+        `);
+      }).toThrow();
+    });
+  });
+
+  describe('Interview Problem Bank Schema (BAC-38)', () => {
+    it('inserts a valid problem with companies array, starter code, and hints', () => {
+      db.public.none(`
+        INSERT INTO problems (
+          id, title, type, difficulty, domain, summary, prompt, solution,
+          hints, starter_code, test_cases, rubric, target_companies, time_limit_minutes
+        ) VALUES (
+          'PROB-RATE-LIMITER',
+          'Design a High-Throughput Distributed Rate Limiter',
+          'SYSTEM_DESIGN',
+          'HARD',
+          'SYSTEMS',
+          'Scalable sliding window rate limiter using Redis cluster.',
+          '### Requirements\nDesign a distributed rate limiter that handles 500k RPS.',
+          '### Canonical Solution\nUse Redis sliding window log with Lua scripts.',
+          '["Consider Token Bucket vs Leaking Bucket", "Use Redis Cluster for partition tolerance"]'::jsonb,
+          '{"python": "class RateLimiter:\\n    pass"}'::jsonb,
+          '[{"input": "client_1", "expected": true}]'::jsonb,
+          '{"accuracy": 30, "architecture": 40, "tradeoffs": 30}'::jsonb,
+          ARRAY['Stripe', 'Netflix', 'Amazon'],
+          45
+        );
+      `);
+
+      const prob = db.public.one("SELECT * FROM problems WHERE id = 'PROB-RATE-LIMITER'");
+      expect(prob.id).toBe('PROB-RATE-LIMITER');
+      expect(prob.title).toContain('Distributed Rate Limiter');
+      expect(prob.type).toBe('SYSTEM_DESIGN');
+      expect(prob.difficulty).toBe('HARD');
+      expect(prob.domain).toBe('SYSTEMS');
+      expect(prob.target_companies).toEqual(['Stripe', 'Netflix', 'Amazon']);
+      expect(prob.time_limit_minutes).toBe(45);
+    });
+
+    it('enforces CHECK constraints on problem type and difficulty', () => {
+      expect(() => {
+        db.public.none(`
+          INSERT INTO problems (id, title, type, difficulty, domain, summary, prompt, solution)
+          VALUES ('PROB-BAD-TYPE', 'Test', 'INVALID_TYPE', 'MEDIUM', 'CS', 'Summary', 'Prompt', 'Sol');
+        `);
+      }).toThrow();
+
+      expect(() => {
+        db.public.none(`
+          INSERT INTO problems (id, title, type, difficulty, domain, summary, prompt, solution)
+          VALUES ('PROB-BAD-DIFF', 'Test', 'CODING', 'SUPER_HARD', 'CS', 'Summary', 'Prompt', 'Sol');
+        `);
+      }).toThrow();
+    });
+
+    it('links problems to topic prerequisites and cascades on problem/topic deletion', () => {
+      db.public.none(`
+        INSERT INTO topics (id, name, category, summary)
+        VALUES ('TOPIC-REDIS', 'Redis Concurrency', 'SYSTEMS', 'Redis keys and data structures.');
+
+        INSERT INTO problems (id, title, type, difficulty, domain, summary, prompt, solution)
+        VALUES ('PROB-PREREQ-TEST', 'Distributed Rate Limiter', 'SYSTEM_DESIGN', 'HARD', 'SYSTEMS', 'Rate limiting', 'Prompt', 'Sol');
+
+        INSERT INTO problem_prerequisites (problem_id, topic_id)
+        VALUES ('PROB-PREREQ-TEST', 'TOPIC-REDIS');
+      `);
+
+      const prereq = db.public.one("SELECT * FROM problem_prerequisites WHERE problem_id = 'PROB-PREREQ-TEST'");
+      expect(prereq.topic_id).toBe('TOPIC-REDIS');
+
+      // Delete problem -> cascades to problem_prerequisites
+      db.public.none("DELETE FROM problems WHERE id = 'PROB-PREREQ-TEST'");
+      const remaining = db.public.many("SELECT * FROM problem_prerequisites WHERE problem_id = 'PROB-PREREQ-TEST'");
+      expect(remaining.length).toBe(0);
+    });
+
+    it('links problems to problem quizzes and cascades on deletion', () => {
+      db.public.none(`
+        INSERT INTO topics (id, name, category, summary)
+        VALUES ('TOPIC-ALGO', 'Algorithms', 'CS', 'Algorithms overview');
+
+        INSERT INTO quizzes (id, topic_id, title)
+        VALUES ('QUIZ-ALGO-1', 'TOPIC-ALGO', 'Algorithm Basics');
+
+        INSERT INTO problems (id, title, type, difficulty, domain, summary, prompt, solution)
+        VALUES ('PROB-QUIZ-TEST', 'Trapping Rain Water', 'CODING', 'HARD', 'CS', 'Monotonic stack problem', 'Prompt', 'Sol');
+
+        INSERT INTO problem_quizzes (problem_id, quiz_id)
+        VALUES ('PROB-QUIZ-TEST', 'QUIZ-ALGO-1');
+      `);
+
+      const link = db.public.one("SELECT * FROM problem_quizzes WHERE problem_id = 'PROB-QUIZ-TEST'");
+      expect(link.quiz_id).toBe('QUIZ-ALGO-1');
+
+      db.public.none("DELETE FROM problems WHERE id = 'PROB-QUIZ-TEST'");
+      const remaining = db.public.many("SELECT * FROM problem_quizzes WHERE problem_id = 'PROB-QUIZ-TEST'");
+      expect(remaining.length).toBe(0);
+    });
+
+    it('inserts problem submission records, enforces status check, and cascades on problem deletion', () => {
+      db.public.none(`
+        INSERT INTO problems (id, title, type, difficulty, domain, summary, prompt, solution)
+        VALUES ('PROB-SUB-TEST', 'Trapping Rain Water', 'CODING', 'HARD', 'CS', 'Summary', 'Prompt', 'Sol');
+
+        INSERT INTO problem_submissions (
+          id, problem_id, language, code, status, passed_count, total_count, runtime_ms, memory_kb, stdout
+        ) VALUES (
+          'SUB-001', 'PROB-SUB-TEST', 'typescript', 'export function trap() { return 6; }',
+          'ACCEPTED', 2, 2, 0.45, 36240, 'Computed trapped water: 6 units.'
+        );
+      `);
+
+      const sub = db.public.one("SELECT * FROM problem_submissions WHERE id = 'SUB-001'");
+      expect(sub.problem_id).toBe('PROB-SUB-TEST');
+      expect(sub.language).toBe('typescript');
+      expect(sub.status).toBe('ACCEPTED');
+      expect(sub.passed_count).toBe(2);
+      expect(Number(sub.runtime_ms)).toBe(0.45);
+
+      // Verify status constraint rejects invalid status
+      expect(() => {
+        db.public.none(`
+          INSERT INTO problem_submissions (id, problem_id, language, code, status)
+          VALUES ('SUB-002', 'PROB-SUB-TEST', 'python', 'code', 'INVALID_STATUS');
+        `);
+      }).toThrow();
+
+      // Verify cascade delete
+      db.public.none("DELETE FROM problems WHERE id = 'PROB-SUB-TEST'");
+      const remaining = db.public.many("SELECT * FROM problem_submissions WHERE problem_id = 'PROB-SUB-TEST'");
+      expect(remaining.length).toBe(0);
+    });
+
+    it('stores system design follow_ups on problems and persists candidate follow_up responses', () => {
+      const sampleFollowUps = JSON.stringify([
+        {
+          id: 'FU-001',
+          title: 'Distributed Stream Aggregation',
+          prompt: 'How to scale water volume computation across Kafka partitions?',
+          rubric: { 'Partitioning': 25, 'Windowing': 25, 'Fault Tolerance': 25, 'State Recovery': 25 },
+          hints: ['Use sliding windows', 'Consider stateful processing with RocksDB checkpointing']
+        }
+      ]);
+
+      db.public.none(`
+        INSERT INTO problems (id, title, type, difficulty, domain, summary, prompt, solution, follow_ups)
+        VALUES ('PROB-FU-TEST', 'Trapping Rain Water', 'CODING', 'HARD', 'CS', 'Summary', 'Prompt', 'Sol', '${sampleFollowUps}');
+
+        INSERT INTO problem_follow_up_responses (
+          id, problem_id, follow_up_id, response_text, score, feedback
+        ) VALUES (
+          'RESP-001', 'PROB-FU-TEST', 'FU-001', 'We use Apache Flink stateful stream processing with tumbling windows.', 92.5, 'Excellent trade-off analysis.'
+        );
+      `);
+
+      const prob = db.public.one("SELECT * FROM problems WHERE id = 'PROB-FU-TEST'");
+      const parsedFollowUps = typeof prob.follow_ups === 'string' ? JSON.parse(prob.follow_ups) : prob.follow_ups;
+      expect(parsedFollowUps.length).toBe(1);
+      expect(parsedFollowUps[0].id).toBe('FU-001');
+      expect(parsedFollowUps[0].title).toBe('Distributed Stream Aggregation');
+
+      const resp = db.public.one("SELECT * FROM problem_follow_up_responses WHERE id = 'RESP-001'");
+      expect(resp.problem_id).toBe('PROB-FU-TEST');
+      expect(resp.follow_up_id).toBe('FU-001');
+      expect(resp.response_text).toContain('Apache Flink');
+      expect(Number(resp.score)).toBe(92.5);
+
+      // Verify unique constraint on (problem_id, follow_up_id)
+      expect(() => {
+        db.public.none(`
+          INSERT INTO problem_follow_up_responses (id, problem_id, follow_up_id, response_text)
+          VALUES ('RESP-002', 'PROB-FU-TEST', 'FU-001', 'Duplicate response');
+        `);
+      }).toThrow();
+
+      // Verify cascade delete
+      db.public.none("DELETE FROM problems WHERE id = 'PROB-FU-TEST'");
+      const remainingResp = db.public.many("SELECT * FROM problem_follow_up_responses WHERE problem_id = 'PROB-FU-TEST'");
+      expect(remainingResp.length).toBe(0);
+    });
+  });
 });
+
+
+

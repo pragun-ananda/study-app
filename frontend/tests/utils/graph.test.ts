@@ -3,7 +3,11 @@ import {
   getTopologicalPrerequisites,
   calculateConnectedGraph,
   calculateOverviewFramingDistance,
-  calculateNewNodeCoordinates
+  calculateNewNodeCoordinates,
+  calculateTopological2DLayout,
+  isNodeLabelZoomVisible,
+  ZOOM_LABEL_DISTANCE_THRESHOLD,
+  ZOOM_LABEL_HYSTERESIS_THRESHOLD
 } from '../../src/utils/graph';
 import { TopicNode } from '../../src/types/telemetry';
 
@@ -277,5 +281,252 @@ describe('Graph Spatial Layout: calculateNewNodeCoordinates', () => {
     expect(coords).toHaveLength(3);
     expect(coords.every((c) => typeof c === 'number' && !isNaN(c) && isFinite(c))).toBe(true);
   });
+
+  it('progressively expands cluster outward when adding sequential nodes without overlapping', () => {
+    const nodes: TopicNode[] = [
+      { ...createMockNode('N0', 'Root'), category: 'SYSTEMS', coordinates: [15, 10, 0] }
+    ];
+
+    // Sequentially add 8 new nodes to the SYSTEMS category
+    for (let i = 1; i <= 8; i++) {
+      const coords = calculateNewNodeCoordinates('SYSTEMS', nodes);
+      const newNode: TopicNode = {
+        ...createMockNode(`N${i}`, `Node ${i}`),
+        category: 'SYSTEMS',
+        coordinates: coords
+      };
+
+      // Verify that the new node does not collide with ANY existing node
+      for (const existing of nodes) {
+        const dx = coords[0] - existing.coordinates[0];
+        const dy = coords[1] - existing.coordinates[1];
+        const dz = coords[2] - existing.coordinates[2];
+        const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        expect(dist).toBeGreaterThanOrEqual(4.1);
+      }
+
+      nodes.push(newNode);
+    }
+
+    // Verify cluster boundary expanded outward from origin
+    const initialDistFromOrigin = Math.sqrt(15 * 15 + 10 * 10);
+    const maxFinalDist = Math.max(
+      ...nodes.map((n) => Math.sqrt(n.coordinates[0] ** 2 + n.coordinates[1] ** 2 + n.coordinates[2] ** 2))
+    );
+    expect(maxFinalDist).toBeGreaterThan(initialDistFromOrigin + 6.0);
+  });
+
+  it('branches outward from prerequisite node when prerequisiteIds are provided', () => {
+    const prereqNode: TopicNode = {
+      ...createMockNode('PREREQ', 'Prereq Concept'),
+      category: 'AI & ML',
+      coordinates: [25, 20, 5]
+    };
+    const otherNode: TopicNode = {
+      ...createMockNode('OTHER', 'Other Concept'),
+      category: 'AI & ML',
+      coordinates: [-10, -10, 0]
+    };
+
+    const coords = calculateNewNodeCoordinates('AI & ML', [prereqNode, otherNode], {
+      prerequisiteIds: ['PREREQ']
+    });
+
+    // Distance from the prerequisite anchor should be close, branching outward from it
+    const distToPrereq = Math.sqrt(
+      (coords[0] - prereqNode.coordinates[0]) ** 2 +
+      (coords[1] - prereqNode.coordinates[1]) ** 2 +
+      (coords[2] - prereqNode.coordinates[2]) ** 2
+    );
+    expect(distToPrereq).toBeGreaterThanOrEqual(4.0);
+    expect(distToPrereq).toBeLessThan(12.0);
+
+    // Far from the unrelated category node
+    const distToOther = Math.sqrt(
+      (coords[0] - otherNode.coordinates[0]) ** 2 +
+      (coords[1] - otherNode.coordinates[1]) ** 2 +
+      (coords[2] - otherNode.coordinates[2]) ** 2
+    );
+    expect(distToOther).toBeGreaterThan(30.0);
+  });
+
+  it('leaves sufficient clearance for enlarged node scale (1.85x) and orbital rings when clicked', () => {
+    const existing: TopicNode[] = [
+      { ...createMockNode('A', 'Existing A'), category: 'CS', coordinates: [10, 10, 2] },
+      { ...createMockNode('B', 'Existing B'), category: 'CS', coordinates: [14, 12, 1] }
+    ];
+
+    const coords = calculateNewNodeCoordinates('CS', existing);
+
+    // When clicked, node scales to 1.85x (sphere radius 0.52 * 1.85 = 0.962, ring radius 0.82 * 1.85 = 1.517)
+    // Neighbor node radius is 0.52 (or 0.754 if hovered).
+    // Sum of max radii: 0.962 + 0.754 = 1.716; sum of orbital rings: 1.517 + 1.189 = 2.706.
+    for (const node of existing) {
+      const dist = Math.sqrt(
+        (coords[0] - node.coordinates[0]) ** 2 +
+        (coords[1] - node.coordinates[1]) ** 2 +
+        (coords[2] - node.coordinates[2]) ** 2
+      );
+      // Ensure zero geometric overlap even when clicked: distance > sum of clicked radii + generous clearance
+      expect(dist).toBeGreaterThanOrEqual(4.1);
+      const surfaceGapWhenClicked = dist - (0.962 + 0.754);
+      expect(surfaceGapWhenClicked).toBeGreaterThan(2.0);
+    }
+  });
 });
+
+describe('Graph 2D Topological Sort Layout: calculateTopological2DLayout', () => {
+  it('returns empty result when targetId does not exist', () => {
+    const result = calculateTopological2DLayout('UNKNOWN', []);
+    expect(result.nodes).toHaveLength(0);
+    expect(result.edges).toHaveLength(0);
+    expect(result.needsCount).toBe(0);
+    expect(result.parentsCount).toBe(0);
+  });
+
+  it('renders isolated node with CURRENT group in center', () => {
+    const node = createMockNode('A', 'Node A');
+    const result = calculateTopological2DLayout('A', [node]);
+
+    expect(result.nodes).toHaveLength(1);
+    expect(result.nodes[0].id).toBe('A');
+    expect(result.nodes[0].group).toBe('CURRENT');
+    expect(result.nodes[0].x).toBe(160); // Centered in 320px
+    expect(result.edges).toHaveLength(0);
+    expect(result.needsCount).toBe(0);
+    expect(result.parentsCount).toBe(0);
+  });
+
+  it('correctly partitions and orders 3 groups for A -> B -> C with target B', () => {
+    const nodeA = createMockNode('A', 'Node A', [], ['B']);
+    const nodeB = createMockNode('B', 'Node B', ['A'], ['C']);
+    const nodeC = createMockNode('C', 'Node C', ['B'], []);
+    const nodes = [nodeA, nodeB, nodeC];
+
+    const result = calculateTopological2DLayout('B', nodes);
+
+    expect(result.needsCount).toBe(1);
+    expect(result.parentsCount).toBe(1);
+    expect(result.nodes).toHaveLength(3);
+
+    const needNode = result.nodes.find((n) => n.id === 'A')!;
+    const currentNode = result.nodes.find((n) => n.id === 'B')!;
+    const parentNode = result.nodes.find((n) => n.id === 'C')!;
+
+    expect(needNode.group).toBe('NEED');
+    expect(needNode.step).toBe(1);
+    expect(currentNode.group).toBe('CURRENT');
+    expect(parentNode.group).toBe('PARENT');
+
+    // Vertical top-down topological ordering: Needs -> Current -> Parents
+    expect(needNode.y).toBeLessThan(currentNode.y);
+    expect(currentNode.y).toBeLessThan(parentNode.y);
+
+    // Edges
+    expect(result.edges).toHaveLength(2);
+    const edgeAB = result.edges.find((e) => e.fromId === 'A' && e.toId === 'B');
+    const edgeBC = result.edges.find((e) => e.fromId === 'B' && e.toId === 'C');
+    expect(edgeAB).toBeDefined();
+    expect(edgeAB?.group).toBe('NEED');
+    expect(edgeBC).toBeDefined();
+    expect(edgeBC?.group).toBe('CURRENT');
+  });
+
+  it('correctly calculates topological layers for diamond DAG leading to target', () => {
+    // A -> B, A -> C, B -> D, C -> D
+    const nodeA = createMockNode('A', 'Node A', [], ['B', 'C']);
+    const nodeB = createMockNode('B', 'Node B', ['A'], ['D']);
+    const nodeC = createMockNode('C', 'Node C', ['A'], ['D']);
+    const nodeD = createMockNode('D', 'Node D', ['B', 'C'], []);
+    const nodes = [nodeA, nodeB, nodeC, nodeD];
+
+    const result = calculateTopological2DLayout('D', nodes);
+
+    expect(result.needsCount).toBe(3);
+    expect(result.parentsCount).toBe(0);
+
+    const aNode = result.nodes.find((n) => n.id === 'A')!;
+    const bNode = result.nodes.find((n) => n.id === 'B')!;
+    const cNode = result.nodes.find((n) => n.id === 'C')!;
+    const dNode = result.nodes.find((n) => n.id === 'D')!;
+
+    expect(aNode.group).toBe('NEED');
+    expect(bNode.group).toBe('NEED');
+    expect(cNode.group).toBe('NEED');
+    expect(dNode.group).toBe('CURRENT');
+
+    // A is root need (Layer 0)
+    expect(aNode.y).toBeLessThan(bNode.y);
+    expect(aNode.y).toBeLessThan(cNode.y);
+    // B and C are side-by-side in Layer 1
+    expect(bNode.y).toBe(cNode.y);
+    expect(bNode.x).not.toBe(cNode.x);
+    // D is below B and C
+    expect(bNode.y).toBeLessThan(dNode.y);
+  });
+
+  it('ensures node coordinates fit within the popup width without negative margins or overflow', () => {
+    const nodeA = createMockNode('A', 'Prereq 1', [], ['Target']);
+    const nodeB = createMockNode('B', 'Prereq 2', [], ['Target']);
+    const target = createMockNode('Target', 'Target Node', ['A', 'B'], ['Child1', 'Child2']);
+    const child1 = createMockNode('Child1', 'Child 1', ['Target'], []);
+    const child2 = createMockNode('Child2', 'Child 2', ['Target'], []);
+    const nodes = [nodeA, nodeB, target, child1, child2];
+
+    const result = calculateTopological2DLayout('Target', nodes);
+
+    expect(result.width).toBe(320);
+    result.nodes.forEach((n) => {
+      const left = n.x - n.width / 2;
+      const right = n.x + n.width / 2;
+      expect(left).toBeGreaterThanOrEqual(10);
+      expect(right).toBeLessThanOrEqual(310);
+    });
+  });
+});
+
+describe('Graph Visuals: isNodeLabelZoomVisible', () => {
+  it('shows label when camera is close to node and node is in front', () => {
+    // Zoomed in (e.g. distance = 18.0)
+    expect(isNodeLabelZoomVisible(18.0, true, false)).toBe(true);
+    expect(isNodeLabelZoomVisible(25.0, true, false)).toBe(true);
+    expect(isNodeLabelZoomVisible(ZOOM_LABEL_DISTANCE_THRESHOLD - 0.5, true, false)).toBe(true);
+  });
+
+  it('hides label when camera is at overview framing distance', () => {
+    // Overview mode (e.g. distance = 58.0 or 65.0)
+    expect(isNodeLabelZoomVisible(58.0, true, false)).toBe(false);
+    expect(isNodeLabelZoomVisible(65.0, true, false)).toBe(false);
+    expect(isNodeLabelZoomVisible(ZOOM_LABEL_DISTANCE_THRESHOLD + 1.0, true, false)).toBe(false);
+  });
+
+  it('hides label if node is behind camera regardless of distance', () => {
+    expect(isNodeLabelZoomVisible(5.0, false, false)).toBe(false);
+    expect(isNodeLabelZoomVisible(5.0, false, true)).toBe(false);
+  });
+
+  it('applies hysteresis to prevent flickering near the zoom threshold boundary', () => {
+    // At boundary distance (e.g. 32.0 units away):
+    // 1. If not yet visible, distance 32.0 >= enterThreshold (30.0) -> stays hidden
+    expect(isNodeLabelZoomVisible(32.0, true, false)).toBe(false);
+
+    // 2. Once user zooms in to 28.0 (< 30.0), becomes visible
+    expect(isNodeLabelZoomVisible(28.0, true, false)).toBe(true);
+
+    // 3. If camera now pulls back slightly to 32.0 (< exitThreshold 35.0), stays visible due to hysteresis
+    expect(isNodeLabelZoomVisible(32.0, true, true)).toBe(true);
+    expect(isNodeLabelZoomVisible(34.5, true, true)).toBe(true);
+
+    // 4. Once camera pulls back past exit threshold (35.0+), hides
+    expect(isNodeLabelZoomVisible(35.5, true, true)).toBe(false);
+    expect(isNodeLabelZoomVisible(50.0, true, true)).toBe(false);
+  });
+
+  it('handles non-positive distance values gracefully', () => {
+    expect(isNodeLabelZoomVisible(0, true, true)).toBe(false);
+    expect(isNodeLabelZoomVisible(-10, true, true)).toBe(false);
+  });
+});
+
+
 

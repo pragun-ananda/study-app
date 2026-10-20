@@ -39,8 +39,8 @@ test.describe('Telemetry HUD & User Controls (FRO-9)', () => {
     await expect(inspector).toBeVisible();
     // Verify prerequisites & learn next unlock chains are listed
     await expect(inspector.getByText(/PREREQUISITES/i).first()).toBeVisible();
-    await expect(inspector.getByText(/LEARN NEXT/i)).toBeVisible();
-    await expect(inspector.getByText('Paxos Protocol')).toBeVisible();
+    await expect(inspector.getByText(/LEARN NEXT/i).first()).toBeVisible();
+    await expect(inspector.locator('span').filter({ hasText: 'Paxos Protocol' }).first()).toBeVisible();
 
     // Close Inspector
     const closeBtn = page.getByTitle('Close Inspector');
@@ -89,6 +89,24 @@ test.describe('Telemetry HUD & User Controls (FRO-9)', () => {
     await expect(page.getByTestId('sidebar-add-node-btn')).toBeVisible();
   });
 
+  test('Expands left sidebar by clicking anywhere on the minimized panel', async ({ page }) => {
+    // Verify concepts tab is not visible initially
+    await expect(page.getByTestId('sidebar-tab-concepts')).not.toBeVisible();
+
+    // Click anywhere on the minimized left sidebar panel
+    const sidebar = page.getByTestId('left-study-sidebar');
+    await expect(sidebar).toBeVisible();
+    await sidebar.click();
+
+    // Verify left sidebar is maximized and concepts tab is visible
+    await expect(page.getByTestId('sidebar-tab-concepts')).toBeVisible();
+
+    // Close sidebar via toggle arrow
+    const togglePanelBtn = page.getByLabel('Toggle study panel');
+    await togglePanelBtn.click();
+    await expect(page.getByTestId('sidebar-tab-concepts')).not.toBeVisible();
+  });
+
   test('Handles Slash (/) to open search & sidebar, and Escape to dismiss', async ({ page }) => {
     // 1. Press '/' to open search input and expand left sidebar
     await page.keyboard.press('/');
@@ -123,6 +141,59 @@ test.describe('Telemetry HUD & User Controls (FRO-9)', () => {
     await page.keyboard.press('t');
     await expect(page.locator('html')).toHaveAttribute('data-theme', initialTheme);
     await expect(page.locator('html')).toHaveClass(new RegExp(initialTheme));
+  });
+
+  test('Visualizes 2D top-down topological ordering flow in the right side inspector', async ({ page }) => {
+    // 1. Search for and open a concept with both prerequisites and unlocks
+    const searchBtn = page.getByTitle('Open concept search');
+    await searchBtn.click();
+
+    const searchInput = page.getByPlaceholder('Search 220+ concepts...');
+    await searchInput.fill('Raft');
+
+    const raftNode = page.getByTestId('sidebar-topic-card').filter({ hasText: 'Distributed Consensus (Raft)' }).first();
+    await expect(raftNode).toBeVisible();
+    await raftNode.click();
+
+    const exploreBtn = page.getByTestId('explore-topic-btn');
+    await expect(exploreBtn).toBeVisible();
+    await exploreBtn.click();
+
+    // 2. Inspector opens and renders 2D Topological Subgraph
+    const inspector = page.getByTestId('topic-inspector');
+    await expect(inspector).toBeVisible();
+
+    const topoContainer = inspector.getByTestId('topological-subgraph-container');
+    await expect(topoContainer).toBeVisible();
+    await expect(topoContainer.getByText('Topological Flow', { exact: true })).toBeVisible();
+
+    // 3. Verify legend with 3 groups: Prerequisites, Current, Learn Next
+    await expect(topoContainer.getByText(/Prerequisites/i).first()).toBeVisible();
+    await expect(topoContainer.getByText('Current', { exact: true })).toBeVisible();
+    await expect(topoContainer.getByText(/Learn Next/i).first()).toBeVisible();
+
+    // 4. Verify 2D Flow SVG is rendered
+    const topoCanvas = topoContainer.locator('svg[role="img"]');
+    await expect(topoCanvas).toBeVisible();
+
+    // 5. Test switching to Step List view
+    const listBtn = inspector.getByTestId('topological-mode-list-btn');
+    await listBtn.click();
+
+    const stepList = inspector.getByTestId('topological-step-list');
+    await expect(stepList).toBeVisible();
+    await expect(stepList.getByText(/1\. PREREQUISITES/i)).toBeVisible();
+    await expect(stepList.getByText(/2\. CURRENT ACTIVE TOPIC/i)).toBeVisible();
+    await expect(stepList.getByText(/3\. LEARN NEXT/i)).toBeVisible();
+
+    // 6. Switch back to 2D Flow view
+    const flowBtn = inspector.getByTestId('topological-mode-flow-btn');
+    await flowBtn.click();
+    await expect(topoCanvas).toBeVisible();
+
+    // Close Inspector
+    const closeBtn = page.getByTitle('Close Inspector');
+    await closeBtn.click();
   });
 });
 

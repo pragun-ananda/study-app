@@ -48,7 +48,14 @@ export interface QuizItem {
   questions: QuizQuestionItem[];
 }
 
-export type ApplicationType = 'CASE_STUDY' | 'INTERVIEW_PROBLEM' | 'PROJECT_BLUEPRINT';
+export type ApplicationType =
+  | 'OPEN_SOURCE_PROJECT'
+  | 'PAPER'
+  | 'BLOG'
+  | 'CASE_STUDY'
+  | 'INTERVIEW_PROBLEM'
+  | 'PROJECT_BLUEPRINT';
+
 export type ApplicationDifficulty = 'BEGINNER' | 'INTERMEDIATE' | 'ADVANCED';
 
 export interface ApplicationItem {
@@ -65,6 +72,126 @@ export interface ApplicationItem {
   topicNames?: string[];
   externalUrl?: string;
   quizzes?: QuizItem[];
+  // Repository integration
+  repositoryId?: string;
+  repoFullName?: string;
+  starsCount?: number;
+  forksCount?: number;
+  language?: string;
+  activeCommitSha?: string;
+}
+
+export type ProblemType = 'CODING' | 'SYSTEM_DESIGN' | 'ML_SYSTEM_DESIGN' | 'OBJECT_ORIENTED_DESIGN';
+export type ProblemDifficulty = 'EASY' | 'MEDIUM' | 'HARD';
+
+export interface SystemDesignFollowUp {
+  id: string;
+  title: string;
+  prompt: string;
+  rubric: Record<string, number>;
+  hints?: string[];
+  sampleArchitecture?: string;
+}
+
+export interface ProblemFollowUpResponseDTO {
+  id: string;
+  problemId: string;
+  followUpId: string;
+  responseText: string;
+  diagramData?: any;
+  score?: number | null;
+  feedback?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RubricCriterionScore {
+  score: number;
+  maxWeight: number;
+  feedback: string;
+}
+
+export interface SystemDesignGradingResult {
+  score: number;
+  rubricScores: Record<string, RubricCriterionScore>;
+  scalabilityAssessment: string;
+  singlePointsOfFailure: string[];
+  tradeOffCritique: string;
+  actionableImprovements: string[];
+}
+
+export interface GradeFollowUpResponseResult {
+  evaluation: SystemDesignGradingResult;
+  savedResponse: ProblemFollowUpResponseDTO;
+}
+
+export interface GradeSystemDesignPayload {
+  problemId?: string;
+  followUpId?: string;
+  prompt?: string;
+  rubric?: Record<string, number>;
+  responseText: string;
+  diagramData?: any;
+}
+
+export interface ProblemItem {
+  id: string;
+  title: string;
+  type: ProblemType;
+  difficulty: ProblemDifficulty;
+  domain: DomainCategory;
+  summary: string;
+  prompt: string;
+  solution: string;
+  hints: string[];
+  starterCode?: Record<string, string>;
+  testCases?: Array<{ input: any; expected: any; explanation?: string }>;
+  rubric?: Record<string, any>;
+  followUps?: SystemDesignFollowUp[];
+  targetCompanies: string[];
+  timeLimitMinutes: number;
+  prerequisiteTopicIds?: string[];
+  prerequisiteTopics?: TopicNode[];
+  quizzes?: QuizItem[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export type SubmissionStatus = 'ACCEPTED' | 'WRONG_ANSWER' | 'TIME_LIMIT_EXCEEDED' | 'RUNTIME_ERROR' | 'PENDING';
+
+export interface ProblemSubmission {
+  id: string;
+  problemId: string;
+  language: string;
+  code: string;
+  status: SubmissionStatus;
+  passedCount: number;
+  totalCount: number;
+  runtimeMs: number;
+  memoryKb: number;
+  failedTestCase?: {
+    input: any;
+    expected: any;
+    actual?: any;
+    stdout?: string;
+    error?: string;
+    explanation?: string;
+    testCaseIndex?: number;
+  } | null;
+  stdout?: string | null;
+  createdAt: string;
+}
+
+export interface SubmitProblemPayload {
+  language: string;
+  code: string;
+  status?: SubmissionStatus;
+  passedCount?: number;
+  totalCount?: number;
+  runtimeMs?: number;
+  memoryKb?: number;
+  failedTestCase?: any;
+  stdout?: string;
 }
 
 export interface TopicNode {
@@ -223,6 +350,8 @@ export interface TelemetryState {
   isSidebarOpen: boolean;
   selectedCategory: string | null;
   isCreateNodeOpen: boolean;
+  isCreateQuizOpen: boolean;
+  createQuizTargetTopicId: string | null;
 
   // Knowledge Graph & Study Data
   topicNodes: TopicNode[];
@@ -235,9 +364,18 @@ export interface TelemetryState {
   isNoteEditing: boolean;
   todos: StudyTodo[];
 
-  // Applied Content (Case Studies, Interviews, Project Blueprints)
+  // Applied Content (Case Studies, Engineering Teardowns)
   applications: ApplicationItem[];
   activeApplication: ApplicationItem | null;
+
+  // Interview Problem Bank (Coding & System Design - BAC-38)
+  problems: ProblemItem[];
+  activeProblem: ProblemItem | null;
+  problemSubmissions: Record<string, ProblemSubmission[]>;
+  isSubmittingCode: boolean;
+  followUpResponses: Record<string, ProblemFollowUpResponseDTO[]>;
+  isSavingFollowUp: boolean;
+  isGradingFollowUp: boolean;
 
   // Review & Diff Updates (FRO-11)
   graphUpdates: GraphUpdate[];
@@ -280,6 +418,8 @@ export interface TelemetryActions {
   setSelectedCategory: (category: string | null) => void;
   setHoveredTopicId: (id: string | null) => void;
   setIsCreateNodeOpen: (open: boolean) => void;
+  setIsCreateQuizOpen: (open: boolean) => void;
+  setCreateQuizTargetTopicId: (topicId: string | null) => void;
 
   // Server Hydration & Direct State Injection
   loadInitialData: () => Promise<void>;
@@ -297,6 +437,9 @@ export interface TelemetryActions {
   addNoteToTopic: (topicId: string, note: Omit<NoteItem, 'id'>) => Promise<NoteItem | void>;
   updateNoteInTopic: (topicId: string, note: NoteItem) => Promise<NoteItem | void>;
   deleteNoteFromTopic: (topicId: string, noteId: string) => Promise<void>;
+  addQuizToTopic: (topicId: string, quiz: Omit<QuizItem, 'id'> & { id?: string }) => Promise<QuizItem | void>;
+  updateQuizInTopic: (topicId: string, quiz: QuizItem) => Promise<QuizItem | void>;
+  deleteQuizFromTopic: (topicId: string, quizId: string) => Promise<void>;
   addTopicNode: (node: Omit<TopicNode, 'id'>) => Promise<TopicNode | void>;
   updateTopicNode: (id: string, updates: Partial<TopicNode>) => Promise<TopicNode | void>;
   deleteTopicNode: (id: string) => Promise<void>;
@@ -312,6 +455,27 @@ export interface TelemetryActions {
   // Applied Content Actions
   setActiveApplication: (app: ApplicationItem | null) => void;
   setApplications: (apps: ApplicationItem[]) => void;
+
+  // Problem Bank Actions (BAC-38)
+  setActiveProblem: (problem: ProblemItem | null) => void;
+  setProblems: (problems: ProblemItem[]) => void;
+  fetchProblems: (filter?: any) => Promise<void>;
+  updateProblem: (id: string, updates: Partial<ProblemItem>) => Promise<ProblemItem | void>;
+  createProblem: (payload: Partial<ProblemItem>) => Promise<ProblemItem | void>;
+  deleteProblem: (id: string) => Promise<void>;
+  submitProblem: (problemId: string, payload: SubmitProblemPayload) => Promise<ProblemSubmission | void>;
+  fetchProblemSubmissions: (problemId: string) => Promise<ProblemSubmission[]>;
+  fetchFollowUpResponses: (problemId: string) => Promise<ProblemFollowUpResponseDTO[]>;
+  saveFollowUpResponse: (
+    problemId: string,
+    followUpId: string,
+    payload: { responseText: string; diagramData?: any; score?: number; feedback?: string }
+  ) => Promise<ProblemFollowUpResponseDTO | void>;
+  gradeFollowUpResponse: (
+    problemId: string,
+    followUpId: string,
+    payload: { responseText: string; diagramData?: any }
+  ) => Promise<GradeFollowUpResponseResult>;
 
   // Diff Review Actions (FRO-11)
   setIsNotificationsOpen: (open: boolean) => void;
@@ -332,7 +496,120 @@ export interface TelemetryActions {
   resetState: () => void;
 }
 
-
 export type TelemetryStore = TelemetryState & TelemetryActions;
+
+// ==============================================================================
+// CODE REPOSITORY DOCUMENTATION ENGINE TYPES
+// ==============================================================================
+
+export type RepoOriginType = 'GITHUB' | 'GITLAB' | 'CUSTOM' | 'LOCAL';
+
+export type DesignCategory = 
+  | 'ARCHITECTURE'
+  | 'ALGORITHM'
+  | 'CONCURRENCY'
+  | 'DESIGN_PATTERN'
+  | 'PERFORMANCE'
+  | 'SECURITY'
+  | 'SPOF_TRADEOFF'
+  | 'GENERAL_NOTE';
+
+export interface RepositoryDTO {
+  id: string;
+  name: string;
+  owner: string;
+  fullName: string;
+  originType: RepoOriginType;
+  cloneUrl: string;
+  defaultBranch: string;
+  activeCommitSha: string;
+  description: string | null;
+  language: string | null;
+  starsCount: number;
+  forksCount: number;
+  isArchived: boolean;
+  treeCachedAt: string | null;
+  caseStudyType?: 'OPEN_SOURCE_PROJECT' | 'PAPER' | 'BLOG';
+  annotationsCount?: number;
+  cachedBlobsCount?: number;
+  cachedBytes?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ImportRepositoryInput {
+  url?: string;
+  fullName?: string;
+  owner?: string;
+  name?: string;
+  branch?: string;
+  originType?: RepoOriginType;
+  description?: string;
+  language?: string;
+  customFiles?: Array<{ path: string; content: string }>;
+}
+
+export interface RepoTreeNode {
+  path: string;
+  name: string;
+  type: 'file' | 'dir';
+  size?: number;
+  sha?: string;
+  children?: RepoTreeNode[];
+}
+
+export interface RepoTreeManifest {
+  repositoryId: string;
+  commitSha: string;
+  tree: RepoTreeNode[];
+  totalFiles: number;
+  truncated: boolean;
+}
+
+export interface CodeAnnotationDTO {
+  id: string;
+  repositoryId: string;
+  commitSha: string;
+  filePath: string;
+  startLine: number;
+  endLine: number;
+  title: string;
+  content: string;
+  anchorCodeSnippet: string;
+  designCategory: DesignCategory;
+  aiExplanation: any | null;
+  topicId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateCodeAnnotationInput {
+  repositoryId: string;
+  commitSha?: string;
+  filePath: string;
+  startLine: number;
+  endLine: number;
+  title: string;
+  content: string;
+  anchorCodeSnippet: string;
+  designCategory?: DesignCategory;
+  topicId?: string | null;
+}
+
+export interface UpdateCodeAnnotationInput {
+  title?: string;
+  content?: string;
+  designCategory?: DesignCategory;
+  topicId?: string | null;
+}
+
+export interface CodeAnnotationThreadDTO {
+  id: string;
+  annotationId: string;
+  sender: 'USER' | 'SOL_AI' | 'SYSTEM';
+  message: string;
+  suggestedQuizzes: any | null;
+  createdAt: string;
+}
 
 

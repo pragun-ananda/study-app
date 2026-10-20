@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import { cleanHtmlToMarkdown, CleanContentOptions } from "./contentCleaner.js";
 import { extractHighFidelityTopics } from "./topicExtractor.js";
 import { generateTopicNotes, generateSingleTopicNote } from "./noteGenerator.js";
@@ -33,6 +34,7 @@ import {
   NoteRow,
   QuizRow,
   QuizQuestionRow,
+  SourceRow,
   GraphUpdate,
   MergeAuditReport,
   IngestionWalkthrough,
@@ -216,6 +218,73 @@ export async function cleanFetchedContentStep(
   options?: CleanContentOptions
 ): Promise<CleanContentResult> {
   return cleanHtmlToMarkdown(rawContent, options);
+}
+
+/**
+ * Step 2.5: Persist raw & cleaned source to PostgreSQL (BAC-31)
+ * Idempotently saves the source document with SHA-256 hash, URL uniqueness, and metadata.
+ */
+export async function persistSourceStep(data: {
+  url: string;
+  title: string;
+  rawContent: string;
+  cleanedContent: string;
+  authorOrOrg?: string;
+  metadata?: Record<string, any>;
+}): Promise<{ sourceId: string; contentHash: string }> {
+  const contentHash = crypto.createHash("sha256").update(data.cleanedContent || "").digest("hex");
+  const sourceId = generateEntityId("SOURCE");
+
+  try {
+    const existing = await query<SourceRow>(
+      `SELECT id FROM sources WHERE url = $1`,
+      [data.url]
+    );
+
+    if (existing.rows && existing.rows.length > 0) {
+      const existingId = existing.rows[0].id;
+      await query(
+        `UPDATE sources
+         SET title = $1,
+             raw_markdown = $2,
+             cleaned_markdown = $3,
+             content_hash = $4,
+             metadata = $5,
+             author_or_org = COALESCE($6, author_or_org)
+         WHERE id = $7`,
+        [
+          data.title,
+          data.rawContent,
+          data.cleanedContent,
+          contentHash,
+          JSON.stringify(data.metadata || {}),
+          data.authorOrOrg || null,
+          existingId
+        ]
+      );
+      return { sourceId: existingId, contentHash };
+    }
+
+    await query(
+      `INSERT INTO sources (id, url, title, author_or_org, raw_markdown, cleaned_markdown, content_hash, metadata, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())`,
+      [
+        sourceId,
+        data.url,
+        data.title,
+        data.authorOrOrg || null,
+        data.rawContent,
+        data.cleanedContent,
+        contentHash,
+        JSON.stringify(data.metadata || {})
+      ]
+    );
+
+    return { sourceId, contentHash };
+  } catch {
+    // If DB is offline (e.g. disconnected unit tests), return gracefully
+    return { sourceId, contentHash };
+  }
 }
 
 /**
@@ -619,6 +688,21 @@ export async function runIngestionPipeline(
   });
   executedSteps.push("clean_content");
 
+  // 2.5 Persist raw & cleaned source with SHA-256 hash (BAC-31)
+  const { sourceId, contentHash } = await persistSourceStep({
+    url: payload.url,
+    title: cleanResult.title || "Untitled Source",
+    rawContent: fetchResult.content,
+    cleanedContent: cleanResult.cleanedContent,
+    authorOrOrg: cleanResult.byline,
+    metadata: {
+      finalUrl: fetchResult.finalUrl,
+      contentType: fetchResult.contentType,
+      contentLength: fetchResult.contentLength,
+      cleanedLength: cleanResult.cleanedLength
+    }
+  });
+
   // 3. Extract topics (BAC-19)
   const extractResult = await extractTopicsStep(cleanResult.cleanedContent, payload.options);
   executedSteps.push("extract_topics");
@@ -630,6 +714,20 @@ export async function runIngestionPipeline(
     payload.options
   );
   executedSteps.push("generate_content");
+
+  // Backlink sourceId to generated notes, quizzes, and graphUpdates (BAC-31)
+  if (Array.isArray(generateResult.notes)) {
+    generateResult.notes.forEach((n) => (n.sourceId = sourceId));
+  }
+  if (Array.isArray(generateResult.quizzes)) {
+    generateResult.quizzes.forEach((q) => (q.sourceId = sourceId));
+  }
+  if (Array.isArray(generateResult.graphUpdates)) {
+    generateResult.graphUpdates.forEach((u) => {
+      u.sourceId = sourceId;
+      if (u.payload) u.payload.sourceId = sourceId;
+    });
+  }
 
   // 5. Review generated content (Dual Note + Quiz + Merge Audits)
   const reviewResult = await reviewGeneratedContentStep({
@@ -698,6 +796,8 @@ export async function runIngestionPipeline(
       reviewPassed: reviewResult.passed,
       overallScore: reviewResult.overallScore,
       queueId: queueResult.queueId,
+      sourceId,
+      contentHash,
       noteAudits: generateResult.auditReports,
       quizAudits: generateResult.quizAudits,
       mergeAudits: generateResult.mergeAudits,

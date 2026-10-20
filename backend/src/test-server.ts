@@ -5,6 +5,8 @@ import { fileURLToPath } from 'url';
 import { newDb } from 'pg-mem';
 import { app } from './app.js';
 import { setPool, closePool } from './db.js';
+import { SEED_INTERVIEW_PROBLEMS } from './data/seedProblems.js';
+import { createProblem } from './services/problemService.js';
 
 dotenv.config();
 
@@ -196,6 +198,41 @@ db.public.none(`
 const pgAdapter = db.adapters.createPg();
 const pool = new pgAdapter.Pool();
 setPool(pool as any);
+
+// Seed interview problem bank
+for (const p of SEED_INTERVIEW_PROBLEMS) {
+  await createProblem(p);
+}
+
+// Seed sample repository & annotation for E2E and dev exploration
+db.public.none(`
+  INSERT INTO repositories (id, name, owner, full_name, clone_url, default_branch, active_commit_sha, origin_type, description, language, created_at, updated_at)
+  VALUES (
+    'REPO-SEED-001', 'redis', 'redis', 'redis/redis', 'https://github.com/redis/redis', 'unstable', 'latest', 'GITHUB',
+    'Redis in-memory key-value database core engine', 'C', NOW(), NOW()
+  ) ON CONFLICT DO NOTHING;
+
+  INSERT INTO repository_cached_blobs (
+    id, repository_id, commit_sha, file_path, file_size_bytes, content, encoding, is_compressed, last_accessed_at, created_at
+  ) VALUES (
+    'BLOB-SEED-001', 'REPO-SEED-001', 'latest', 'src/ae.c', 1200,
+    '/* Redis Event Loop Multiplexing */\n#include <stdio.h>\n#include <sys/epoll.h>\n\nint aeProcessEvents(aeEventLoop *eventLoop, int flags) {\n    int processed = 0, numevents;\n    numevents = epoll_wait(eventLoop->epfd, eventLoop->events, 1024, 100);\n    for (int j = 0; j < numevents; j++) {\n        /* Process ready sockets without locks */\n        processed++;\n    }\n    return processed;\n}\n',
+    'utf-8', false, NOW(), NOW()
+  ) ON CONFLICT DO NOTHING;
+
+  INSERT INTO code_annotations (
+    id, repository_id, commit_sha, file_path, start_line, end_line,
+    title, content, anchor_code_snippet, design_category, ai_explanation, topic_id, created_at, updated_at
+  ) VALUES (
+    'ANN-SEED-001', 'REPO-SEED-001', 'latest', 'src/ae.c', 100, 120,
+    'Epoll Multiplexing Engine',
+    'Event-driven single-threaded event loop multiplexing network sockets using epoll_wait.',
+    'int aeProcessEvents(aeEventLoop *eventLoop, int flags) { ... }',
+    'ARCHITECTURE',
+    '{"summary": "Non-blocking multiplexer", "architecturalRationale": "Single-threaded event loop avoids locking overhead and achieves predictable sub-millisecond latencies.", "designPatterns": ["Reactor Pattern"], "concurrencyAndFailureModes": {"raceConditionsAndDeadlocks": "None due to single thread, but long-running commands block entire server.", "spofOrBottleneck": "CPU core bottleneck on single thread."}}'::jsonb,
+    'TOPIC-001', NOW(), NOW()
+  ) ON CONFLICT DO NOTHING;
+`);
 
 const PORT = process.env.PORT || 4000;
 const server = app.listen(PORT, () => {

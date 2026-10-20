@@ -177,17 +177,64 @@ test.describe('3D WebGL SceneCanvas & Engine (FRO-9)', () => {
     await expect(page.getByText('AI & ML').first()).toBeVisible();
   });
 
+  test('Reveals node name labels when zooming into the graph and hides them when zooming out', async ({ page }) => {
+    // Wait for initial swoop to settle in overview mode (~2.5s)
+    await page.waitForTimeout(2600);
+
+    // In overview mode, unselected node labels are not visible
+    const unselectedLabels = page.locator('[data-testid^="node-label-"]');
+    expect(await unselectedLabels.count()).toBe(0);
+
+    // Zoom into the graph via mouse wheel over the canvas
+    const canvasViewport = page.locator('#canvas-viewport');
+    const box = await canvasViewport.boundingBox();
+    expect(box).not.toBeNull();
+    if (box) {
+      const centerX = box.x + box.width / 2;
+      const centerY = box.y + box.height / 2;
+      await page.mouse.move(centerX, centerY);
+
+      // Scroll mouse wheel to zoom in considerably past threshold
+      for (let i = 0; i < 20; i++) {
+        await page.mouse.wheel(0, -800);
+        await page.waitForTimeout(50);
+      }
+    }
+
+    // Node labels for nearby nodes in the zoomed area should now become visible
+    await expect(page.locator('[data-testid^="node-label-"]').first()).toBeVisible({ timeout: 5000 });
+    const countAfterZoom = await page.locator('[data-testid^="node-label-"]').count();
+    expect(countAfterZoom).toBeGreaterThan(0);
+
+    // Zoom back out to overview distance
+    for (let i = 0; i < 25; i++) {
+      await page.mouse.wheel(0, 1000);
+      await page.waitForTimeout(50);
+    }
+
+    // Node labels should disappear again in overview mode
+    await expect(page.locator('[data-testid^="node-label-"]')).toHaveCount(0, { timeout: 5000 });
+  });
+
   test('Toggles Overload mode and CRT scanline overlays via KeyO', async ({ page }) => {
+    // Ensure light theme is active so CRT scanlines toggle from opacity-0 to opacity-80
+    const currentTheme = await page.locator('html').getAttribute('data-theme');
+    if (currentTheme !== 'light') {
+      await page.keyboard.press('KeyT');
+      await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+    }
+
     // Press KeyO to activate overload simulation
     await page.keyboard.press('KeyO');
 
     // Verify CRT scanlines and vignette overlay layers are present
     const crtOverlay = page.locator('.crt-scanlines.crt-vignette');
     await expect(crtOverlay).toBeVisible();
+    await expect(crtOverlay).toHaveClass(/opacity-80/);
 
     // Press KeyO again to restore normal mode
     await page.keyboard.press('KeyO');
-    await expect(crtOverlay).toBeVisible();
+    await expect(crtOverlay).toHaveClass(/opacity-0/);
   });
 
   test('Toggles HUD visibility with KeyH and allows restoring via Restore HUD button', async ({ page }) => {

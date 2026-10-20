@@ -1,12 +1,27 @@
 import {
   TopicNode,
   NoteItem,
+  QuizItem,
   StudyTodo,
   IngestPipelineResult,
   IngestRequestOptions,
   ReviewQueueResponseDTO,
   GraphUpdate,
-  LineReviewComment
+  LineReviewComment,
+  ProblemItem,
+  ProblemSubmission,
+  SubmitProblemPayload,
+  SystemDesignFollowUp,
+  ProblemFollowUpResponseDTO,
+  GradeFollowUpResponseResult,
+  GradeSystemDesignPayload,
+  RepositoryDTO,
+  ImportRepositoryInput,
+  RepoTreeManifest,
+  CodeAnnotationDTO,
+  CreateCodeAnnotationInput,
+  UpdateCodeAnnotationInput,
+  CodeAnnotationThreadDTO
 } from '../types/telemetry';
 
 export class ApiError extends Error {
@@ -174,6 +189,41 @@ export async function deleteNote(id: string): Promise<void> {
 }
 
 // ==========================================
+// Quizzes API
+// ==========================================
+
+export async function fetchQuizzesForTopic(topicId: string): Promise<QuizItem[]> {
+  return request<QuizItem[]>(`/api/topics/${encodeURIComponent(topicId)}/quizzes`);
+}
+
+export async function fetchQuizById(id: string): Promise<QuizItem> {
+  return request<QuizItem>(`/api/quizzes/${encodeURIComponent(id)}`);
+}
+
+export async function createQuizForTopic(
+  topicId: string,
+  quiz: Omit<QuizItem, 'id'> & { id?: string }
+): Promise<QuizItem> {
+  return request<QuizItem>(`/api/topics/${encodeURIComponent(topicId)}/quizzes`, {
+    method: 'POST',
+    body: JSON.stringify(quiz)
+  });
+}
+
+export async function updateQuiz(id: string, updates: Partial<QuizItem>): Promise<QuizItem> {
+  return request<QuizItem>(`/api/quizzes/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(updates)
+  });
+}
+
+export async function deleteQuiz(id: string): Promise<void> {
+  return request<void>(`/api/quizzes/${encodeURIComponent(id)}`, {
+    method: 'DELETE'
+  });
+}
+
+// ==========================================
 // Study Todos API
 // ==========================================
 
@@ -286,4 +336,286 @@ export async function rejectEntireQueueItem(queueId: string): Promise<{ success:
   );
 }
 
+export interface FetchProblemsFilter {
+  type?: string;
+  difficulty?: string;
+  domain?: string;
+  company?: string;
+  topicId?: string;
+  search?: string;
+}
 
+export async function fetchProblems(filter?: FetchProblemsFilter): Promise<ProblemItem[]> {
+  const queryParams = new URLSearchParams();
+  if (filter?.type) queryParams.set('type', filter.type);
+  if (filter?.difficulty) queryParams.set('difficulty', filter.difficulty);
+  if (filter?.domain) queryParams.set('domain', filter.domain);
+  if (filter?.company) queryParams.set('company', filter.company);
+  if (filter?.topicId) queryParams.set('topicId', filter.topicId);
+  if (filter?.search) queryParams.set('search', filter.search);
+  const qs = queryParams.toString();
+  return request<ProblemItem[]>(`/api/problems${qs ? `?${qs}` : ''}`);
+}
+
+export async function fetchProblemById(id: string): Promise<ProblemItem> {
+  return request<ProblemItem>(`/api/problems/${encodeURIComponent(id)}`);
+}
+
+export async function updateProblem(id: string, payload: Partial<ProblemItem>): Promise<ProblemItem> {
+  return request<ProblemItem>(`/api/problems/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function createProblem(payload: Partial<ProblemItem>): Promise<ProblemItem> {
+  return request<ProblemItem>('/api/problems', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function deleteProblem(id: string): Promise<boolean> {
+  await request<{ status?: string }>(`/api/problems/${encodeURIComponent(id)}`, {
+    method: 'DELETE'
+  });
+  return true;
+}
+
+export async function submitProblemSolution(
+  id: string,
+  payload: SubmitProblemPayload
+): Promise<ProblemSubmission> {
+  return request<ProblemSubmission>(`/api/problems/${encodeURIComponent(id)}/submit`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function fetchProblemSubmissions(id: string): Promise<ProblemSubmission[]> {
+  return request<ProblemSubmission[]>(`/api/problems/${encodeURIComponent(id)}/submissions`);
+}
+
+export async function fetchProblemFollowUps(id: string): Promise<SystemDesignFollowUp[]> {
+  return request<SystemDesignFollowUp[]>(`/api/problems/${encodeURIComponent(id)}/follow-ups`);
+}
+
+export async function fetchProblemFollowUpResponses(id: string): Promise<ProblemFollowUpResponseDTO[]> {
+  return request<ProblemFollowUpResponseDTO[]>(`/api/problems/${encodeURIComponent(id)}/follow-ups/responses`);
+}
+
+export async function saveProblemFollowUpResponse(
+  id: string,
+  followUpId: string,
+  payload: { responseText: string; diagramData?: any; score?: number; feedback?: string }
+): Promise<ProblemFollowUpResponseDTO> {
+  return request<ProblemFollowUpResponseDTO>(
+    `/api/problems/${encodeURIComponent(id)}/follow-ups/${encodeURIComponent(followUpId)}/response`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }
+  );
+}
+
+export async function gradeSystemDesignFollowUp(
+  id: string,
+  followUpId: string,
+  payload: { responseText: string; diagramData?: any }
+): Promise<GradeFollowUpResponseResult> {
+  return request<GradeFollowUpResponseResult>(
+    `/api/problems/${encodeURIComponent(id)}/follow-ups/${encodeURIComponent(followUpId)}/grade`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }
+  );
+}
+
+export async function gradeSystemDesignDirect(
+  payload: GradeSystemDesignPayload
+): Promise<{ evaluation: any; savedResponse?: any }> {
+  return request<{ evaluation: any; savedResponse?: any }>('/api/problems/grade-system-design', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+}
+
+// ==========================================
+// Code Repository Documentation Engine API
+// ==========================================
+
+export async function importRepository(input: ImportRepositoryInput): Promise<RepositoryDTO> {
+  return request<RepositoryDTO>('/api/repositories/import', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input)
+  });
+}
+
+export async function getRepositories(): Promise<RepositoryDTO[]> {
+  return request<RepositoryDTO[]>('/api/repositories');
+}
+
+export async function getRepository(id: string): Promise<RepositoryDTO> {
+  return request<RepositoryDTO>(`/api/repositories/${encodeURIComponent(id)}`);
+}
+
+export async function getRepoTree(id: string, sha?: string): Promise<RepoTreeManifest> {
+  const qs = sha ? `?sha=${encodeURIComponent(sha)}` : '';
+  return request<RepoTreeManifest>(`/api/repositories/${encodeURIComponent(id)}/tree${qs}`);
+}
+
+export async function getRepoBlob(
+  id: string,
+  path: string,
+  sha?: string
+): Promise<{
+  content: string;
+  fileSizeBytes: number;
+  encoding: string;
+  fromCache: boolean;
+  isTruncated: boolean;
+}> {
+  const params = new URLSearchParams({ path });
+  if (sha) params.set('sha', sha);
+  return request<{
+    content: string;
+    fileSizeBytes: number;
+    encoding: string;
+    fromCache: boolean;
+    isTruncated: boolean;
+  }>(`/api/repositories/${encodeURIComponent(id)}/blob?${params.toString()}`);
+}
+
+export async function getRepoAnnotations(
+  id: string,
+  path?: string,
+  sha?: string
+): Promise<CodeAnnotationDTO[]> {
+  const params = new URLSearchParams();
+  if (path) params.set('path', path);
+  if (sha) params.set('sha', sha);
+  const qs = params.toString();
+  return request<CodeAnnotationDTO[]>(`/api/repositories/${encodeURIComponent(id)}/annotations${qs ? `?${qs}` : ''}`);
+}
+
+export async function createRepoAnnotation(
+  id: string,
+  input: CreateCodeAnnotationInput
+): Promise<CodeAnnotationDTO> {
+  return request<CodeAnnotationDTO>(`/api/repositories/${encodeURIComponent(id)}/annotations`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input)
+  });
+}
+
+export async function updateRepoAnnotation(
+  id: string,
+  annId: string,
+  input: UpdateCodeAnnotationInput
+): Promise<CodeAnnotationDTO> {
+  return request<CodeAnnotationDTO>(`/api/repositories/${encodeURIComponent(id)}/annotations/${encodeURIComponent(annId)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input)
+  });
+}
+
+export async function deleteRepoAnnotation(
+  id: string,
+  annId: string
+): Promise<{ success: boolean; id: string }> {
+  return request<{ success: boolean; id: string }>(
+    `/api/repositories/${encodeURIComponent(id)}/annotations/${encodeURIComponent(annId)}`,
+    { method: 'DELETE' }
+  );
+}
+
+export async function getAnnotationThreads(
+  id: string,
+  annId: string
+): Promise<CodeAnnotationThreadDTO[]> {
+  return request<CodeAnnotationThreadDTO[]>(
+    `/api/repositories/${encodeURIComponent(id)}/annotations/${encodeURIComponent(annId)}/threads`
+  );
+}
+
+export async function createAnnotationThreadMessage(
+  id: string,
+  annId: string,
+  sender: 'USER' | 'SOL_AI' | 'SYSTEM',
+  message: string,
+  suggestedQuizzes?: any
+): Promise<CodeAnnotationThreadDTO> {
+  return request<CodeAnnotationThreadDTO>(
+    `/api/repositories/${encodeURIComponent(id)}/annotations/${encodeURIComponent(annId)}/threads`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sender, message, suggestedQuizzes })
+    }
+  );
+}
+
+export async function explainCode(
+  id: string,
+  input: {
+    filePath: string;
+    startLine: number;
+    endLine: number;
+    codeSnippet: string;
+    language?: string;
+    userNote?: string;
+    surroundingContext?: string;
+  }
+): Promise<any> {
+  return request<any>(`/api/repositories/${encodeURIComponent(id)}/explain-code`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input)
+  });
+}
+
+export async function explainAnnotation(
+  id: string,
+  annId: string
+): Promise<CodeAnnotationDTO> {
+  return request<CodeAnnotationDTO>(
+    `/api/repositories/${encodeURIComponent(id)}/annotations/${encodeURIComponent(annId)}/explain`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    }
+  );
+}
+
+export async function getAnnotationsByTopic(
+  topicId: string
+): Promise<(CodeAnnotationDTO & { repoName?: string })[]> {
+  return request<(CodeAnnotationDTO & { repoName?: string })[]>(
+    `/api/repositories/annotations/by-topic/${encodeURIComponent(topicId)}`
+  );
+}
+
+export async function exportAnnotationToQuiz(
+  id: string,
+  annId: string,
+  topicId?: string
+): Promise<any> {
+  return request<any>(
+    `/api/repositories/${encodeURIComponent(id)}/annotations/${encodeURIComponent(annId)}/export-quiz`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ topicId })
+    }
+  );
+}

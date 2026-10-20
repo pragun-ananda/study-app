@@ -4,7 +4,7 @@ export const SEED_APPLICATIONS: ApplicationItem[] = [
   {
     id: 'APP-001',
     title: 'Dynamo & Cassandra: High-Availability Ring Storage',
-    type: 'CASE_STUDY',
+    type: 'PAPER',
     domain: 'SYSTEMS',
     difficulty: 'ADVANCED',
     organization: 'Amazon Dynamo / Apache Cassandra',
@@ -319,7 +319,7 @@ To maximize attention fidelity:
   {
     id: 'APP-004',
     title: 'Zero-RTT Latency in Cloudflare TLS 1.3 Handshake',
-    type: 'CASE_STUDY',
+    type: 'BLOG',
     domain: 'CYBERSECURITY',
     difficulty: 'ADVANCED',
     organization: 'Cloudflare / IETF RFC 8446',
@@ -394,7 +394,7 @@ In the [TLS 1.3 Cryptographic Handshake](concept://TLS 1.3 Cryptographic Handsha
   {
     id: 'APP-005',
     title: "Scaling PostgreSQL: OpenAI's Connection Pooling & Sharding Architecture",
-    type: 'CASE_STUDY',
+    type: 'BLOG',
     domain: 'SYSTEMS',
     difficulty: 'ADVANCED',
     organization: 'OpenAI Infrastructure Engineering',
@@ -474,7 +474,7 @@ When single-node SSD IOPS saturated, OpenAI partitioned user accounts across dis
   {
     id: 'APP-006',
     title: 'Attention Is All You Need (Vaswani et al. 2017)',
-    type: 'CASE_STUDY',
+    type: 'PAPER',
     domain: 'AI & ML',
     difficulty: 'ADVANCED',
     organization: 'Google Brain / Google Research',
@@ -560,7 +560,7 @@ $$PE_{(pos, 2i)} = \\sin\\left( \\frac{pos}{10000^{2i/d_{\\text{model}}}} \\righ
   {
     id: 'APP-007',
     title: 'Neural Machine Translation by Jointly Learning to Align and Translate (Bahdanau 2014)',
-    type: 'CASE_STUDY',
+    type: 'PAPER',
     domain: 'AI & ML',
     difficulty: 'ADVANCED',
     organization: 'Dzmitry Bahdanau, Kyunghyun Cho, Yoshua Bengio',
@@ -637,5 +637,42 @@ Trained end-to-end via standard [Neural Network Backpropagation](concept://Neura
         ]
       }
     ]
+  },
+  {
+    id: 'APP-REDIS',
+    title: 'Redis: Event Loop & In-Memory Storage Engine',
+    type: 'OPEN_SOURCE_PROJECT',
+    domain: 'SYSTEMS',
+    difficulty: 'ADVANCED',
+    organization: 'Redis / Salvatore Sanfilippo',
+    readTimeMinutes: 15,
+    summary:
+      'Architectural case study of Redis single-threaded reactor pattern, non-blocking I/O multiplexing with epoll/kqueue, and in-memory key-value mechanics.',
+    topicIds: [],
+    topicNames: [
+      'Neural Network Backpropagation',
+      'Consistent Hashing & DHT'
+    ],
+    repositoryId: 'REPO-SEED-001',
+    repoFullName: 'redis/redis',
+    language: 'C',
+    starsCount: 68000,
+    forksCount: 23500,
+    externalUrl: 'https://github.com/redis/redis',
+    content: `## Redis: Event-Driven High-Throughput Engine
+
+Redis (Remote Dictionary Server) is one of the world's most widely deployed in-memory key-value stores. Its core architectural advantage stems from an event-driven, single-threaded execution model that avoids multithreading locks while achieving sub-millisecond latencies.
+
+### Architectural Pillars
+
+1. **The Reactor Pattern (\`src/ae.c\`)**:
+   - Instead of dedicating a thread or process per client socket (which would incur massive thread scheduling and context-switching overhead), Redis uses a single event loop wrapped around OS multiplexing primitives (\`epoll\`, \`kqueue\`, \`select\`).
+   - Sockets with pending reads or writes are queued and processed sequentially without mutex locks.
+
+2. **In-Memory Simplicity**:
+   - All dataset operations run directly against RAM.
+   - Persistence is decoupled into background snapshotting (\`BGSAVE\`) or append-only logging (\`AOF\`).
+
+Click **Open in Code Studio** to inspect \`src/ae.c\` and \`src/server.c\` directly alongside Staff+ AI architectural critiques.`
   }
 ];

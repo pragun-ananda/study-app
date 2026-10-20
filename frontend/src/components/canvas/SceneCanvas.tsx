@@ -1,4 +1,4 @@
-import React, { useRef, useMemo, useEffect } from 'react';
+import React, { useRef, useMemo, useEffect, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { PerspectiveCamera, Html, Line, OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
@@ -6,7 +6,14 @@ import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import { useStore } from '../../store/useStore';
 import { TopicNode } from '../../types/telemetry';
 import { getCategoryShade } from '../../utils/theme';
-import { calculateConnectedGraph, ConnectedGraphResult, calculateOverviewFramingDistance } from '../../utils/graph';
+import {
+  calculateConnectedGraph,
+  ConnectedGraphResult,
+  calculateOverviewFramingDistance,
+  isNodeLabelZoomVisible,
+  ZOOM_LABEL_DISTANCE_THRESHOLD,
+  ZOOM_LABEL_HYSTERESIS_THRESHOLD
+} from '../../utils/graph';
 import PostProcessing from './PostProcessing';
 
 // Derive distinct incoming (lighter/warmer) and outgoing (richer/electric) edge highlight shades correlated to the active node's color
@@ -427,9 +434,11 @@ const sharedLightRingGeometry = new THREE.RingGeometry(0.68, 0.82, 32);
 
 // Interactive Knowledge Node Component (Always fully formed and crisp during Deep Space Fly-In)
 const KnowledgeNode = React.memo(({ node, isConnectedComponent }: { node: TopicNode; isConnectedComponent: boolean }) => {
+  const groupRef = useRef<THREE.Group>(null!);
   const meshRef = useRef<THREE.Mesh>(null!);
   const ringRef = useRef<THREE.Mesh>(null!);
 
+  const { activeId, nodeMap } = React.useContext(ConnectedGraphContext);
   const isSelected = useStore((state) => state.selectedTopicId === node.id);
   const isHovered = useStore((state) => state.hoveredTopicId === node.id);
   const setSelectedTopicId = useStore((state) => state.setSelectedTopicId);
@@ -443,10 +452,16 @@ const KnowledgeNode = React.memo(({ node, isConnectedComponent }: { node: TopicN
   const isAppActive = Boolean(activeApplication);
   const isAppConcept = isAppActive && activeApplication ? activeApplication.topicIds.includes(node.id) : false;
 
+  const [isZoomedNear, setIsZoomedNear] = useState(false);
+  const isZoomedNearRef = useRef(false);
+  const toNodeVec = useMemo(() => new THREE.Vector3(), []);
+  const camDirVec = useMemo(() => new THREE.Vector3(), []);
+
   const isCategoryMatched = !selectedCategory || selectedCategory === 'ALL' || node.category === selectedCategory;
   const isSearchMatched = !searchQuery || node.name.toLowerCase().includes(searchQuery.toLowerCase());
 
-  const showLabel = isSelected || isHovered || (searchQuery.length > 0 && isSearchMatched) || isAppConcept;
+  const isZoomVisible = isZoomedNear && isCategoryMatched && isSearchMatched;
+  const showLabel = isSelected || isHovered || (searchQuery.length > 0 && isSearchMatched) || isAppConcept || isZoomVisible;
 
   const nodeColor = useMemo(() => {
     if (isAppActive && !isAppConcept) {
@@ -456,7 +471,7 @@ const KnowledgeNode = React.memo(({ node, isConnectedComponent }: { node: TopicN
     return getCategoryShade(node.id, node.category, theme);
   }, [node.id, node.category, isCategoryMatched, isSearchMatched, isAppActive, isAppConcept, theme, isLight]);
 
-  useFrame((_, delta) => {
+  useFrame((state, delta) => {
     if (ringRef.current) {
       ringRef.current.rotation.z += delta * (isAppConcept ? 2.5 : 1.5);
     }
@@ -473,6 +488,49 @@ const KnowledgeNode = React.memo(({ node, isConnectedComponent }: { node: TopicN
         ? 0.72
         : 1.0;
       meshRef.current.scale.lerp(new THREE.Vector3(targetScale, targetScale, targetScale), delta * 6.0);
+    }
+
+    // Dynamic anti-overlap separation:
+    // If another node is selected/hovered and within the collision zone of this node,
+    // smoothly nudge this node outward to ensure clean clearance without overlap.
+    if (groupRef.current) {
+      const [nx, ny, nz] = node.coordinates;
+      let targetX = nx;
+      let targetY = ny;
+      let targetZ = nz;
+
+      if (activeId && activeId !== node.id && nodeMap.has(activeId)) {
+        const activeNode = nodeMap.get(activeId)!;
+        const [ax, ay, az] = activeNode.coordinates;
+        const dx = nx - ax;
+        const dy = ny - ay;
+        const dz = nz - az;
+        const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+        const COLLISION_ZONE = 4.4;
+        if (dist < COLLISION_ZONE && dist > 0.0001) {
+          const pushAmount = (COLLISION_ZONE - dist) * 0.65;
+          targetX = nx + (dx / dist) * pushAmount;
+          targetY = ny + (dy / dist) * pushAmount;
+          targetZ = nz + (dz / dist) * pushAmount;
+        }
+      }
+
+      groupRef.current.position.x = THREE.MathUtils.lerp(groupRef.current.position.x, targetX, delta * 6.0);
+      groupRef.current.position.y = THREE.MathUtils.lerp(groupRef.current.position.y, targetY, delta * 6.0);
+      groupRef.current.position.z = THREE.MathUtils.lerp(groupRef.current.position.z, targetZ, delta * 6.0);
+
+      // Camera proximity check for zoom-dependent node label visibility
+      toNodeVec.copy(groupRef.current.position).sub(state.camera.position);
+      const camDistance = toNodeVec.length();
+      state.camera.getWorldDirection(camDirVec);
+      const inFront = camDirVec.dot(toNodeVec) > 0;
+
+      const shouldBeNear = isNodeLabelZoomVisible(camDistance, inFront, isZoomedNearRef.current);
+      if (shouldBeNear !== isZoomedNearRef.current) {
+        isZoomedNearRef.current = shouldBeNear;
+        setIsZoomedNear(shouldBeNear);
+      }
     }
   });
 
@@ -508,7 +566,7 @@ const KnowledgeNode = React.memo(({ node, isConnectedComponent }: { node: TopicN
     : (isSelected ? 1.25 : isHovered ? 0.95 : isAppConcept ? 1.15 : isConnectedComponent ? 0.75 : isAppActive ? 0.18 : 0.55);
 
   return (
-    <group position={node.coordinates}>
+    <group ref={groupRef} position={node.coordinates}>
       {/* In dark mode, 4-Point Starlight Flare. In light mode, smooth circular halo (never spiky/misshapen) */}
       {isLight ? (
         <CircularSoftHalo
@@ -552,7 +610,12 @@ const KnowledgeNode = React.memo(({ node, isConnectedComponent }: { node: TopicN
 
       {/* Orbital ring for hovered or selected node */}
       {(isSelected || isHovered) && (
-        <mesh ref={ringRef} geometry={isLight ? sharedLightRingGeometry : sharedRingGeometry} frustumCulled={false}>
+        <mesh
+          ref={ringRef}
+          geometry={isLight ? sharedLightRingGeometry : sharedRingGeometry}
+          scale={isSelected ? 1.85 : 1.45}
+          frustumCulled={false}
+        >
           <meshBasicMaterial color={nodeColor} side={THREE.DoubleSide} transparent opacity={0.65} />
         </mesh>
       )}
@@ -560,14 +623,18 @@ const KnowledgeNode = React.memo(({ node, isConnectedComponent }: { node: TopicN
       {/* Well-Sized Single-Line HTML Label Tag (Never wraps, never cuts off) */}
       {showLabel && (
         <Html
-          position={[0, 0.65, 0]}
+          position={[0, isSelected ? 1.35 : isHovered ? 1.05 : 0.75, 0]}
           center
           distanceFactor={24}
           zIndexRange={[100, 0]}
           className="pointer-events-auto select-none cursor-pointer"
         >
           <div
+            data-testid={`node-label-${node.id}`}
+            data-node-id={node.id}
             onClick={handleNodeClick}
+            onMouseEnter={() => setHoveredTopicId(node.id)}
+            onMouseLeave={() => setHoveredTopicId(null)}
             style={{
               backgroundColor: isSelected || isHovered ? nodeColor : undefined,
               borderColor: nodeColor,
@@ -579,8 +646,8 @@ const KnowledgeNode = React.memo(({ node, isConnectedComponent }: { node: TopicN
               isSelected || isHovered
                 ? `${isLight ? 'text-white' : 'text-black'} border border-transparent scale-105`
                 : isLight
-                  ? 'text-slate-800 bg-white/95 border border-slate-300 shadow-sm'
-                  : 'text-slate-200 bg-slate-950/90 border border-white/20'
+                  ? 'text-slate-800 bg-white/95 border border-slate-300 shadow-sm hover:border-slate-400'
+                  : 'text-slate-200 bg-slate-950/90 border border-white/20 hover:border-white/40'
             }`}
           >
             <span>{node.name}</span>
@@ -895,7 +962,7 @@ export default function SceneCanvas() {
   return (
     <div
       id="canvas-viewport"
-      className="w-full h-full relative cursor-grab active:cursor-grabbing"
+      className="w-full h-full relative cursor-grab active:cursor-grabbing touch-none select-none"
     >
       <Canvas
         dpr={[1, 2]}

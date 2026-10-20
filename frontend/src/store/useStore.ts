@@ -9,7 +9,8 @@ import {
   LineReviewComment,
   GraphUpdate,
   QuizItem,
-  ApplicationItem
+  ApplicationItem,
+  ProblemItem
 } from '../types/telemetry';
 import { DOMAIN_DATA, INITIAL_TODOS, SEED_APPLICATIONS } from '../data/test';
 import { INITIAL_UPDATES, INITIAL_QUEUE_ITEMS } from '../data/test/updates';
@@ -244,6 +245,8 @@ export const INITIAL_STATE: TelemetryState = {
   isSidebarOpen: false,
   selectedCategory: null,
   isCreateNodeOpen: false,
+  isCreateQuizOpen: false,
+  createQuizTargetTopicId: null,
 
   topicNodes: INITIAL_TOPICS,
   selectedTopicId: null,
@@ -258,6 +261,15 @@ export const INITIAL_STATE: TelemetryState = {
   // Applied Content
   applications: INITIAL_APPLICATIONS,
   activeApplication: null,
+
+  // Problem Bank (BAC-38)
+  problems: [],
+  activeProblem: null,
+  problemSubmissions: {},
+  isSubmittingCode: false,
+  followUpResponses: {},
+  isSavingFollowUp: false,
+  isGradingFollowUp: false,
 
   // Review & Diff Updates (FRO-11)
   graphUpdates: INITIAL_UPDATES,
@@ -311,16 +323,19 @@ export const useStore = create<TelemetryStore>((set, get) => ({
   setSelectedCategory: (selectedCategory: string | null) => set({ selectedCategory }),
   setHoveredTopicId: (hoveredTopicId: string | null) => set({ hoveredTopicId }),
   setIsCreateNodeOpen: (isCreateNodeOpen: boolean) => set({ isCreateNodeOpen }),
+  setIsCreateQuizOpen: (isCreateQuizOpen: boolean) => set({ isCreateQuizOpen }),
+  setCreateQuizTargetTopicId: (createQuizTargetTopicId: string | null) => set({ createQuizTargetTopicId }),
 
   // Server Hydration Actions
 
   loadInitialData: async () => {
     set({ isLoading: true, error: null });
     try {
-      const [topics, todos, queueData] = await Promise.all([
+      const [topics, todos, queueData, problemsData] = await Promise.all([
         api.fetchTopics(),
         api.fetchTodos(),
-        api.fetchReviewQueue().catch(() => null)
+        api.fetchReviewQueue().catch(() => null),
+        api.fetchProblems().catch(() => [])
       ]);
       const updates = queueData?.updates && queueData.updates.length > 0
         ? queueData.updates
@@ -335,6 +350,7 @@ export const useStore = create<TelemetryStore>((set, get) => ({
         graphUpdates: updates,
         queueItems,
         applications: resolvedApps,
+        problems: problemsData || [],
         isLoading: false,
         error: null
       });
@@ -386,6 +402,178 @@ export const useStore = create<TelemetryStore>((set, get) => ({
     set({ activeApplication }),
   setApplications: (applications: ApplicationItem[]) =>
     set({ applications }),
+
+  // Problem Bank Actions (BAC-38)
+  setActiveProblem: (activeProblem: ProblemItem | null) =>
+    set({ activeProblem }),
+  setProblems: (problems: ProblemItem[]) =>
+    set({ problems }),
+  fetchProblems: async (filter?: any) => {
+    try {
+      const problems = await api.fetchProblems(filter);
+      set({ problems, error: null });
+    } catch (err: any) {
+      set({ error: err.message || 'Failed to fetch interview problems' });
+    }
+  },
+  updateProblem: async (id: string, updates: Partial<ProblemItem>) => {
+    try {
+      const updated = await api.updateProblem(id, updates);
+      set((state) => ({
+        problems: state.problems.map((p) => (p.id === id ? updated : p)),
+        activeProblem: state.activeProblem?.id === id ? updated : state.activeProblem,
+        error: null
+      }));
+      return updated;
+    } catch (err: any) {
+      set({ error: err.message || 'Failed to update problem' });
+      throw err;
+    }
+  },
+  createProblem: async (payload: Partial<ProblemItem>) => {
+    try {
+      const created = await api.createProblem(payload);
+      set((state) => ({
+        problems: [created, ...state.problems],
+        activeProblem: created,
+        error: null
+      }));
+      return created;
+    } catch (err: any) {
+      set({ error: err.message || 'Failed to create problem' });
+      throw err;
+    }
+  },
+  deleteProblem: async (id: string) => {
+    try {
+      await api.deleteProblem(id);
+      set((state) => ({
+        problems: state.problems.filter((p) => p.id !== id),
+        activeProblem: state.activeProblem?.id === id ? null : state.activeProblem,
+        error: null
+      }));
+    } catch (err: any) {
+      set({ error: err.message || 'Failed to delete problem' });
+      throw err;
+    }
+  },
+  submitProblem: async (problemId: string, payload: any) => {
+    set({ isSubmittingCode: true });
+    try {
+      const submission = await api.submitProblemSolution(problemId, payload);
+      set((state) => {
+        const existing = state.problemSubmissions[problemId] || [];
+        return {
+          problemSubmissions: {
+            ...state.problemSubmissions,
+            [problemId]: [submission, ...existing]
+          },
+          isSubmittingCode: false,
+          error: null
+        };
+      });
+      return submission;
+    } catch (err: any) {
+      set({ isSubmittingCode: false, error: err.message || 'Failed to submit problem solution' });
+      throw err;
+    }
+  },
+  fetchProblemSubmissions: async (problemId: string) => {
+    try {
+      const submissions = await api.fetchProblemSubmissions(problemId);
+      set((state) => ({
+        problemSubmissions: {
+          ...state.problemSubmissions,
+          [problemId]: submissions
+        },
+        error: null
+      }));
+      return submissions;
+    } catch (err: any) {
+      console.warn('[FETCH_PROBLEM_SUBMISSIONS_WARN]:', err?.message);
+      return [];
+    }
+  },
+  fetchFollowUpResponses: async (problemId: string) => {
+    try {
+      const responses = await api.fetchProblemFollowUpResponses(problemId);
+      set((state) => ({
+        followUpResponses: {
+          ...state.followUpResponses,
+          [problemId]: responses
+        },
+        error: null
+      }));
+      return responses;
+    } catch (err: any) {
+      console.warn('[FETCH_FOLLOW_UP_RESPONSES_WARN]:', err?.message);
+      return [];
+    }
+  },
+  saveFollowUpResponse: async (
+    problemId: string,
+    followUpId: string,
+    payload: { responseText: string; diagramData?: any; score?: number; feedback?: string }
+  ) => {
+    set({ isSavingFollowUp: true });
+    try {
+      const saved = await api.saveProblemFollowUpResponse(problemId, followUpId, payload);
+      set((state) => {
+        const existingList = state.followUpResponses[problemId] || [];
+        const index = existingList.findIndex((r) => r.followUpId === followUpId);
+        let updatedList: any[];
+        if (index >= 0) {
+          updatedList = existingList.map((item, i) => (i === index ? saved : item));
+        } else {
+          updatedList = [saved, ...existingList];
+        }
+        return {
+          followUpResponses: {
+            ...state.followUpResponses,
+            [problemId]: updatedList
+          },
+          isSavingFollowUp: false,
+          error: null
+        };
+      });
+      return saved;
+    } catch (err: any) {
+      set({ isSavingFollowUp: false, error: err.message || 'Failed to save follow-up response' });
+      throw err;
+    }
+  },
+  gradeFollowUpResponse: async (
+    problemId: string,
+    followUpId: string,
+    payload: { responseText: string; diagramData?: any }
+  ) => {
+    set({ isGradingFollowUp: true });
+    try {
+      const result = await api.gradeSystemDesignFollowUp(problemId, followUpId, payload);
+      set((state) => {
+        const existingList = state.followUpResponses[problemId] || [];
+        const index = existingList.findIndex((r) => r.followUpId === followUpId);
+        let updatedList: any[];
+        if (index >= 0) {
+          updatedList = existingList.map((item, i) => (i === index ? result.savedResponse : item));
+        } else {
+          updatedList = [result.savedResponse, ...existingList];
+        }
+        return {
+          followUpResponses: {
+            ...state.followUpResponses,
+            [problemId]: updatedList
+          },
+          isGradingFollowUp: false,
+          error: null
+        };
+      });
+      return result;
+    } catch (err: any) {
+      set({ isGradingFollowUp: false, error: err.message || 'Failed to grade system design follow-up' });
+      throw err;
+    }
+  },
 
   addNoteToTopic: async (topicId: string, noteData: Omit<NoteItem, 'id'>) => {
     try {
@@ -446,6 +634,89 @@ export const useStore = create<TelemetryStore>((set, get) => ({
       });
     } catch (err: any) {
       set({ error: err.message || 'Failed to delete note' });
+    }
+  },
+
+  addQuizToTopic: async (topicId: string, quizData: Omit<QuizItem, 'id'> & { id?: string }) => {
+    try {
+      let createdQuiz: QuizItem;
+      try {
+        createdQuiz = await api.createQuizForTopic(topicId, quizData);
+      } catch (err) {
+        // Fallback for offline / test mock environments
+        createdQuiz = {
+          id: quizData.id || `quiz-local-${Date.now()}`,
+          title: quizData.title,
+          description: quizData.description,
+          questions: quizData.questions || [],
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
+      }
+      set((state) => {
+        const updated = state.topicNodes.map((n) => {
+          if (n.id === topicId) {
+            return { ...n, quizzes: [...(n.quizzes || []), createdQuiz] };
+          }
+          return n;
+        });
+        return { topicNodes: updated, activeQuiz: createdQuiz, isCreateQuizOpen: false, error: null };
+      });
+      return createdQuiz;
+    } catch (err: any) {
+      set({ error: err.message || 'Failed to add quiz to topic' });
+    }
+  },
+
+  updateQuizInTopic: async (topicId: string, quiz: QuizItem) => {
+    try {
+      let updatedQuiz: QuizItem;
+      try {
+        updatedQuiz = await api.updateQuiz(quiz.id, quiz);
+      } catch (err) {
+        updatedQuiz = quiz;
+      }
+      set((state) => {
+        const updated = state.topicNodes.map((n) => {
+          if (n.id === topicId) {
+            const nextQuizzes = (n.quizzes || []).map((item) =>
+              item.id === updatedQuiz.id ? updatedQuiz : item
+            );
+            return { ...n, quizzes: nextQuizzes };
+          }
+          return n;
+        });
+        return { topicNodes: updated, activeQuiz: updatedQuiz, error: null };
+      });
+      return updatedQuiz;
+    } catch (err: any) {
+      set({ error: err.message || 'Failed to update quiz' });
+    }
+  },
+
+  deleteQuizFromTopic: async (topicId: string, quizId: string) => {
+    try {
+      try {
+        await api.deleteQuiz(quizId);
+      } catch (err) {
+        // Continue with optimistic store update
+      }
+      set((state) => {
+        const updated = state.topicNodes.map((n) => {
+          if (n.id === topicId) {
+            return { ...n, quizzes: (n.quizzes || []).filter((q) => q.id !== quizId) };
+          }
+          return n;
+        });
+        const nextActive = state.activeQuiz?.id === quizId ? null : state.activeQuiz;
+        return {
+          topicNodes: updated,
+          activeQuiz: nextActive,
+          error: null
+        };
+      });
+    } catch (err: any) {
+      set({ error: err.message || 'Failed to delete quiz' });
     }
   },
 

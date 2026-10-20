@@ -53,7 +53,7 @@ test.describe('Applied Content Dual-Panel Viewer E2E', () => {
     await expect(canvasContainer).toHaveClass(/md:left-1\/2/);
 
     // Verify content inside left pane:
-    await expect(page.getByText('Dynamo & Cassandra: High-Availability Ring Storage')).toBeVisible();
+    await expect(leftPane.getByText('Dynamo & Cassandra: High-Availability Ring Storage')).toBeVisible();
     await expect(page.getByText(/Executive Context/i)).toBeVisible();
     await expect(page.getByText(/Consistent Hashing & Virtual Nodes/i)).toBeVisible();
 
@@ -137,7 +137,7 @@ test.describe('Applied Content Dual-Panel Viewer E2E', () => {
     // Click Explore button to open Inspector
     const exploreBtn = page.getByTestId('explore-topic-btn');
     await expect(exploreBtn).toBeVisible();
-    await exploreBtn.click();
+    await exploreBtn.click({ position: { x: 40, y: 15 } });
 
     // Verify Real-World Applications section exists in Inspector
     await expect(page.getByText(/REAL-WORLD APPLICATIONS/i)).toBeVisible();

@@ -1,4 +1,6 @@
 import express, { Express, Request, Response, NextFunction } from 'express';
+import * as fs from 'fs';
+import * as path from 'path';
 import cors from 'cors';
 import topicsRouter from './routes/topics.js';
 import prerequisitesRouter from './routes/prerequisites.js';
@@ -6,6 +8,10 @@ import notesRouter from './routes/notes.js';
 import todosRouter from './routes/todos.js';
 import ingestRouter from './routes/ingest.js';
 import reviewQueueRouter from './routes/reviewQueue.js';
+import quizzesRouter from './routes/quizzes.js';
+import problemsRouter from './routes/problems.js';
+import solRouter from './routes/sol.js';
+import { repositoriesRouter } from './routes/repositories.js';
 
 export function createApp(): Express {
   const app = express();
@@ -29,10 +35,30 @@ export function createApp(): Express {
   app.use('/api/topics', prerequisitesRouter);
   app.use('/api', notesRouter);
   app.use('/api/todos', todosRouter);
+  app.use('/api/quizzes', quizzesRouter);
+  app.use('/api/problems', problemsRouter);
+  app.use('/api/repositories', repositoriesRouter);
   app.use('/api/ingest', ingestRouter);
   app.use('/ingest', ingestRouter);
   app.use('/api/review-queue', reviewQueueRouter);
   app.use('/review-queue', reviewQueueRouter);
+  app.use('/api/sol', solRouter);
+
+  // Serve Static Frontend SPA if built (disabled in test mode to allow 404 assertions)
+  const isTest = process.env.NODE_ENV === 'test';
+  const frontendDist = path.resolve(process.cwd(), '../frontend/dist');
+  const localFrontendDist = path.resolve(process.cwd(), 'frontend/dist');
+  const targetDist = !isTest && (fs.existsSync(frontendDist) ? frontendDist : (fs.existsSync(localFrontendDist) ? localFrontendDist : null));
+
+  if (targetDist) {
+    app.use(express.static(targetDist));
+    app.get('*', (req: Request, res: Response, next: NextFunction) => {
+      if (req.path.startsWith('/api') || req.path === '/health' || req.path.startsWith('/ingest') || req.path.startsWith('/review-queue')) {
+        return next();
+      }
+      res.sendFile(path.join(targetDist, 'index.html'));
+    });
+  }
 
   // 404 Handler
   app.use((_req: Request, res: Response) => {
