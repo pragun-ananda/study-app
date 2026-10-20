@@ -116,6 +116,14 @@ Add the following entry (adjusting `/path/to/study-app` to your actual repo loca
 
 Backups are saved to `deployment/backups/` as compressed `.sql.gz` archives with a 14-day automatic rotation policy.
 
+### Offsite Backups via Tailscale (Taildrop)
+To automatically copy backups off the Mac Mini onto your personal laptop over your encrypted Tailnet:
+1. In `deployment/.env.production`, specify your laptop's Tailscale device name:
+   ```bash
+   TAILSCALE_SYNC_DEVICE="praguns-macbook-air"
+   ```
+2. Whenever `backup-db.sh` runs (whether manually, on nightly cron, or automatically before auto-deployments), the latest compressed `.sql.gz` snapshot is instantly sent to your laptop via Tailscale Taildrop.
+
 ### Restoring a Backup
 To restore a database snapshot into PostgreSQL:
 ```bash
