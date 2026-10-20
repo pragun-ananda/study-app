@@ -7,6 +7,7 @@ import { app } from './app.js';
 import { setPool, closePool } from './db.js';
 import { SEED_INTERVIEW_PROBLEMS } from './data/seedProblems.js';
 import { createProblem } from './services/problemService.js';
+import { seedCuratedLearningPaths } from './services/interviewLearningService.js';
 
 dotenv.config();
 
@@ -203,6 +204,7 @@ setPool(pool as any);
 for (const p of SEED_INTERVIEW_PROBLEMS) {
   await createProblem(p);
 }
+await seedCuratedLearningPaths();
 
 // Seed sample repository & annotation for E2E and dev exploration
 db.public.none(`

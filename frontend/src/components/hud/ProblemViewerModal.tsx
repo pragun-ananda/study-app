@@ -45,6 +45,7 @@ import { dracula, oneLight } from 'react-syntax-highlighter/dist/esm/styles/pris
 import { useStore } from '../../store/useStore';
 import { getCategoryShade, getDomainBaseColor } from '../../utils/theme';
 import { MarkdownContent } from './MarkdownContent';
+import GuidedPracticePanel from './GuidedPracticePanel';
 import { QuizViewer } from './QuizViewer';
 import { ExcalidrawCanvas } from './ExcalidrawCanvas';
 import {
@@ -170,7 +171,9 @@ export default function ProblemViewerModal() {
   const followUpResponses = activeProblem ? followUpResponsesMap[activeProblem.id] || [] : [];
   const followUps = activeProblem?.followUps || [];
 
-  const [activeTab, setActiveTab] = useState<'PROMPT' | 'SOLUTION' | 'QUIZ' | 'SUBMISSIONS' | 'SYSTEM_DESIGN'>('PROMPT');
+  const [activeTab, setActiveTab] = useState<'PROMPT' | 'GUIDED' | 'SOLUTION' | 'QUIZ' | 'SUBMISSIONS' | 'SYSTEM_DESIGN'>('PROMPT');
+  const [guidedAttemptStarted, setGuidedAttemptStarted] = useState(false);
+  const hasGuidedPilot = activeProblem?.id === 'PROB-TRAPPING-RAIN-WATER';
   const [selectedFollowUpIndex, setSelectedFollowUpIndex] = useState<number>(0);
   const [followUpResponseText, setFollowUpResponseText] = useState<string>('');
   const [followUpDiagramData, setFollowUpDiagramData] = useState<any>(null);
@@ -191,6 +194,18 @@ export default function ProblemViewerModal() {
   const [workbenchLayout, setWorkbenchLayout] = useState<'split' | 'full'>('split');
   const [copiedEditorCode, setCopiedEditorCode] = useState<boolean>(false);
   const bodyRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setGuidedAttemptStarted(false);
+  }, [activeProblem?.id]);
+
+  const openSolutionTab = () => {
+    if (hasGuidedPilot && !guidedAttemptStarted) {
+      setActiveTab('GUIDED');
+      return;
+    }
+    setActiveTab('SOLUTION');
+  };
 
   // Step 3 Testcase Console & In-Browser Execution State
   const [currentTestCases, setCurrentTestCases] = useState<TestCaseItem[]>([]);
@@ -1023,18 +1038,36 @@ export default function ProblemViewerModal() {
                 <Code size={13} /> PROBLEM PROMPT & CONSTRAINTS
               </button>
 
+              {hasGuidedPilot && (
+                <button
+                  onClick={() => setActiveTab('GUIDED')}
+                  data-testid="problem-tab-guided"
+                  className={`px-3 py-2 border-b-2 transition-colors flex items-center gap-1.5 ${
+                    activeTab === 'GUIDED'
+                      ? isLight ? 'border-sky-600 text-sky-600' : 'border-[#00f0ff] text-[#00f0ff]'
+                      : isLight ? 'border-transparent text-slate-500 hover:text-slate-800' : 'border-transparent text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <Sparkles size={13} /> GUIDED PRACTICE
+                </button>
+              )}
+
               <button
-                onClick={() => setActiveTab('SOLUTION')}
+                onClick={openSolutionTab}
                 data-testid="problem-tab-solution"
+                disabled={hasGuidedPilot && !guidedAttemptStarted}
                 className={`px-3 py-2 border-b-2 transition-colors flex items-center gap-1.5 ${
                   activeTab === 'SOLUTION'
                     ? isLight
                       ? 'border-sky-600 text-sky-600'
                       : 'border-[#00f0ff] text-[#00f0ff]'
+                    : hasGuidedPilot && !guidedAttemptStarted
+                    ? 'border-transparent text-slate-400/50 cursor-not-allowed'
                     : isLight
                     ? 'border-transparent text-slate-500 hover:text-slate-800'
                     : 'border-transparent text-slate-400 hover:text-slate-200'
                 }`}
+                title={hasGuidedPilot && !guidedAttemptStarted ? 'Start a guided attempt before opening the canonical solution' : undefined}
               >
                 <Sparkles size={13} /> CANONICAL SOLUTION & PREREQUISITES
                 {linkedPrereqs.length > 0 && (
@@ -1161,6 +1194,20 @@ export default function ProblemViewerModal() {
                 : 'overflow-y-auto p-4 sm:p-6 space-y-6'
             }`}
           >
+            {hasGuidedPilot && activeProblem && (
+              <div hidden={activeTab !== 'GUIDED'}>
+                <GuidedPracticePanel
+                  problemId={activeProblem.id}
+                  isLight={isLight}
+                  onAttemptStarted={() => setGuidedAttemptStarted(true)}
+                  onRevealSolution={() => {
+                    setGuidedAttemptStarted(true);
+                    setActiveTab('SOLUTION');
+                  }}
+                />
+              </div>
+            )}
+
             {/* TAB 1: PROMPT */}
             {activeTab === 'PROMPT' && (
               <div
@@ -1599,7 +1646,7 @@ export default function ProblemViewerModal() {
                           </p>
                         </div>
                         <button
-                          onClick={() => setActiveTab('SOLUTION')}
+                          onClick={openSolutionTab}
                           className="px-4 py-2 rounded-lg font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 transition-all bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-md shrink-0"
                           data-testid="reveal-solution-btn"
                         >
@@ -2295,7 +2342,7 @@ export default function ProblemViewerModal() {
                         </p>
                       </div>
                       <button
-                        onClick={() => setActiveTab('SOLUTION')}
+                        onClick={openSolutionTab}
                         className="px-4 py-2 rounded-lg font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 transition-all bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-md shrink-0"
                         data-testid="reveal-solution-btn"
                       >

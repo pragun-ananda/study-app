@@ -191,6 +191,90 @@ export interface ProblemQuizRow {
   quiz_id: string;
 }
 
+export type LearningPathPublicationStatus = 'PILOT' | 'PUBLISHED' | 'RETIRED';
+
+export interface LearningPathConcept {
+  id: string;
+  name: string;
+  intuition: string;
+  relevance: string;
+  diagnosticQuestion: string;
+  diagnosticSuccessCriteria: string;
+  topicId?: string;
+}
+
+export interface LearningPathStage {
+  id: string;
+  title: string;
+  purpose: string;
+  learnerPrompt: string;
+  hint: string;
+  expectedOutcome: string;
+  verificationCriteria: string[];
+}
+
+export interface InterviewLearningPath {
+  problemId: string;
+  version: number;
+  publicationStatus: LearningPathPublicationStatus;
+  interpretation: {
+    goal: string;
+    constraints: string[];
+    observations: string[];
+  };
+  concepts: LearningPathConcept[];
+  reasoningStages: LearningPathStage[];
+  misconceptions: string[];
+  implementationPlan: Array<{ id: string; task: string; verification: string }>;
+  edgeCases: Array<{ input: number[]; expected: number; why: string }>;
+  alternatives: Array<{ name: string; time: string; space: string; tradeoff: string }>;
+  transferExercise: {
+    prompt: string;
+    changedConstraint: string;
+    assessmentCriteria: string[];
+  };
+  assessmentRubric: Array<{ criterion: string; evidence: string }>;
+  resources: Array<{ title: string; url: string; conceptId: string; verified: boolean }>;
+  qualityReview: { status: 'PILOT_REVIEWED' | 'NEEDS_REVIEW'; notes: string[] };
+}
+
+export type LearningAttemptEventType =
+  | 'STARTED'
+  | 'DIAGNOSTIC_RESPONSE'
+  | 'STAGE_RESPONSE'
+  | 'STAGE_VERIFIED'
+  | 'HINT_REQUESTED'
+  | 'SOLUTION_REVEALED'
+  | 'TRANSFER_RESPONSE'
+  | 'CONFIDENCE_RECORDED'
+  | 'COMPLETED';
+
+export interface LearningAttemptEventInput {
+  eventType: LearningAttemptEventType;
+  stageId?: string;
+  payload?: Record<string, unknown>;
+}
+
+export interface InterviewLearningAttempt {
+  id: string;
+  problemId: string;
+  pathVersion: number;
+  startedAt: string;
+  completedAt?: string | null;
+  durationSeconds?: number | null;
+  selfConfidence?: number | null;
+  reviewDueAt?: string | null;
+}
+
+export interface LearningAttemptEvent {
+  id: string;
+  attemptId: string;
+  eventType: LearningAttemptEventType;
+  stageId?: string | null;
+  payload: Record<string, unknown>;
+  createdAt: string;
+}
+
 export interface ProblemDTO {
   id: string;
   title: string;

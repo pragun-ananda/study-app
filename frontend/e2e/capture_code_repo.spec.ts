@@ -1,7 +1,6 @@
 import { test, expect } from '@playwright/test';
 import path from 'path';
-
-const ARTIFACT_DIR = '/Users/cheese/.gemini/antigravity/brain/fed3126a-a4b9-406d-97d7-77339209d8ec';
+import { E2E_ARTIFACT_DIR } from './artifactPaths';
 
 test('Captures code repository screenshots for artifacts', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -29,7 +28,7 @@ test('Captures code repository screenshots for artifacts', async ({ page }) => {
   await expect(repoCard).toBeVisible();
 
   // Screenshot 0: Case Studies Sidebar Tab with Open Source filter and Import button
-  await page.screenshot({ path: path.join(ARTIFACT_DIR, 'code_repo_case_studies_tab.png') });
+  await page.screenshot({ path: path.join(E2E_ARTIFACT_DIR, 'code_repo_case_studies_tab.png') });
 
   await repoCard.click();
 
@@ -51,7 +50,7 @@ test('Captures code repository screenshots for artifacts', async ({ page }) => {
   await page.waitForTimeout(1500);
 
   // Screenshot 1: Code Repo File Tree & Monaco Viewer
-  await page.screenshot({ path: path.join(ARTIFACT_DIR, 'code_repo_file_tree_viewer.png') });
+  await page.screenshot({ path: path.join(E2E_ARTIFACT_DIR, 'code_repo_file_tree_viewer.png') });
 
   // 5. Switch to SPLIT_ANNOTATIONS mode
   const splitModeBtn = page.getByTestId('viewmode-split-notes');
@@ -59,7 +58,7 @@ test('Captures code repository screenshots for artifacts', async ({ page }) => {
   await page.waitForTimeout(1000);
 
   // Screenshot 2: Line Annotation Dock
-  await page.screenshot({ path: path.join(ARTIFACT_DIR, 'code_repo_line_annotation_dock.png') });
+  await page.screenshot({ path: path.join(E2E_ARTIFACT_DIR, 'code_repo_line_annotation_dock.png') });
 
   // 6. Focus on Staff+ AI Architectural Critique Card
   const annCard = page.getByTestId('annotation-card-ANN-SEED-001');
@@ -68,5 +67,5 @@ test('Captures code repository screenshots for artifacts', async ({ page }) => {
   await page.waitForTimeout(600);
 
   // Screenshot 3: AI Architecture Critique card
-  await annCard.screenshot({ path: path.join(ARTIFACT_DIR, 'code_repo_ai_architecture_critique.png') });
+  await annCard.screenshot({ path: path.join(E2E_ARTIFACT_DIR, 'code_repo_ai_architecture_critique.png') });
 });

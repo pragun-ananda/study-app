@@ -21,7 +21,9 @@ import {
   CodeAnnotationDTO,
   CreateCodeAnnotationInput,
   UpdateCodeAnnotationInput,
-  CodeAnnotationThreadDTO
+  CodeAnnotationThreadDTO,
+  InterviewLearningPath,
+  InterviewLearningAttempt
 } from '../types/telemetry';
 
 export class ApiError extends Error {
@@ -355,6 +357,36 @@ export async function fetchProblems(filter?: FetchProblemsFilter): Promise<Probl
   if (filter?.search) queryParams.set('search', filter.search);
   const qs = queryParams.toString();
   return request<ProblemItem[]>(`/api/problems${qs ? `?${qs}` : ''}`);
+}
+
+export async function fetchInterviewLearningPath(problemId: string): Promise<InterviewLearningPath> {
+  return request<InterviewLearningPath>(`/api/problems/${encodeURIComponent(problemId)}/learning-path`);
+}
+
+export async function startInterviewLearningAttempt(problemId: string): Promise<InterviewLearningAttempt> {
+  return request<InterviewLearningAttempt>(`/api/problems/${encodeURIComponent(problemId)}/learning-attempts`, {
+    method: 'POST',
+    body: JSON.stringify({})
+  });
+}
+
+export async function fetchInterviewLearningAttempts(problemId: string): Promise<InterviewLearningAttempt[]> {
+  return request<InterviewLearningAttempt[]>(`/api/problems/${encodeURIComponent(problemId)}/learning-attempts`);
+}
+
+export async function recordInterviewLearningEvent(
+  problemId: string,
+  attemptId: string,
+  event: {
+    eventType: string;
+    stageId?: string;
+    payload?: Record<string, unknown>;
+  }
+): Promise<unknown> {
+  return request<unknown>(
+    `/api/problems/${encodeURIComponent(problemId)}/learning-attempts/${encodeURIComponent(attemptId)}/events`,
+    { method: 'POST', body: JSON.stringify(event) }
+  );
 }
 
 export async function fetchProblemById(id: string): Promise<ProblemItem> {

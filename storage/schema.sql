@@ -167,6 +167,51 @@ CREATE INDEX IF NOT EXISTS idx_problems_type ON problems(type);
 CREATE INDEX IF NOT EXISTS idx_problems_difficulty ON problems(difficulty);
 CREATE INDEX IF NOT EXISTS idx_problems_domain ON problems(domain);
 
+-- Versioned interview teaching artifacts are kept separate from canonical problem prompts and solutions.
+CREATE TABLE IF NOT EXISTS problem_learning_paths (
+    problem_id VARCHAR(64) NOT NULL REFERENCES problems(id) ON DELETE CASCADE,
+    version INTEGER NOT NULL CHECK (version > 0),
+    publication_status VARCHAR(16) NOT NULL CHECK (publication_status IN ('PILOT', 'PUBLISHED', 'RETIRED')),
+    content JSONB NOT NULL,
+    validation_errors JSONB NOT NULL DEFAULT '[]'::jsonb,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    PRIMARY KEY (problem_id, version)
+);
+
+CREATE INDEX IF NOT EXISTS idx_problem_learning_paths_status
+  ON problem_learning_paths(problem_id, publication_status);
+
+CREATE TABLE IF NOT EXISTS interview_learning_attempts (
+    id VARCHAR(64) PRIMARY KEY,
+    problem_id VARCHAR(64) NOT NULL REFERENCES problems(id) ON DELETE CASCADE,
+    path_version INTEGER NOT NULL,
+    started_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    completed_at TIMESTAMP WITH TIME ZONE,
+    duration_seconds INTEGER,
+    self_confidence SMALLINT CHECK (self_confidence BETWEEN 1 AND 5),
+    review_due_at TIMESTAMP WITH TIME ZONE,
+    FOREIGN KEY (problem_id, path_version) REFERENCES problem_learning_paths(problem_id, version)
+);
+
+CREATE INDEX IF NOT EXISTS idx_interview_learning_attempts_due
+  ON interview_learning_attempts(review_due_at);
+
+CREATE TABLE IF NOT EXISTS interview_learning_attempt_events (
+    id VARCHAR(64) PRIMARY KEY,
+    attempt_id VARCHAR(64) NOT NULL REFERENCES interview_learning_attempts(id) ON DELETE CASCADE,
+    event_type VARCHAR(32) NOT NULL CHECK (event_type IN (
+      'STARTED', 'DIAGNOSTIC_RESPONSE', 'STAGE_RESPONSE', 'STAGE_VERIFIED',
+      'HINT_REQUESTED', 'SOLUTION_REVEALED', 'TRANSFER_RESPONSE',
+      'CONFIDENCE_RECORDED', 'COMPLETED'
+    )),
+    stage_id VARCHAR(64),
+    payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_interview_learning_events_attempt
+  ON interview_learning_attempt_events(attempt_id, created_at);
+
 -- 10. Problem Prerequisites (Mapping from Problem to Required Knowledge Graph Topic Nodes)
 CREATE TABLE IF NOT EXISTS problem_prerequisites (
     problem_id VARCHAR(64) NOT NULL REFERENCES problems(id) ON DELETE CASCADE,

@@ -16,6 +16,13 @@ import { SEED_INTERVIEW_PROBLEMS } from '../data/seedProblems.js';
 import { query } from '../db.js';
 import { ProblemRow } from '../types.js';
 import { gradeSystemDesignArchitecture } from '../services/systemDesignGrader.js';
+import {
+  getInterviewLearningAttempts,
+  getInterviewLearningPath,
+  recordLearningAttemptEvent,
+  seedCuratedLearningPaths,
+  startInterviewLearningAttempt
+} from '../services/interviewLearningService.js';
 
 const router = Router();
 
@@ -50,9 +57,61 @@ router.post('/seed', async (_req: Request, res: Response) => {
         seeded.push(created.id);
       }
     }
+    await seedCuratedLearningPaths();
     return res.json({ status: 'success', seededCount: seeded.length, seededIds: seeded });
   } catch (error) {
     return handleDatabaseError(res, error, 'Failed to seed interview problems');
+  }
+});
+
+// GET /api/problems/:id/learning-path - Retrieve the latest validated pilot/published path
+router.get('/:id/learning-path', async (req: Request, res: Response) => {
+  try {
+    const problem = await getProblemById(req.params.id);
+    if (!problem) return res.status(404).json({ error: `Problem with id '${req.params.id}' not found` });
+    const learningPath = await getInterviewLearningPath(req.params.id);
+    if (!learningPath) return res.status(404).json({ error: 'No validated learning path is available for this problem' });
+    return res.json(learningPath);
+  } catch (error) {
+    return handleDatabaseError(res, error, 'Failed to retrieve interview learning path');
+  }
+});
+
+// POST /api/problems/:id/learning-attempts - Start a version-bound practice attempt
+router.post('/:id/learning-attempts', async (req: Request, res: Response) => {
+  try {
+    const problem = await getProblemById(req.params.id);
+    if (!problem) return res.status(404).json({ error: `Problem with id '${req.params.id}' not found` });
+    const attempt = await startInterviewLearningAttempt(req.params.id);
+    return res.status(201).json(attempt);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to start learning attempt';
+    return res.status(message.includes('No validated') ? 409 : 500).json({ error: message });
+  }
+});
+
+// POST /api/problems/:id/learning-attempts/:attemptId/events - Append a validated attempt event
+router.post('/:id/learning-attempts/:attemptId/events', async (req: Request, res: Response) => {
+  try {
+    const problem = await getProblemById(req.params.id);
+    if (!problem) return res.status(404).json({ error: `Problem with id '${req.params.id}' not found` });
+    const event = await recordLearningAttemptEvent(req.params.attemptId, req.body || {}, req.params.id);
+    return res.status(201).json(event);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to record learning event';
+    const status = message.includes('not found') ? 404 : message.includes('does not belong') ? 404 : 400;
+    return res.status(status).json({ error: message });
+  }
+});
+
+// GET /api/problems/:id/learning-attempts - Retrieve persisted practice attempt summaries
+router.get('/:id/learning-attempts', async (req: Request, res: Response) => {
+  try {
+    const problem = await getProblemById(req.params.id);
+    if (!problem) return res.status(404).json({ error: `Problem with id '${req.params.id}' not found` });
+    return res.json(await getInterviewLearningAttempts(req.params.id));
+  } catch (error) {
+    return handleDatabaseError(res, error, 'Failed to retrieve interview learning attempts');
   }
 });
 
