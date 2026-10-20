@@ -5,18 +5,20 @@ import {
   recordInterviewLearningEvent,
   startInterviewLearningAttempt
 } from '../../api/client';
-import { InterviewLearningAttempt, InterviewLearningPath } from '../../types/telemetry';
+import { InterviewLearningAttempt, InterviewLearningPath, TopicNode } from '../../types/telemetry';
 
 interface GuidedPracticePanelProps {
   problemId: string;
   isLight: boolean;
   onAttemptStarted: () => void;
   onRevealSolution: () => void;
+  topicNodes?: TopicNode[];
+  onOpenConcept?: (topic: TopicNode) => void;
 }
 
 type Mode = 'intro' | 'initial-attempt' | 'diagnostics' | 'stages' | 'transfer' | 'complete';
 
-export default function GuidedPracticePanel({ problemId, isLight, onAttemptStarted, onRevealSolution }: GuidedPracticePanelProps) {
+export default function GuidedPracticePanel({ problemId, isLight, onAttemptStarted, onRevealSolution, topicNodes = [], onOpenConcept = () => undefined }: GuidedPracticePanelProps) {
   const [path, setPath] = useState<InterviewLearningPath | null>(null);
   const [attempt, setAttempt] = useState<InterviewLearningAttempt | null>(null);
   const [mode, setMode] = useState<Mode>('intro');
@@ -24,7 +26,6 @@ export default function GuidedPracticePanel({ problemId, isLight, onAttemptStart
   const [response, setResponse] = useState('');
   const [saved, setSaved] = useState(false);
   const [hintRevealed, setHintRevealed] = useState(false);
-  const [diagnostics, setDiagnostics] = useState<Record<string, string>>({});
   const [confidence, setConfidence] = useState(3);
   const [reviewDueAt, setReviewDueAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -46,7 +47,6 @@ export default function GuidedPracticePanel({ problemId, isLight, onAttemptStart
     setIndex(0);
     setResponse('');
     setSaved(false);
-    setDiagnostics({});
     setReviewDueAt(null);
     setError(null);
     fetchInterviewLearningPath(problemId)
@@ -57,6 +57,10 @@ export default function GuidedPracticePanel({ problemId, isLight, onAttemptStart
   }, [problemId]);
 
   const currentStage = useMemo(() => path?.reasoningStages[index], [path, index]);
+  const relatedConcepts = useMemo(() => (path?.concepts || []).flatMap((concept) => {
+    const topic = concept.topicId ? topicNodes.find((node) => node.id === concept.topicId) : undefined;
+    return topic ? [{ concept, topic }] : [];
+  }), [path, topicNodes]);
 
   const begin = async () => {
     if (!path) return;
@@ -87,7 +91,6 @@ export default function GuidedPracticePanel({ problemId, isLight, onAttemptStart
     setError(null);
     try {
       await sendEvent('DIAGNOSTIC_RESPONSE', undefined, { conceptId: concept.id, response: response.trim() });
-      setDiagnostics((previous) => ({ ...previous, [concept.id]: response.trim() }));
       setResponse('');
       setSaved(true);
     } catch (err) {
@@ -217,109 +220,126 @@ export default function GuidedPracticePanel({ problemId, isLight, onAttemptStart
     onRevealSolution();
   };
 
-  if (loading) return <div className={`p-6 text-sm ${secondaryClass}`} role="status">Loading guided practice…</div>;
-  if (!path) return <div className={`m-5 rounded-xl border p-5 ${cardClass}`} role="alert">{error || 'A reviewed pilot learning path is not available for this question yet.'}</div>;
+  if (loading) return <div className={`p-6 text-sm ${secondaryClass}`} role="status">Loading problem guide…</div>;
+  if (!path) return <div className={`m-5 rounded-xl border p-5 ${cardClass}`} role="alert">{error || 'No guide is available for this question yet.'}</div>;
+
+  const breakdown = path.problemBreakdown;
+  const coreFailures = breakdown?.failureScenarios.filter((item) =>
+    ['worker_crash', 'slow_live_worker', 'stale_worker_report', 'retry_exhaustion'].includes(item.id)
+  ) || [];
+  const coverageGaps = breakdown?.failureScenarios.filter((item) => item.sourceTestNames.length === 0) || [];
 
   return (
-    <section className="space-y-4 p-5" data-testid="guided-practice-panel" aria-label="Guided practice">
+    <section className="space-y-3 p-4" data-testid="guided-practice-panel" aria-label="Problem breakdown and practice">
       <header className={`rounded-xl border p-4 ${cardClass}`}>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <div className="text-[10px] font-mono font-bold uppercase tracking-widest text-sky-500">Guided practice · pilot v{path.version}</div>
-            <p className="mt-2 text-sm leading-relaxed">{path.interpretation.goal}</p>
-          </div>
-          <span className={`rounded border px-2 py-1 text-[10px] font-mono ${secondaryClass}`}>{path.publicationStatus}</span>
-        </div>
-        {mode === 'intro' && (
-          <>
-            <ul className={`mt-3 list-disc space-y-1 pl-5 text-xs ${secondaryClass}`}>
-              {path.interpretation.constraints.map((constraint) => <li key={constraint}>{constraint}</li>)}
+        <div className="text-[10px] font-mono font-bold uppercase tracking-widest text-sky-500">Problem guide</div>
+        <p className="mt-2 text-sm leading-relaxed">{path.interpretation.goal}</p>
+        {mode === 'intro' && <button type="button" onClick={begin} disabled={busy} className={`mt-3 rounded-lg border px-3 py-2 text-xs font-bold ${buttonClass}`}>
+          {busy ? 'Starting…' : 'Start practice'}
+        </button>}
+      </header>
+
+      {breakdown && <details open={mode === 'intro'} className={`rounded-xl border p-4 ${cardClass}`} data-testid="problem-breakdown">
+        <summary className="cursor-pointer text-sm font-bold">Problem breakdown</summary>
+        <div className="mt-3 grid gap-4 text-xs sm:grid-cols-2">
+          <section>
+            <h3 className="font-bold">Queue contract</h3>
+            <ul className={`mt-1 list-disc space-y-1 pl-4 ${secondaryClass}`}>
+              {breakdown.contract.map((item) => <li key={item.operation}><code>{item.operation}</code>: {item.behavior}</li>)}
             </ul>
-            <button type="button" onClick={begin} disabled={busy} className={`mt-4 rounded-lg border px-3 py-2 text-xs font-bold ${buttonClass}`}>
-              {busy ? 'Starting…' : 'Start an attempt'}
-            </button>
-          </>
-        )}
-
-      {mode === 'initial-attempt' && <div className={`rounded-xl border p-4 ${cardClass}`}>
-        <div className={`text-[10px] font-mono uppercase tracking-widest ${secondaryClass}`}>Your first model · before the breakdown</div>
-        <p className="mt-3 text-sm font-medium">{path.initialAttemptPrompt}</p>
-        <textarea value={response} onChange={(event) => setResponse(event.target.value)} rows={5} className={`mt-3 w-full rounded-lg border p-3 text-xs ${isLight ? 'border-slate-300 bg-slate-50' : 'border-slate-700 bg-slate-900'}`} aria-label="Your initial problem analysis" />
-        <button type="button" onClick={saveInitialAttempt} disabled={busy || !response.trim()} className={`mt-3 rounded-lg border px-3 py-2 text-xs font-bold disabled:opacity-50 ${buttonClass}`}>Save first attempt and continue</button>
-      </div>}
-
-      {path.problemBreakdown && <details open={mode === 'intro'} className={`rounded-xl border p-4 ${cardClass}`} data-testid="problem-breakdown">
-        <summary className="cursor-pointer text-sm font-bold">Problem breakdown · source checked</summary>
-        <div className="mt-4 space-y-4 text-xs">
-          <section><h3 className="font-bold">Contract and scope</h3><p className={`mt-1 ${secondaryClass}`}>{path.problemBreakdown.framing.userGoal}</p><ul className={`mt-1 list-disc pl-4 ${secondaryClass}`}>{path.problemBreakdown.framing.assumptions.map((item) => <li key={item}>{item}</li>)}</ul></section>
-          <section><h3 className="font-bold">Operations</h3><ul className={`mt-1 list-disc pl-4 ${secondaryClass}`}>{path.problemBreakdown.contract.map((item) => <li key={item.operation}><strong>{item.operation}</strong>: {item.behavior} ({item.complexity})</li>)}</ul></section>
-          <section><h3 className="font-bold">States and transitions</h3><p className={`mt-1 ${secondaryClass}`}>{path.problemBreakdown.states.map((state) => `${state.id}: ${state.meaning}`).join(' · ')}</p><ul className={`mt-1 list-disc pl-4 ${secondaryClass}`}>{path.problemBreakdown.transitions.map((item, i) => <li key={`${item.from}-${item.to}-${i}`}>{item.from} → {item.to} on {item.event}: {item.effect}</li>)}</ul></section>
-          <section><h3 className="font-bold">Invariants</h3><ul className={`mt-1 list-disc pl-4 ${secondaryClass}`}>{path.problemBreakdown.invariants.map((item) => <li key={item.id}>{item.statement}</li>)}</ul></section>
-          <section><h3 className="font-bold">Failure analysis and test coverage</h3><ul className={`mt-1 list-disc pl-4 ${secondaryClass}`}>{path.problemBreakdown.failureScenarios.map((item) => <li key={item.id}><strong>{item.id}</strong>: {item.queueBehavior}{item.sourceTestNames.length ? ` · source tests: ${item.sourceTestNames.join(', ')}` : ` · coverage gap: ${item.additionalTestRecommendation}`}</li>)}</ul></section>
-          <section><h3 className="font-bold">Complexity and guarantees</h3><ul className={`mt-1 list-disc pl-4 ${secondaryClass}`}>{path.problemBreakdown.complexity.map((item) => <li key={item.operation}>{item.operation}: {item.time} time, {item.space} space — {item.qualification}</li>)}</ul><p className={`mt-2 ${secondaryClass}`}>{path.problemBreakdown.deliverySemantics.guarantee} {path.problemBreakdown.deliverySemantics.exactlyOnceEffectRequires}</p></section>
-          <p className={secondaryClass}>Source review: {path.problemBreakdown.sourceReview.status}. This review checks structure and traceability; it does not execute or prove the supplied implementation.</p>
+          </section>
+          <section>
+            <h3 className="font-bold">Task lifecycle</h3>
+            <p className={`mt-1 ${secondaryClass}`}>PENDING → LEASED → DONE, PENDING (retry), or DEAD (limit reached).</p>
+            <p className={`mt-1 ${secondaryClass}`}>Keep each task recorded. Only its current lease token can change it.</p>
+          </section>
+          <section>
+            <h3 className="font-bold">Failure handling</h3>
+            <ul className={`mt-1 list-disc space-y-1 pl-4 ${secondaryClass}`}>
+              {coreFailures.map((item) => <li key={item.id}><strong>{item.id.replace(/_/g, ' ')}</strong>: {item.queueBehavior}</li>)}
+            </ul>
+            {coverageGaps.length > 0 && <p className="mt-2 text-amber-500">Source tests miss: {coverageGaps.map((item) => item.id.replace(/_/g, ' ')).join(', ')}.</p>}
+          </section>
+          <section>
+            <h3 className="font-bold">Cost and delivery</h3>
+            <p className={`mt-1 ${secondaryClass}`}>Submit O(1) · claim amortized O(log h) · heartbeat O(log h).</p>
+            <p className={`mt-1 ${secondaryClass}`}>At-least-once: duplicate work can happen. Use idempotency or fencing for external effects.</p>
+          </section>
         </div>
       </details>}
-      </header>
+
+      {relatedConcepts.length > 0 && <section className={`rounded-xl border p-4 ${cardClass}`} aria-label="Related concept nodes">
+        <h3 className="text-sm font-bold">Related concepts</h3>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {relatedConcepts.map(({ concept, topic }) => <button key={topic.id} type="button" onClick={() => onOpenConcept(topic)} className={`rounded-full border px-3 py-1.5 text-xs ${buttonClass}`} title={concept.relevance}>
+            {topic.name} <span aria-hidden="true">↗</span>
+          </button>)}
+        </div>
+      </section>}
+
+      {mode === 'initial-attempt' && <div className={`rounded-xl border p-4 ${cardClass}`}>
+        <h3 className="text-sm font-bold">Your approach</h3>
+        <p className={`mt-1 text-xs ${secondaryClass}`}>{path.initialAttemptPrompt}</p>
+        <textarea value={response} onChange={(event) => setResponse(event.target.value)} rows={4} className={`mt-3 w-full rounded-lg border p-3 text-xs ${isLight ? 'border-slate-300 bg-slate-50' : 'border-slate-700 bg-slate-900'}`} aria-label="Your initial problem analysis" />
+        <button type="button" onClick={saveInitialAttempt} disabled={busy || !response.trim()} className={`mt-3 rounded-lg border px-3 py-2 text-xs font-bold disabled:opacity-50 ${buttonClass}`}>Save and continue</button>
+      </div>}
 
       {mode === 'diagnostics' && path.concepts[index] && (() => {
         const concept = path.concepts[index];
         return <div className={`rounded-xl border p-4 ${cardClass}`}>
-          <div className={`text-[10px] font-mono uppercase tracking-widest ${secondaryClass}`}>Prerequisite check {index + 1} of {path.concepts.length}</div>
+          <div className={`text-[10px] font-mono uppercase tracking-widest ${secondaryClass}`}>Concept {index + 1} of {path.concepts.length}</div>
           <h3 className="mt-2 text-sm font-bold">{concept.name}</h3>
           <p className={`mt-1 text-xs ${secondaryClass}`}>{concept.intuition}</p>
           <p className="mt-3 text-sm font-medium">{concept.diagnosticQuestion}</p>
           <textarea value={response} onChange={(event) => setResponse(event.target.value)} disabled={saved} rows={3} className={`mt-3 w-full rounded-lg border p-3 text-xs ${isLight ? 'border-slate-300 bg-slate-50' : 'border-slate-700 bg-slate-900'}`} aria-label={`Response for ${concept.name}`} />
           {saved ? <div className="mt-3 space-y-2">
-            <p className={`text-xs ${secondaryClass}`}>Self-check: {concept.diagnosticSuccessCriteria}</p>
-            <button type="button" onClick={continueDiagnostic} className={`rounded-lg border px-3 py-2 text-xs font-bold ${buttonClass}`}>{index + 1 === path.concepts.length ? 'Continue to reasoning' : 'Next concept'}</button>
-          </div> : <button type="button" onClick={saveDiagnostic} disabled={busy || !response.trim()} className={`mt-3 rounded-lg border px-3 py-2 text-xs font-bold disabled:opacity-50 ${buttonClass}`}>Save my response</button>}
+            <p className={`text-xs ${secondaryClass}`}>Check: {concept.diagnosticSuccessCriteria}</p>
+            <button type="button" onClick={continueDiagnostic} className={`rounded-lg border px-3 py-2 text-xs font-bold ${buttonClass}`}>{index + 1 === path.concepts.length ? 'Continue' : 'Next concept'}</button>
+          </div> : <button type="button" onClick={saveDiagnostic} disabled={busy || !response.trim()} className={`mt-3 rounded-lg border px-3 py-2 text-xs font-bold disabled:opacity-50 ${buttonClass}`}>Save response</button>}
         </div>;
       })()}
 
       {mode === 'stages' && currentStage && <div className={`rounded-xl border p-4 ${cardClass}`}>
-        <div className={`text-[10px] font-mono uppercase tracking-widest ${secondaryClass}`}>Reasoning stage {index + 1} of {path.reasoningStages.length}</div>
+        <div className={`text-[10px] font-mono uppercase tracking-widest ${secondaryClass}`}>Step {index + 1} of {path.reasoningStages.length}</div>
         <h3 className="mt-2 text-sm font-bold">{currentStage.title}</h3>
         <p className={`mt-1 text-xs ${secondaryClass}`}>{currentStage.purpose}</p>
         <p className="mt-4 text-sm font-medium">{currentStage.learnerPrompt}</p>
         <textarea value={response} onChange={(event) => setResponse(event.target.value)} disabled={saved} rows={4} className={`mt-3 w-full rounded-lg border p-3 text-xs ${isLight ? 'border-slate-300 bg-slate-50' : 'border-slate-700 bg-slate-900'}`} aria-label={`Your reasoning for ${currentStage.title}`} />
-        {!hintRevealed && <button type="button" onClick={revealHint} disabled={busy} className={`mt-3 rounded-lg border px-3 py-2 text-xs ${buttonClass}`}>Show a hint for this step</button>}
+        {!hintRevealed && <button type="button" onClick={revealHint} disabled={busy} className={`mt-3 rounded-lg border px-3 py-2 text-xs ${buttonClass}`}>Show hint</button>}
         {hintRevealed && <p className={`mt-3 rounded-lg border p-3 text-xs ${isLight ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-amber-500/30 bg-amber-500/10 text-amber-200'}`} data-testid="guided-hint">{currentStage.hint}</p>}
         {saved ? <div className="mt-4 space-y-3">
           <div className={`rounded-lg border p-3 ${isLight ? 'border-emerald-200 bg-emerald-50' : 'border-emerald-500/20 bg-emerald-500/10'}`}>
-            <div className="text-xs font-bold">Check your reasoning</div>
+            <div className="text-xs font-bold">Check your answer</div>
             <ul className={`mt-2 list-disc space-y-1 pl-4 text-xs ${secondaryClass}`}>{currentStage.verificationCriteria.map((criterion) => <li key={criterion}>{criterion}</li>)}</ul>
           </div>
-          <button type="button" onClick={verifyStage} disabled={busy} className={`rounded-lg border px-3 py-2 text-xs font-bold ${buttonClass}`}>I checked these criteria · continue</button>
-        </div> : <button type="button" onClick={saveStageResponse} disabled={busy || !response.trim()} className={`mt-3 rounded-lg border px-3 py-2 text-xs font-bold disabled:opacity-50 ${buttonClass}`}>Save reflection</button>}
-        <div className="mt-5 border-t border-slate-700/30 pt-3">
-          <button type="button" onClick={revealSolution} className={`text-xs underline underline-offset-2 ${secondaryClass}`}>Reveal the canonical solution</button>
+          <button type="button" onClick={verifyStage} disabled={busy} className={`rounded-lg border px-3 py-2 text-xs font-bold ${buttonClass}`}>Continue</button>
+        </div> : <button type="button" onClick={saveStageResponse} disabled={busy || !response.trim()} className={`mt-3 rounded-lg border px-3 py-2 text-xs font-bold disabled:opacity-50 ${buttonClass}`}>Save response</button>}
+        <div className="mt-4 border-t border-slate-700/30 pt-3">
+          <button type="button" onClick={revealSolution} className={`text-xs underline underline-offset-2 ${secondaryClass}`}>Open full solution</button>
         </div>
       </div>}
 
       {mode === 'transfer' && <div className={`rounded-xl border p-4 ${cardClass}`}>
-        <div className={`text-[10px] font-mono uppercase tracking-widest ${secondaryClass}`}>Transfer exercise</div>
+        <div className={`text-[10px] font-mono uppercase tracking-widest ${secondaryClass}`}>Try a variation</div>
         <p className="mt-2 text-sm font-medium">{path.transferExercise.prompt}</p>
         <p className={`mt-2 text-xs ${secondaryClass}`}>{path.transferExercise.changedConstraint}</p>
-        <textarea value={response} onChange={(event) => setResponse(event.target.value)} disabled={saved} rows={5} className={`mt-3 w-full rounded-lg border p-3 text-xs ${isLight ? 'border-slate-300 bg-slate-50' : 'border-slate-700 bg-slate-900'}`} aria-label="Transfer exercise response" />
+        <textarea value={response} onChange={(event) => setResponse(event.target.value)} disabled={saved} rows={4} className={`mt-3 w-full rounded-lg border p-3 text-xs ${isLight ? 'border-slate-300 bg-slate-50' : 'border-slate-700 bg-slate-900'}`} aria-label="Transfer exercise response" />
         {saved ? <div className="mt-3 space-y-3">
-          <p className={`text-xs ${secondaryClass}`}>Self-check: {path.transferExercise.assessmentCriteria.join(' ')}</p>
-          <label className={`block text-xs ${secondaryClass}`}>How confident are you that you could solve a similar variant without help? {confidence}/5
+          <p className={`text-xs ${secondaryClass}`}>Check: {path.transferExercise.assessmentCriteria.join(' ')}</p>
+          <label className={`block text-xs ${secondaryClass}`}>Confidence: {confidence}/5
             <input aria-label="Confidence" type="range" min={1} max={5} value={confidence} onChange={(event) => setConfidence(Number(event.target.value))} className="mt-2 block w-full" />
           </label>
-          <button type="button" onClick={finish} disabled={busy} className={`rounded-lg border px-3 py-2 text-xs font-bold ${buttonClass}`}>Finish and schedule a revisit</button>
-        </div> : <button type="button" onClick={saveTransfer} disabled={busy || !response.trim()} className={`mt-3 rounded-lg border px-3 py-2 text-xs font-bold disabled:opacity-50 ${buttonClass}`}>Save transfer response</button>}
-        <p className={`mt-3 text-[10px] ${secondaryClass}`}>This pilot stores your response and self-check only; it does not automatically grade transfer performance.</p>
+          <button type="button" onClick={finish} disabled={busy} className={`rounded-lg border px-3 py-2 text-xs font-bold ${buttonClass}`}>Finish</button>
+        </div> : <button type="button" onClick={saveTransfer} disabled={busy || !response.trim()} className={`mt-3 rounded-lg border px-3 py-2 text-xs font-bold disabled:opacity-50 ${buttonClass}`}>Save response</button>}
       </div>}
 
       {mode === 'complete' && <div className={`rounded-xl border p-4 ${cardClass}`}>
-        <h3 className="text-sm font-bold">Attempt recorded</h3>
-        <p className={`mt-2 text-xs ${secondaryClass}`}>Your revisit is scheduled for {reviewDueAt ? new Date(reviewDueAt).toLocaleDateString() : 'tomorrow'}. This is a reminder, not a mastery score.</p>
-        <button type="button" onClick={revealSolution} className={`mt-3 rounded-lg border px-3 py-2 text-xs font-bold ${buttonClass}`}>Review the canonical solution</button>
+        <h3 className="text-sm font-bold">Practice complete</h3>
+        <p className={`mt-2 text-xs ${secondaryClass}`}>Review this problem again {reviewDueAt ? new Date(reviewDueAt).toLocaleDateString() : 'tomorrow'}.</p>
+        <button type="button" onClick={revealSolution} className={`mt-3 rounded-lg border px-3 py-2 text-xs font-bold ${buttonClass}`}>Open full solution</button>
       </div>}
 
       {error && <p role="alert" className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-500">{error}</p>}
-      {attempt && mode !== 'intro' && mode !== 'complete' && <div className={`text-right text-[10px] font-mono ${secondaryClass}`}>Attempt {attempt.id} · content v{attempt.pathVersion}</div>}
     </section>
   );
 }

@@ -12,9 +12,9 @@ const sourceFingerprint = fingerprintProblemSource({
 /** Curated breakdown for the single queue question; it is source-bound and not a generated replacement for the solution. */
 export const FAULT_TOLERANT_WORK_QUEUE_LEARNING_PATH: InterviewLearningPath = {
   problemId: 'PROB-FAULT-TOLERANT-WORK-QUEUE',
-  version: 1,
+  version: 2,
   publicationStatus: 'PILOT',
-  initialAttemptPrompt: 'Before reading the breakdown, explain your queue contract, how a task remains accounted for while a worker holds it, and what the queue should do after a crash, a hang, or a late completion.',
+  initialAttemptPrompt: 'In your own words, describe the task states and how the queue recovers work after a worker stops.',
   interpretation: {
     goal: 'Implement a thread-safe in-process queue that never silently drops a submitted task when a worker fails: it must eventually complete or deliberately dead-letter each task, assuming workers continue claiming work.',
     constraints: [
@@ -40,7 +40,8 @@ export const FAULT_TOLERANT_WORK_QUEUE_LEARNING_PATH: InterviewLearningPath = {
       intuition: 'Represent each task as pending, leased, done, or dead, and require every operation to move it through an explicit legal transition.',
       relevance: 'The no-loss guarantee is an invariant over states: claiming changes ownership but does not erase the task record.',
       diagnosticQuestion: 'After claim() returns a task to a worker, where is the queue’s record of that task and what states can it still reach?',
-      diagnosticSuccessCriteria: 'Says the task remains in the task table as LEASED and can become DONE, PENDING after retry, or DEAD after retry exhaustion.'
+      diagnosticSuccessCriteria: 'The task stays recorded while LEASED and can become DONE, PENDING, or DEAD.',
+      topicId: 'TOPIC-088'
     },
     {
       id: 'queue-leases-and-fencing-tokens',
@@ -48,7 +49,8 @@ export const FAULT_TOLERANT_WORK_QUEUE_LEARNING_PATH: InterviewLearningPath = {
       intuition: 'A lease grants temporary ownership; its deadline detects silence, while its unique token prevents a stale holder from reporting for a newer lease.',
       relevance: 'Timeout alone can redeliver work while a slow worker is still running; tokens make queue state safe after that redelivery.',
       diagnosticQuestion: 'Worker A times out, worker B receives the retry, then A reports success. What must the queue compare before accepting A’s report?',
-      diagnosticSuccessCriteria: 'Checks that task state is LEASED and A’s token still equals the task’s current lease token; after B claims, it does not.'
+      diagnosticSuccessCriteria: 'Only the current lease token can change the task.',
+      topicId: 'TOPIC-096'
     },
     {
       id: 'queue-retry-and-dead-letter-policy',
@@ -56,7 +58,8 @@ export const FAULT_TOLERANT_WORK_QUEUE_LEARNING_PATH: InterviewLearningPath = {
       intuition: 'A retry policy needs an explicit attempt count and terminal destination so a permanently failing task cannot cycle forever.',
       relevance: 'The prompt permits deliberate set-aside for tasks that cannot be completed; the dead-letter list is that explicit outcome.',
       diagnosticQuestion: 'If max_attempts counts deliveries, at what attempt should a task move to DEAD and what evidence should remain inspectable?',
-      diagnosticSuccessCriteria: 'Moves the task to DEAD when attempts reaches max_attempts and retains a last error/task record for inspection.'
+      diagnosticSuccessCriteria: 'Move to DEAD at max_attempts and keep the last error.',
+      topicId: 'TOPIC-086'
     },
     {
       id: 'queue-expiry-heap-complexity',
@@ -64,7 +67,7 @@ export const FAULT_TOLERANT_WORK_QUEUE_LEARNING_PATH: InterviewLearningPath = {
       intuition: 'A min-heap orders lease deadlines so the queue can process expired leases without scanning every task.',
       relevance: 'The queue must recover silent workers while keeping claim cost proportional to expired heap entries rather than total task count.',
       diagnosticQuestion: 'Why can a heartbeat leave an old deadline entry in the heap, and how does claim know that entry is stale?',
-      diagnosticSuccessCriteria: 'The current task token/deadline is compared with the popped heap entry; stale entries are skipped.'
+      diagnosticSuccessCriteria: 'Skip an expiry entry when its token or deadline is no longer current.'
     }
   ],
   reasoningStages: [

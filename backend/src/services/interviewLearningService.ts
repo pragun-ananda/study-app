@@ -52,6 +52,9 @@ export function validateInterviewLearningPath(value: unknown): { valid: boolean;
         !concept.diagnosticQuestion?.trim() || !concept.diagnosticSuccessCriteria?.trim()) {
       errors.push(`Concept '${concept?.id || '(unknown)'}' is incomplete.`);
     }
+    if (concept?.topicId !== undefined && (typeof concept.topicId !== 'string' || !concept.topicId.trim())) {
+      errors.push(`Concept '${concept?.id || '(unknown)'}' has an invalid topic reference.`);
+    }
   }
   for (const resource of Array.isArray(path.resources) ? path.resources : []) {
     if (!resource || typeof resource !== 'object') {
@@ -116,6 +119,11 @@ export async function saveLearningPath(path: InterviewLearningPath): Promise<voi
     if (!source) throw new Error(`Canonical problem '${path.problemId}' was not found.`);
     report = validateQueueProblemBreakdown(source, path.problemBreakdown);
     if (!report.valid || !report.pilotReady) throw new Error(`Invalid problem breakdown: ${[...report.errors, ...report.warnings].join(' ')}`);
+  }
+  for (const concept of path.concepts) {
+    if (!concept.topicId) continue;
+    const topic = await query<{ id: string }>('SELECT id FROM topics WHERE id = $1', [concept.topicId]);
+    if (topic.rows.length === 0) throw new Error(`Concept '${concept.id}' references unknown topic '${concept.topicId}'.`);
   }
   await query(
     `INSERT INTO problem_learning_paths (problem_id, version, publication_status, content, validation_errors, validation_report)

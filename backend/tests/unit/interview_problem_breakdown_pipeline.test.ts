@@ -12,6 +12,12 @@ const source = {
 };
 
 describe('queue problem breakdown pipeline', () => {
+  it('includes follow-up questions in the interview prompt and structured problem data', () => {
+    expect(source.prompt).toContain('Follow-up questions:');
+    expect(FAULT_TOLERANT_WORK_QUEUE_PROBLEM.followUps).toHaveLength(4);
+    expect(FAULT_TOLERANT_WORK_QUEUE_PROBLEM.followUps?.map((item) => item.id)).toContain('FU-QUEUE-DURABILITY');
+  });
+
   it('accepts the reviewed breakdown and reports source test coverage gaps', () => {
     const report = validateQueueProblemBreakdown(source, FAULT_TOLERANT_WORK_QUEUE_LEARNING_PATH.problemBreakdown);
     expect(report.valid).toBe(true);

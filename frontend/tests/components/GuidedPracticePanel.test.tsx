@@ -10,7 +10,7 @@ vi.mock('../../src/api/client', () => ({
   startInterviewLearningAttempt: vi.fn()
 }));
 
-const pilotPath = {
+const practicePath = {
   problemId: 'PROB-TRAPPING-RAIN-WATER',
   version: 1,
   publicationStatus: 'PILOT' as const,
@@ -30,9 +30,9 @@ const pilotPath = {
 
 describe('GuidedPracticePanel', () => {
   beforeEach(() => {
-    vi.mocked(api.fetchInterviewLearningPath).mockResolvedValue(pilotPath);
+    vi.mocked(api.fetchInterviewLearningPath).mockResolvedValue(practicePath);
     vi.mocked(api.startInterviewLearningAttempt).mockResolvedValue({
-      id: 'ATTEMPT-1', problemId: pilotPath.problemId, pathVersion: 1, startedAt: new Date().toISOString()
+      id: 'ATTEMPT-1', problemId: practicePath.problemId, pathVersion: 1, startedAt: new Date().toISOString()
     });
     vi.mocked(api.recordInterviewLearningEvent).mockResolvedValue({});
     vi.mocked(api.fetchInterviewLearningAttempts).mockResolvedValue([]);
@@ -41,32 +41,33 @@ describe('GuidedPracticePanel', () => {
   it('keeps the solution behind attempt start and reveals hints one step at a time', async () => {
     const onAttemptStarted = vi.fn();
     const onRevealSolution = vi.fn();
-    render(<GuidedPracticePanel problemId={pilotPath.problemId} isLight onAttemptStarted={onAttemptStarted} onRevealSolution={onRevealSolution} />);
+    render(<GuidedPracticePanel problemId={practicePath.problemId} isLight onAttemptStarted={onAttemptStarted} onRevealSolution={onRevealSolution} />);
 
     await screen.findByText('Compute trapped water.');
-    fireEvent.click(screen.getByRole('button', { name: 'Start an attempt' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Start practice' }));
     await waitFor(() => expect(onAttemptStarted).toHaveBeenCalledOnce());
 
     fireEvent.change(screen.getByRole('textbox', { name: 'Response for Water bound' }), { target: { value: 'The lower wall.' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save my response' }));
-    await screen.findByText('Self-check: The shorter wall.');
-    fireEvent.click(screen.getByRole('button', { name: 'Continue to reasoning' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save response' }));
+    await screen.findByText('Check: The shorter wall.');
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
 
     expect(screen.getByText('How much water is above one bar?')).toBeInTheDocument();
     expect(screen.queryByTestId('guided-hint')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Show a hint for this step' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Show hint' }));
     await screen.findByTestId('guided-hint');
     expect(api.recordInterviewLearningEvent).toHaveBeenCalledWith(
-      pilotPath.problemId, 'ATTEMPT-1', expect.objectContaining({ eventType: 'HINT_REQUESTED', stageId: 'derive' })
+      practicePath.problemId, 'ATTEMPT-1', expect.objectContaining({ eventType: 'HINT_REQUESTED', stageId: 'derive' })
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Reveal the canonical solution' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open full solution' }));
     await waitFor(() => expect(onRevealSolution).toHaveBeenCalledOnce());
   });
 
   it('records an initial attempt before revealing the checked breakdown', async () => {
     const queuePath = {
-      ...pilotPath,
+      ...practicePath,
+      concepts: [{ ...practicePath.concepts[0], topicId: 'TOPIC-HASH-RING' }],
       initialAttemptPrompt: 'Explain your task states and crash recovery.',
       problemBreakdown: {
         framing: { userGoal: 'Keep each task accounted for.', assumptions: ['Workers may crash.'], outOfScope: [], clarifications: [] },
@@ -81,20 +82,24 @@ describe('GuidedPracticePanel', () => {
       }
     } as any;
     vi.mocked(api.fetchInterviewLearningPath).mockResolvedValue(queuePath);
-    render(<GuidedPracticePanel problemId={pilotPath.problemId} isLight onAttemptStarted={vi.fn()} onRevealSolution={vi.fn()} />);
+    const topic = { id: 'TOPIC-HASH-RING', name: 'Consistent Hashing', category: 'SYSTEMS', mastery: 85, status: 'MASTERED', lastReviewed: new Date().toISOString(), coordinates: [0, 0, 0], prerequisites: [], unlocks: [], summary: 'Hashing' } as any;
+    const onOpenConcept = vi.fn();
+    render(<GuidedPracticePanel problemId={practicePath.problemId} isLight onAttemptStarted={vi.fn()} onRevealSolution={vi.fn()} topicNodes={[topic]} onOpenConcept={onOpenConcept} />);
 
-    const startButton = await screen.findByRole('button', { name: 'Start an attempt' });
+    const startButton = await screen.findByRole('button', { name: 'Start practice' });
+    fireEvent.click(screen.getByRole('button', { name: /Consistent Hashing/ }));
+    expect(onOpenConcept).toHaveBeenCalledWith(topic);
     expect(screen.getByTestId('problem-breakdown')).toHaveAttribute('open');
     fireEvent.click(startButton);
     const response = await screen.findByRole('textbox', { name: 'Your initial problem analysis' });
     fireEvent.change(response, { target: { value: 'PENDING moves to LEASED; the task remains in the task map.' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save first attempt and continue' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save and continue' }));
 
     await waitFor(() => expect(api.recordInterviewLearningEvent).toHaveBeenCalledWith(
-      pilotPath.problemId, 'ATTEMPT-1', expect.objectContaining({ eventType: 'INITIAL_ATTEMPT' })
+      practicePath.problemId, 'ATTEMPT-1', expect.objectContaining({ eventType: 'INITIAL_ATTEMPT' })
     ));
     expect(await screen.findByTestId('problem-breakdown')).toBeInTheDocument();
-    fireEvent.click(screen.getByText('Problem breakdown · source checked'));
-    expect(await screen.findByText('Keep each task accounted for.')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Problem breakdown'));
+    expect(await screen.findByText(/Lease oldest pending task/)).toBeInTheDocument();
   });
 });
