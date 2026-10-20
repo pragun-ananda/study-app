@@ -112,7 +112,7 @@ test.describe('Code Repository Documentation & Architectural Learning Engine (Mi
 
     // Verify confirmation and thread update
     await expect(annCard.getByText(/Quiz Created!/i)).toBeVisible({ timeout: 10000 });
-    await expect(annCard.getByText(/Exported to Spaced Repetition Quiz/i)).toBeVisible();
+    await expect(annCard.getByText(/Exported to Spaced Repetition Quiz/i).first()).toBeVisible();
 
     // 7. Test Ask Sol AI bridge
     const askSolBtn = annCard.getByText('Ask Sol AI in Chat');

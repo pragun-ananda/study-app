@@ -1,3 +1,6 @@
+import path from 'node:path';
+import { E2E_ARTIFACT_DIR } from './artifactPaths';
+
 import { test, expect } from '@playwright/test';
 
 test.describe('Interview Problem Library & Content Editor E2E (BAC-38 / FRO-18)', () => {
@@ -428,7 +431,7 @@ test.describe('Interview Problem Library & Content Editor E2E (BAC-38 / FRO-18)'
     // Capture screenshot of follow-up drawer showing challenges and rubric
     await page.waitForTimeout(500);
     await modal.screenshot({
-      path: '/Users/cheese/.gemini/antigravity/brain/fed3126a-a4b9-406d-97d7-77339209d8ec/system_design_followups_drawer.png'
+      path: path.join(E2E_ARTIFACT_DIR, 'system_design_followups_drawer.png')
     });
 
     // If there is a second challenge pill, switch to it and verify
@@ -456,15 +459,17 @@ test.describe('Interview Problem Library & Content Editor E2E (BAC-38 / FRO-18)'
     // Click Save Architecture Draft
     const saveBtn = page.getByTestId('save-followup-response-btn');
     await expect(saveBtn).toBeVisible();
+    const saveResponsePromise = page.waitForResponse((response) => {
+      const pathname = new URL(response.url()).pathname;
+      return response.request().method() === 'POST' && /\/follow-ups\/[^/]+\/response$/.test(pathname);
+    });
     await saveBtn.click();
-
-    // Verify saved status indicator appears
-    await expect(page.getByText('Saved')).toBeVisible({ timeout: 5000 });
+    expect((await saveResponsePromise).ok()).toBeTruthy();
 
     // Capture screenshot of response editor with saved draft and rubric
     await page.waitForTimeout(500);
     await modal.screenshot({
-      path: '/Users/cheese/.gemini/antigravity/brain/fed3126a-a4b9-406d-97d7-77339209d8ec/system_design_followup_response_editor.png'
+      path: path.join(E2E_ARTIFACT_DIR, 'system_design_followup_response_editor.png')
     });
   });
 
@@ -523,7 +528,7 @@ test.describe('Interview Problem Library & Content Editor E2E (BAC-38 / FRO-18)'
 
     // Capture visual screenshot artifact of interactive Excalidraw session
     await modal.screenshot({
-      path: '/Users/cheese/.gemini/antigravity/brain/fed3126a-a4b9-406d-97d7-77339209d8ec/system_design_excalidraw_canvas.png'
+      path: path.join(E2E_ARTIFACT_DIR, 'system_design_excalidraw_canvas.png')
     });
 
     // Switch back to SPLIT mode
@@ -546,8 +551,12 @@ test.describe('Interview Problem Library & Content Editor E2E (BAC-38 / FRO-18)'
     // Save Architecture Draft
     const saveBtn = page.getByTestId('save-followup-response-btn');
     await expect(saveBtn).toBeVisible();
+    const saveResponsePromise = page.waitForResponse((response) => {
+      const pathname = new URL(response.url()).pathname;
+      return response.request().method() === 'POST' && /\/follow-ups\/[^/]+\/response$/.test(pathname);
+    });
     await saveBtn.click();
-    await expect(page.getByText('Saved')).toBeVisible({ timeout: 5000 });
+    expect((await saveResponsePromise).ok()).toBeTruthy();
 
     // Trigger AI Architecture Grader
     const gradeBtn = page.getByTestId('grade-architecture-btn');
@@ -576,7 +585,7 @@ test.describe('Interview Problem Library & Content Editor E2E (BAC-38 / FRO-18)'
     // Capture visual screenshot artifact of resulting LLM grading report
     await page.waitForTimeout(600);
     await modal.screenshot({
-      path: '/Users/cheese/.gemini/antigravity/brain/fed3126a-a4b9-406d-97d7-77339209d8ec/system_design_llm_grader_report.png'
+      path: path.join(E2E_ARTIFACT_DIR, 'system_design_llm_grader_report.png')
     });
   });
 });
