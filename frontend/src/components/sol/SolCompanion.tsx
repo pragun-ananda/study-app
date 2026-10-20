@@ -14,8 +14,25 @@ export default function SolCompanion() {
   const dismissGreeting = useSolStore((state) => state.dismissGreeting);
   const theme = useStore((state) => state.theme);
   const activeProblem = useStore((state) => state.activeProblem);
+  const activeApplication = useStore((state) => state.activeApplication);
+  const activeNote = useStore((state) => state.activeNote);
+  const activeDiffUpdateId = useStore((state) => state.activeDiffUpdateId);
+  const activeWalkthroughQueueId = useStore((state) => state.activeWalkthroughQueueId);
+  const isCreateNodeOpen = useStore((state) => state.isCreateNodeOpen);
+  const isCreateQuizOpen = useStore((state) => state.isCreateQuizOpen);
   const isRepoViewerOpen = useRepoStore((state) => state.isRepoViewerOpen);
-  const isModalOpen = Boolean(activeProblem || isRepoViewerOpen);
+  const isImportModalOpen = useRepoStore((state) => state.isImportModalOpen);
+  const isModalOpen = Boolean(
+    activeProblem ||
+    activeApplication ||
+    activeNote ||
+    activeDiffUpdateId ||
+    activeWalkthroughQueueId ||
+    isCreateNodeOpen ||
+    isCreateQuizOpen ||
+    isRepoViewerOpen ||
+    isImportModalOpen
+  );
 
   const [isHovered, setIsHovered] = useState(false);
   const [topicGreeting, setTopicGreeting] = useState<string | null>(null);
