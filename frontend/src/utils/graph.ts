@@ -234,6 +234,31 @@ export function calculateOverviewFramingDistance(
   return Math.max(54.0, Math.min(75.0, Number(calculatedZ.toFixed(1))));
 }
 
+export const ZOOM_LABEL_DISTANCE_THRESHOLD = 30.0;
+export const ZOOM_LABEL_HYSTERESIS_THRESHOLD = 35.0;
+
+/**
+ * Determines whether a node's label should become visible based on camera proximity
+ * and orientation with hysteresis to prevent visual flickering near the boundary.
+ *
+ * @param distance Distance from camera position to node coordinates in 3D world space
+ * @param inFront Whether the node is in front of the camera view plane (dot product > 0)
+ * @param isCurrentlyVisible Whether the label was visible in the previous frame
+ * @param enterThreshold Distance threshold below which the label appears (default 30.0)
+ * @param exitThreshold Distance threshold above which the label disappears (default 35.0)
+ */
+export function isNodeLabelZoomVisible(
+  distance: number,
+  inFront: boolean = true,
+  isCurrentlyVisible: boolean = false,
+  enterThreshold: number = ZOOM_LABEL_DISTANCE_THRESHOLD,
+  exitThreshold: number = ZOOM_LABEL_HYSTERESIS_THRESHOLD
+): boolean {
+  if (!inFront || distance <= 0) return false;
+  const threshold = isCurrentlyVisible ? exitThreshold : enterThreshold;
+  return distance < threshold;
+}
+
 export interface NewNodeCoordinateOptions {
   prerequisiteIds?: string[];
   minSeparation?: number;
