@@ -1,4 +1,4 @@
-import React, { useRef, useMemo, useEffect } from 'react';
+import React, { useRef, useMemo, useEffect, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { PerspectiveCamera, Html, Line, OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
@@ -6,7 +6,14 @@ import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import { useStore } from '../../store/useStore';
 import { TopicNode } from '../../types/telemetry';
 import { getCategoryShade } from '../../utils/theme';
-import { calculateConnectedGraph, ConnectedGraphResult, calculateOverviewFramingDistance } from '../../utils/graph';
+import {
+  calculateConnectedGraph,
+  ConnectedGraphResult,
+  calculateOverviewFramingDistance,
+  isNodeLabelZoomVisible,
+  ZOOM_LABEL_DISTANCE_THRESHOLD,
+  ZOOM_LABEL_HYSTERESIS_THRESHOLD
+} from '../../utils/graph';
 import PostProcessing from './PostProcessing';
 
 // Derive distinct incoming (lighter/warmer) and outgoing (richer/electric) edge highlight shades correlated to the active node's color
@@ -445,10 +452,16 @@ const KnowledgeNode = React.memo(({ node, isConnectedComponent }: { node: TopicN
   const isAppActive = Boolean(activeApplication);
   const isAppConcept = isAppActive && activeApplication ? activeApplication.topicIds.includes(node.id) : false;
 
+  const [isZoomedNear, setIsZoomedNear] = useState(false);
+  const isZoomedNearRef = useRef(false);
+  const toNodeVec = useMemo(() => new THREE.Vector3(), []);
+  const camDirVec = useMemo(() => new THREE.Vector3(), []);
+
   const isCategoryMatched = !selectedCategory || selectedCategory === 'ALL' || node.category === selectedCategory;
   const isSearchMatched = !searchQuery || node.name.toLowerCase().includes(searchQuery.toLowerCase());
 
-  const showLabel = isSelected || isHovered || (searchQuery.length > 0 && isSearchMatched) || isAppConcept;
+  const isZoomVisible = isZoomedNear && isCategoryMatched && isSearchMatched;
+  const showLabel = isSelected || isHovered || (searchQuery.length > 0 && isSearchMatched) || isAppConcept || isZoomVisible;
 
   const nodeColor = useMemo(() => {
     if (isAppActive && !isAppConcept) {
@@ -458,7 +471,7 @@ const KnowledgeNode = React.memo(({ node, isConnectedComponent }: { node: TopicN
     return getCategoryShade(node.id, node.category, theme);
   }, [node.id, node.category, isCategoryMatched, isSearchMatched, isAppActive, isAppConcept, theme, isLight]);
 
-  useFrame((_, delta) => {
+  useFrame((state, delta) => {
     if (ringRef.current) {
       ringRef.current.rotation.z += delta * (isAppConcept ? 2.5 : 1.5);
     }
@@ -506,6 +519,18 @@ const KnowledgeNode = React.memo(({ node, isConnectedComponent }: { node: TopicN
       groupRef.current.position.x = THREE.MathUtils.lerp(groupRef.current.position.x, targetX, delta * 6.0);
       groupRef.current.position.y = THREE.MathUtils.lerp(groupRef.current.position.y, targetY, delta * 6.0);
       groupRef.current.position.z = THREE.MathUtils.lerp(groupRef.current.position.z, targetZ, delta * 6.0);
+
+      // Camera proximity check for zoom-dependent node label visibility
+      toNodeVec.copy(groupRef.current.position).sub(state.camera.position);
+      const camDistance = toNodeVec.length();
+      state.camera.getWorldDirection(camDirVec);
+      const inFront = camDirVec.dot(toNodeVec) > 0;
+
+      const shouldBeNear = isNodeLabelZoomVisible(camDistance, inFront, isZoomedNearRef.current);
+      if (shouldBeNear !== isZoomedNearRef.current) {
+        isZoomedNearRef.current = shouldBeNear;
+        setIsZoomedNear(shouldBeNear);
+      }
     }
   });
 
@@ -605,7 +630,11 @@ const KnowledgeNode = React.memo(({ node, isConnectedComponent }: { node: TopicN
           className="pointer-events-auto select-none cursor-pointer"
         >
           <div
+            data-testid={`node-label-${node.id}`}
+            data-node-id={node.id}
             onClick={handleNodeClick}
+            onMouseEnter={() => setHoveredTopicId(node.id)}
+            onMouseLeave={() => setHoveredTopicId(null)}
             style={{
               backgroundColor: isSelected || isHovered ? nodeColor : undefined,
               borderColor: nodeColor,
@@ -617,8 +646,8 @@ const KnowledgeNode = React.memo(({ node, isConnectedComponent }: { node: TopicN
               isSelected || isHovered
                 ? `${isLight ? 'text-white' : 'text-black'} border border-transparent scale-105`
                 : isLight
-                  ? 'text-slate-800 bg-white/95 border border-slate-300 shadow-sm'
-                  : 'text-slate-200 bg-slate-950/90 border border-white/20'
+                  ? 'text-slate-800 bg-white/95 border border-slate-300 shadow-sm hover:border-slate-400'
+                  : 'text-slate-200 bg-slate-950/90 border border-white/20 hover:border-white/40'
             }`}
           >
             <span>{node.name}</span>

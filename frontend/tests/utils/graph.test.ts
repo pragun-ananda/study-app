@@ -4,7 +4,10 @@ import {
   calculateConnectedGraph,
   calculateOverviewFramingDistance,
   calculateNewNodeCoordinates,
-  calculateTopological2DLayout
+  calculateTopological2DLayout,
+  isNodeLabelZoomVisible,
+  ZOOM_LABEL_DISTANCE_THRESHOLD,
+  ZOOM_LABEL_HYSTERESIS_THRESHOLD
 } from '../../src/utils/graph';
 import { TopicNode } from '../../src/types/telemetry';
 
@@ -481,5 +484,49 @@ describe('Graph 2D Topological Sort Layout: calculateTopological2DLayout', () =>
     });
   });
 });
+
+describe('Graph Visuals: isNodeLabelZoomVisible', () => {
+  it('shows label when camera is close to node and node is in front', () => {
+    // Zoomed in (e.g. distance = 18.0)
+    expect(isNodeLabelZoomVisible(18.0, true, false)).toBe(true);
+    expect(isNodeLabelZoomVisible(25.0, true, false)).toBe(true);
+    expect(isNodeLabelZoomVisible(ZOOM_LABEL_DISTANCE_THRESHOLD - 0.5, true, false)).toBe(true);
+  });
+
+  it('hides label when camera is at overview framing distance', () => {
+    // Overview mode (e.g. distance = 58.0 or 65.0)
+    expect(isNodeLabelZoomVisible(58.0, true, false)).toBe(false);
+    expect(isNodeLabelZoomVisible(65.0, true, false)).toBe(false);
+    expect(isNodeLabelZoomVisible(ZOOM_LABEL_DISTANCE_THRESHOLD + 1.0, true, false)).toBe(false);
+  });
+
+  it('hides label if node is behind camera regardless of distance', () => {
+    expect(isNodeLabelZoomVisible(5.0, false, false)).toBe(false);
+    expect(isNodeLabelZoomVisible(5.0, false, true)).toBe(false);
+  });
+
+  it('applies hysteresis to prevent flickering near the zoom threshold boundary', () => {
+    // At boundary distance (e.g. 32.0 units away):
+    // 1. If not yet visible, distance 32.0 >= enterThreshold (30.0) -> stays hidden
+    expect(isNodeLabelZoomVisible(32.0, true, false)).toBe(false);
+
+    // 2. Once user zooms in to 28.0 (< 30.0), becomes visible
+    expect(isNodeLabelZoomVisible(28.0, true, false)).toBe(true);
+
+    // 3. If camera now pulls back slightly to 32.0 (< exitThreshold 35.0), stays visible due to hysteresis
+    expect(isNodeLabelZoomVisible(32.0, true, true)).toBe(true);
+    expect(isNodeLabelZoomVisible(34.5, true, true)).toBe(true);
+
+    // 4. Once camera pulls back past exit threshold (35.0+), hides
+    expect(isNodeLabelZoomVisible(35.5, true, true)).toBe(false);
+    expect(isNodeLabelZoomVisible(50.0, true, true)).toBe(false);
+  });
+
+  it('handles non-positive distance values gracefully', () => {
+    expect(isNodeLabelZoomVisible(0, true, true)).toBe(false);
+    expect(isNodeLabelZoomVisible(-10, true, true)).toBe(false);
+  });
+});
+
 
 
