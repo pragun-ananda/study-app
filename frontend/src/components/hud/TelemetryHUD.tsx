@@ -45,6 +45,7 @@ import { RepoViewerModal } from '../code_repo/RepoViewerModal';
 import { TopologicalSubgraph } from './TopologicalSubgraph';
 import { useStore } from '../../store/useStore';
 import { useRepoStore } from '../../store/useRepoStore';
+import { useSolStore } from '../../store/useSolStore';
 import { TopicNode, DomainCategory, DEFAULT_DOMAINS, TopicStatus, ApplicationItem } from '../../types/telemetry';
 import { DOMAIN_BASE_COLORS, DOMAIN_LIGHT_COLORS, getCategoryShade } from '../../utils/theme';
 import { getTopologicalPrerequisites } from '../../utils/graph';
@@ -81,6 +82,7 @@ export default function TelemetryHUD() {
   const activeNote = useStore((state) => state.activeNote);
   const activeQuiz = useStore((state) => state.activeQuiz);
   const activeProblem = useStore((state) => state.activeProblem);
+  const isSolOpen = useSolStore((state) => state.isOpen);
 
   // Repository Documentation Engine State & Actions
   const repositories = useRepoStore((state) => state.repositories);
@@ -192,6 +194,15 @@ export default function TelemetryHUD() {
       }
     }
   }, [isSidebarOpen, setIsInspectorOpen]);
+
+  // Avoid cramming left sidebar, right inspector, and Sol chat together on screens < 1024px
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+      if (isSolOpen && isInspectorOpen && isSidebarOpen) {
+        setIsSidebarOpen(false);
+      }
+    }
+  }, [isSolOpen, isInspectorOpen, isSidebarOpen, setIsSidebarOpen]);
 
 
   const categories = ['ALL', 'AI & ML', 'CS', 'SYSTEMS', 'MATH', 'PHYSICS', 'CYBERSECURITY', 'ARCH'];
@@ -845,7 +856,9 @@ export default function TelemetryHUD() {
           }}
           className={`pointer-events-auto glass-panel rounded-xl p-3 sm:p-4 transition-all duration-300 relative flex flex-col max-h-[calc(100vh-180px)] ${
             isSidebarOpen
-              ? 'w-[calc(100vw-24px)] max-w-sm sm:w-80 md:w-96'
+              ? isSolOpen
+                ? 'w-[calc(100vw-24px)] max-w-xs sm:w-72 md:w-80'
+                : 'w-[calc(100vw-24px)] max-w-sm sm:w-80 md:w-96'
               : 'w-12 cursor-pointer hover:border-sky-500/40 hover:shadow-lg group'
           }`}
           title={!isSidebarOpen ? 'Click to expand study panel' : undefined}
@@ -1382,7 +1395,11 @@ export default function TelemetryHUD() {
               exit={{ x: 40, opacity: 0 }}
               onWheel={(e) => e.stopPropagation()}
               data-testid="topic-inspector"
-              className="pointer-events-auto glass-panel p-4 md:p-5 rounded-xl w-[calc(100vw-24px)] max-w-sm sm:w-80 md:w-96 text-xs space-y-3.5 mr-0 sm:mr-6 max-h-[calc(100vh-140px)] flex flex-col shadow-2xl overscroll-contain z-30"
+              className={`pointer-events-auto glass-panel p-4 md:p-5 rounded-xl ${
+                isSolOpen
+                  ? 'w-[calc(100vw-24px)] max-w-xs sm:w-72 md:w-80 mr-0 sm:mr-4'
+                  : 'w-[calc(100vw-24px)] max-w-sm sm:w-80 md:w-96 mr-0 sm:mr-6'
+              } text-xs space-y-3.5 max-h-[calc(100vh-140px)] flex flex-col shadow-2xl overscroll-contain z-30`}
             >
               {/* Fixed Header */}
               <div className={`flex items-center justify-between border-b pb-2.5 flex-shrink-0 ${isLight ? 'border-slate-200' : 'border-white/10'}`}>

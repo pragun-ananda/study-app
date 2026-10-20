@@ -96,4 +96,72 @@ test.describe('Sol AI Companion & Chat Drawer', () => {
     // Verify Sol responds
     await expect(chatDrawer.locator('.flex.justify-start').last()).toBeVisible({ timeout: 10000 });
   });
+
+  test('coexists cleanly without compressing layout when left panel, right inspector, or modals are open', async ({ page }) => {
+    // 1. Expand left study panel
+    const sidebar = page.getByTestId('left-study-sidebar');
+    await sidebar.click();
+    await expect(page.getByTestId('sidebar-tab-concepts')).toBeVisible();
+
+    // 2. Open Sol Chat Drawer
+    const triggerBtn = page.getByTestId('sol-trigger-button');
+    await triggerBtn.click();
+    const chatDrawer = page.getByTestId('sol-chat-drawer');
+    await expect(chatDrawer).toBeVisible();
+
+    // Verify chat drawer adjusts to compact width when other panels are open
+    await expect(chatDrawer).toHaveClass(/sm:w-\[350px\]/);
+    await expect(chatDrawer).toHaveClass(/lg:w-\[400px\]/);
+
+    // Verify main content viewport adjusts to match the compact split
+    const viewport = page.getByTestId('main-content-viewport');
+    await expect(viewport).toHaveClass(/sm:right-\[350px\]/);
+    await expect(viewport).toHaveClass(/lg:right-\[400px\]/);
+
+    // Verify left sidebar remains visible and responsive without clipping
+    await expect(sidebar).toBeVisible();
+    await expect(sidebar).toHaveClass(/md:w-80/);
+
+    // 3. Open a topic concept from left sidebar to trigger right inspector
+    const firstTopicCard = page.getByTestId('sidebar-topic-card').first();
+    await expect(firstTopicCard).toBeVisible();
+    await firstTopicCard.click();
+
+    const exploreBtn = page.getByTestId('explore-topic-btn');
+    await expect(exploreBtn).toBeVisible();
+    await exploreBtn.click();
+
+    // Verify right inspector opened with calibrated responsive width
+    const inspector = page.getByTestId('topic-inspector');
+    await expect(inspector).toBeVisible();
+    await expect(inspector).toHaveClass(/md:w-80/);
+
+    // Verify 3D canvas is still visible and has not shrunk or crashed
+    const canvasContainer = page.getByTestId('scene-canvas-container');
+    await expect(canvasContainer).toBeVisible();
+
+    // 4. Test modal coexistence: open a ProblemViewerModal
+    // Switch to PROBLEMS tab in the left sidebar
+    const problemsTab = page.getByTestId('sidebar-tab-problems');
+    await problemsTab.click();
+    const problemCards = page.getByTestId('sidebar-problem-card');
+    await expect(problemCards.first()).toBeVisible({ timeout: 10000 });
+    await problemCards.first().click();
+
+    // Modal is now open: verify viewport does not compress modal
+    const modal = page.getByTestId('problem-viewer-modal');
+    await expect(modal).toBeVisible();
+    await expect(viewport).toHaveClass(/right-0/);
+    await expect(viewport).toHaveClass(/overflow-visible/);
+
+    // Sol floating companion is cleanly hidden while modal is open
+    await expect(page.getByTestId('sol-companion')).not.toBeVisible();
+
+    // Close modal via Escape
+    await page.keyboard.press('Escape');
+    await expect(modal).not.toBeVisible();
+
+    // Viewport returns to compact split
+    await expect(viewport).toHaveClass(/sm:right-\[350px\]/);
+  });
 });

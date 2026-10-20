@@ -22,6 +22,9 @@ export default function SolChatDrawer() {
   const topicNodes = useStore((state) => state.topicNodes);
   const activeTopic = topicNodes.find((n) => n.id === selectedTopicId);
   const theme = useStore((state) => state.theme);
+  const isSidebarOpen = useStore((state) => state.isSidebarOpen);
+  const isInspectorOpen = useStore((state) => state.isInspectorOpen);
+  const hasOtherPanelsOpen = Boolean(isSidebarOpen || isInspectorOpen);
 
   // Auto-scroll to bottom of messages
   useEffect(() => {
@@ -57,7 +60,11 @@ export default function SolChatDrawer() {
           animate={{ x: 0 }}
           exit={{ x: '100%' }}
           transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-          className={`fixed inset-y-0 right-0 z-40 w-full sm:w-[400px] md:w-[440px] lg:w-[460px] h-full flex flex-col border-l shadow-2xl backdrop-blur-xl overflow-hidden ${
+          className={`fixed inset-y-0 right-0 z-40 w-full ${
+            hasOtherPanelsOpen
+              ? 'sm:w-[350px] md:w-[380px] lg:w-[400px]'
+              : 'sm:w-[400px] md:w-[440px] lg:w-[460px]'
+          } h-full flex flex-col border-l shadow-2xl backdrop-blur-xl overflow-hidden ${
             theme === 'light'
               ? 'bg-white/95 border-slate-200 text-slate-800'
               : 'bg-[#060c18]/95 border-cyan-500/20 shadow-cyan-950/50 text-slate-100'

@@ -5,12 +5,37 @@ import SolCompanion from './components/sol/SolCompanion';
 import SolChatDrawer from './components/sol/SolChatDrawer';
 import { useSolStore } from './store/useSolStore';
 import { useStore, applyThemeToDocument } from './store/useStore';
+import { useRepoStore } from './store/useRepoStore';
 
 export default function App() {
   const theme = useStore((state) => state.theme);
   const isOverloaded = useStore((state) => state.isOverloaded);
   const activeApplication = useStore((state) => state.activeApplication);
+  const isSidebarOpen = useStore((state) => state.isSidebarOpen);
+  const isInspectorOpen = useStore((state) => state.isInspectorOpen);
+  const activeProblem = useStore((state) => state.activeProblem);
+  const activeNote = useStore((state) => state.activeNote);
+  const activeDiffUpdateId = useStore((state) => state.activeDiffUpdateId);
+  const activeWalkthroughQueueId = useStore((state) => state.activeWalkthroughQueueId);
+  const isCreateNodeOpen = useStore((state) => state.isCreateNodeOpen);
+  const isCreateQuizOpen = useStore((state) => state.isCreateQuizOpen);
+  const isRepoViewerOpen = useRepoStore((state) => state.isRepoViewerOpen);
+  const isImportModalOpen = useRepoStore((state) => state.isImportModalOpen);
   const isSolOpen = useSolStore((state) => state.isOpen);
+
+  const isAnyModalOpen = Boolean(
+    activeProblem ||
+    activeApplication ||
+    activeNote ||
+    activeDiffUpdateId ||
+    activeWalkthroughQueueId ||
+    isCreateNodeOpen ||
+    isCreateQuizOpen ||
+    isRepoViewerOpen ||
+    isImportModalOpen
+  );
+
+  const hasOtherPanelsOpen = Boolean(isSidebarOpen || isInspectorOpen);
 
   useEffect(() => {
     document.title = 'Knowledge Graph';
@@ -43,16 +68,16 @@ export default function App() {
           target?.blur();
         }
 
-        // If Sol Chat Drawer is open, dismiss it first on Escape
-        if (useSolStore.getState().isOpen) {
-          useSolStore.getState().setIsOpen(false);
-          return;
-        }
-
         const state = useStore.getState();
+        const repoState = useRepoStore.getState();
+
         // If CreateNodeModal is open, let CreateNodeModal manage its own dismissal
         // to respect its submission lock and prevent unmounting in-flight requests.
         if (state.isCreateNodeOpen) {
+          return;
+        }
+        if (state.activeProblem) {
+          state.setActiveProblem(null);
           return;
         }
         if (state.activeApplication) {
@@ -65,6 +90,20 @@ export default function App() {
         }
         if (state.activeDiffUpdateId) {
           state.setActiveDiffUpdateId(null);
+          return;
+        }
+        if (repoState.isRepoViewerOpen) {
+          repoState.closeRepoViewer();
+          return;
+        }
+        if (repoState.isImportModalOpen) {
+          repoState.setIsImportModalOpen(false);
+          return;
+        }
+
+        // If Sol Chat Drawer is open, dismiss it next on Escape
+        if (useSolStore.getState().isOpen) {
+          useSolStore.getState().setIsOpen(false);
           return;
         }
         if (state.isNotificationsOpen) {
@@ -154,8 +193,14 @@ export default function App() {
 
       {/* Main Website Content Area - Shifts left and resizes HUD & overlays when Sol Chat split opens */}
       <div
-        className={`absolute inset-y-0 left-0 transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] overflow-hidden pointer-events-none ${
-          isSolOpen ? 'right-full sm:right-[400px] md:right-[440px] lg:right-[460px]' : 'right-0'
+        className={`absolute inset-y-0 left-0 transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] pointer-events-none ${
+          isAnyModalOpen
+            ? 'right-0 overflow-visible'
+            : isSolOpen
+            ? hasOtherPanelsOpen
+              ? 'right-full sm:right-[350px] md:right-[380px] lg:right-[400px] overflow-hidden'
+              : 'right-full sm:right-[400px] md:right-[440px] lg:right-[460px] overflow-hidden'
+            : 'right-0 overflow-hidden'
         }`}
         data-testid="main-content-viewport"
       >
