@@ -418,9 +418,9 @@ describe('Zustand State Store (useStore)', () => {
   });
 
   describe('Initial Test Data & Note Loading Integrity', () => {
-    it('hydrates all 187 topics and 5 initial todos seamlessly from data/test', () => {
+    it('hydrates all 190 topics and 5 initial todos seamlessly from data/test', () => {
       const state = useStore.getState();
-      expect(state.topicNodes.length).toBe(187);
+      expect(state.topicNodes.length).toBe(190);
       expect(state.todos.length).toBe(5);
     });
 

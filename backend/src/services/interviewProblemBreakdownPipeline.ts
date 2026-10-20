@@ -96,7 +96,7 @@ export function validateQueueProblemBreakdown(
     if (!scenarioAreas.has(area)) errors.push(`Failure analysis is missing '${area}'.`);
   }
   for (const scenario of scenarios) {
-    if (!textIsPresent(scenario?.situation) || !textIsPresent(scenario?.queueBehavior) || !Array.isArray(scenario?.sourceTestNames)) {
+    if (!['CORE', 'FOLLOW_UP'].includes(scenario?.scope || '') || !textIsPresent(scenario?.situation) || !textIsPresent(scenario?.queueBehavior) || !Array.isArray(scenario?.sourceTestNames)) {
       errors.push(`Failure scenario '${scenario?.id || '(unknown)'}' is incomplete.`);
       continue;
     }
@@ -104,12 +104,14 @@ export function validateQueueProblemBreakdown(
       const testDeclaration = new RegExp(`\\bdef\\s+${escapeRegExp(testName)}\\s*\\(`);
       if (!testDeclaration.test(source.solution)) errors.push(`Failure scenario '${scenario.id}' references missing source test '${testName}'.`);
     }
-    if (scenario.sourceTestNames.length === 0) {
+    if (scenario.scope === 'CORE' && scenario.sourceTestNames.length === 0) {
       if (!textIsPresent(scenario.additionalTestRecommendation)) {
         errors.push(`Failure scenario '${scenario.id}' needs a source test or a clearly recorded test recommendation.`);
       } else {
         warnings.push(`No test in the pasted solution directly covers '${scenario.id}'; recommendation recorded.`);
       }
+    } else if (scenario.scope === 'FOLLOW_UP' && scenario.sourceTestNames.length === 0 && !textIsPresent(scenario.additionalTestRecommendation)) {
+      errors.push(`Follow-up scenario '${scenario.id}' needs a recorded test recommendation.`);
     }
   }
 

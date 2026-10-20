@@ -12,7 +12,7 @@ import {
   ApplicationItem,
   ProblemItem
 } from '../types/telemetry';
-import { DOMAIN_DATA, INITIAL_TODOS, SEED_APPLICATIONS } from '../data/test';
+import { DOMAIN_DATA, INITIAL_PROBLEM_CONCEPT_NODES, INITIAL_TODOS, SEED_APPLICATIONS } from '../data/test';
 import { INITIAL_UPDATES, INITIAL_QUEUE_ITEMS } from '../data/test/updates';
 import * as api from '../api/client';
 
@@ -100,6 +100,11 @@ export function generateCosmosNodes(): TopicNode[] {
       }
     }
   }
+
+  INITIAL_PROBLEM_CONCEPT_NODES.forEach((topic) => {
+    nameToIdMap.set(topic.name, topic.id);
+    nodes.push({ ...topic, coordinates: [...topic.coordinates], prerequisites: [...topic.prerequisites], unlocks: [...topic.unlocks] });
+  });
 
   DOMAIN_DATA.forEach((domainGroup) => {
     domainGroup.topics.forEach((rawTopic) => {

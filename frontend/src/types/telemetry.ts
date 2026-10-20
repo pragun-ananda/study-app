@@ -169,7 +169,7 @@ export interface InterviewLearningPath {
     states: Array<{ id: string; meaning: string; terminal: boolean }>;
     transitions: Array<{ from: string; to: string; event: string; guard: string; effect: string }>;
     invariants: Array<{ id: string; statement: string }>;
-    failureScenarios: Array<{ id: string; situation: string; queueBehavior: string; sourceTestNames: string[]; additionalTestRecommendation?: string }>;
+    failureScenarios: Array<{ id: string; scope: 'CORE' | 'FOLLOW_UP'; situation: string; queueBehavior: string; sourceTestNames: string[]; additionalTestRecommendation?: string }>;
     complexity: Array<{ operation: string; time: string; space: string; qualification: string }>;
     deliverySemantics: { guarantee: string; duplicatesPossible: boolean; exactlyOnceEffectRequires: string };
     sourceReview: { status: 'PILOT_REVIEWED' | 'NEEDS_REVIEW'; notes: string[] };
@@ -183,6 +183,7 @@ export interface InterviewLearningPath {
     diagnosticQuestion: string;
     diagnosticSuccessCriteria: string;
     topicId?: string;
+    terms?: string[];
   }>;
   reasoningStages: Array<{
     id: string;

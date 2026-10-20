@@ -2,7 +2,12 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import request from 'supertest';
 import { app } from '../../src/app.js';
 import { TRAPPING_RAIN_WATER_LEARNING_PATH } from '../../src/data/trappingRainWaterLearningPath.js';
+import { FAULT_TOLERANT_WORK_QUEUE_LEARNING_PATH } from '../../src/data/faultTolerantWorkQueueLearningPath.js';
+import { FAULT_TOLERANT_WORK_QUEUE_PROBLEM } from '../../src/data/faultTolerantWorkQueueProblem.js';
 import { saveLearningPath } from '../../src/services/interviewLearningService.js';
+import { createProblem, updateProblem } from '../../src/services/problemService.js';
+import { query } from '../../src/db.js';
+import { formatCanonicalSolutionMarkdown } from '../../src/utils/canonicalSolutionMarkdown.js';
 import { setupTestDatabase, seedBasicTestData } from '../helpers.js';
 
 describe('Interview learning path and practice attempt API', () => {
@@ -29,6 +34,46 @@ describe('Interview learning path and practice attempt API', () => {
     expect(response.body.publicationStatus).toBe('PILOT');
     expect(response.body.reasoningStages).toHaveLength(4);
     expect(response.body.transferExercise.changedConstraint).toContain('width');
+  });
+
+  it('keeps queue guide availability in sync after the editor formats the canonical solution', async () => {
+    const db = setupTestDatabase();
+    seedBasicTestData(db);
+    await createProblem(FAULT_TOLERANT_WORK_QUEUE_PROBLEM);
+
+    const linkedTopicIds = [...new Set(FAULT_TOLERANT_WORK_QUEUE_LEARNING_PATH.concepts
+      .map((concept) => concept.topicId)
+      .filter((id): id is string => Boolean(id)))];
+    for (const id of linkedTopicIds) {
+      await query(
+        'INSERT INTO topics (id, name, category, summary) VALUES ($1, $2, $3, $4)',
+        [id, id, 'SYSTEMS', 'Queue concept test node.']
+      );
+    }
+    await saveLearningPath(FAULT_TOLERANT_WORK_QUEUE_LEARNING_PATH);
+
+    const initialPath = await request(app).get(`/api/problems/${FAULT_TOLERANT_WORK_QUEUE_PROBLEM.id}/learning-path`);
+    expect(initialPath.status).toBe(200);
+    expect(initialPath.body.problemBreakdown.contract).toHaveLength(5);
+
+    await updateProblem(FAULT_TOLERANT_WORK_QUEUE_PROBLEM.id!, {
+      solution: formatCanonicalSolutionMarkdown(FAULT_TOLERANT_WORK_QUEUE_PROBLEM.solution)
+    });
+
+    const list = await request(app).get('/api/problems');
+    const listedProblem = list.body.find((item: { id: string }) => item.id === FAULT_TOLERANT_WORK_QUEUE_PROBLEM.id);
+    expect(listedProblem.guidedLearningPathAvailable).toBe(true);
+    const detail = await request(app).get(`/api/problems/${FAULT_TOLERANT_WORK_QUEUE_PROBLEM.id}`);
+    expect(detail.body.guidedLearningPathAvailable).toBe(true);
+    expect((await request(app).get(`/api/problems/${FAULT_TOLERANT_WORK_QUEUE_PROBLEM.id}/learning-path`)).status).toBe(200);
+
+    await updateProblem(FAULT_TOLERANT_WORK_QUEUE_PROBLEM.id!, {
+      solution: `${FAULT_TOLERANT_WORK_QUEUE_PROBLEM.solution}\nA real source change.`
+    });
+    const staleList = await request(app).get('/api/problems');
+    const staleProblem = staleList.body.find((item: { id: string }) => item.id === FAULT_TOLERANT_WORK_QUEUE_PROBLEM.id);
+    expect(staleProblem.guidedLearningPathAvailable).toBe(false);
+    expect((await request(app).get(`/api/problems/${FAULT_TOLERANT_WORK_QUEUE_PROBLEM.id}/learning-path`)).status).toBe(404);
   });
 
   it('records version-bound events and schedules a follow-up without assigning mastery', async () => {

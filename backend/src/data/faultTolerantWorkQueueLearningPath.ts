@@ -12,7 +12,9 @@ const sourceFingerprint = fingerprintProblemSource({
 /** Curated breakdown for the single queue question; it is source-bound and not a generated replacement for the solution. */
 export const FAULT_TOLERANT_WORK_QUEUE_LEARNING_PATH: InterviewLearningPath = {
   problemId: 'PROB-FAULT-TOLERANT-WORK-QUEUE',
-  version: 2,
+  // Version 4 uses presentation-normalized source fingerprints so an editor
+  // round-trip of the formatted solution doesn't orphan this reviewed guide.
+  version: 4,
   publicationStatus: 'PILOT',
   initialAttemptPrompt: 'In your own words, describe the task states and how the queue recovers work after a worker stops.',
   interpretation: {
@@ -41,7 +43,8 @@ export const FAULT_TOLERANT_WORK_QUEUE_LEARNING_PATH: InterviewLearningPath = {
       relevance: 'The no-loss guarantee is an invariant over states: claiming changes ownership but does not erase the task record.',
       diagnosticQuestion: 'After claim() returns a task to a worker, where is the queue’s record of that task and what states can it still reach?',
       diagnosticSuccessCriteria: 'The task stays recorded while LEASED and can become DONE, PENDING, or DEAD.',
-      topicId: 'TOPIC-088'
+      topicId: 'TOPIC-088',
+      terms: ['task state', 'task states', 'state transition']
     },
     {
       id: 'queue-leases-and-fencing-tokens',
@@ -50,7 +53,8 @@ export const FAULT_TOLERANT_WORK_QUEUE_LEARNING_PATH: InterviewLearningPath = {
       relevance: 'Timeout alone can redeliver work while a slow worker is still running; tokens make queue state safe after that redelivery.',
       diagnosticQuestion: 'Worker A times out, worker B receives the retry, then A reports success. What must the queue compare before accepting A’s report?',
       diagnosticSuccessCriteria: 'Only the current lease token can change the task.',
-      topicId: 'TOPIC-096'
+      topicId: 'TOPIC-096',
+      terms: ['lease', 'lease token']
     },
     {
       id: 'queue-retry-and-dead-letter-policy',
@@ -59,7 +63,8 @@ export const FAULT_TOLERANT_WORK_QUEUE_LEARNING_PATH: InterviewLearningPath = {
       relevance: 'The prompt permits deliberate set-aside for tasks that cannot be completed; the dead-letter list is that explicit outcome.',
       diagnosticQuestion: 'If max_attempts counts deliveries, at what attempt should a task move to DEAD and what evidence should remain inspectable?',
       diagnosticSuccessCriteria: 'Move to DEAD at max_attempts and keep the last error.',
-      topicId: 'TOPIC-086'
+      topicId: 'TOPIC-190',
+      terms: ['dead-letter', 'dead letter', 'dead-letter queue', 'dead letter queue']
     },
     {
       id: 'queue-expiry-heap-complexity',
@@ -68,6 +73,26 @@ export const FAULT_TOLERANT_WORK_QUEUE_LEARNING_PATH: InterviewLearningPath = {
       relevance: 'The queue must recover silent workers while keeping claim cost proportional to expired heap entries rather than total task count.',
       diagnosticQuestion: 'Why can a heartbeat leave an old deadline entry in the heap, and how does claim know that entry is stale?',
       diagnosticSuccessCriteria: 'Skip an expiry entry when its token or deadline is no longer current.'
+    },
+    {
+      id: 'queue-process-boundary',
+      name: 'In-process vs distributed queues',
+      intuition: 'An in-process queue shares memory with its workers; a distributed queue must coordinate and recover state across machines.',
+      relevance: 'This problem assumes one process, while restart recovery and remote workers are follow-up concerns.',
+      diagnosticQuestion: 'Which failure does an in-process queue not survive by itself?',
+      diagnosticSuccessCriteria: 'A process restart loses its in-memory task records.',
+      topicId: 'TOPIC-189',
+      terms: ['in-process', 'in process']
+    },
+    {
+      id: 'queue-thread-safety',
+      name: 'Thread safety',
+      intuition: 'Concurrent queue operations must make each state transition atomic.',
+      relevance: 'Claiming, changing lease ownership, and completing tasks must not race across workers.',
+      diagnosticQuestion: 'Which state changes must happen together when a worker claims a task?',
+      diagnosticSuccessCriteria: 'Removing pending work, assigning the lease, and recording its deadline are synchronized.',
+      topicId: 'TOPIC-188',
+      terms: ['thread-safe', 'thread safety', 'thread safe']
     }
   ],
   reasoningStages: [
@@ -226,16 +251,16 @@ export const FAULT_TOLERANT_WORK_QUEUE_LEARNING_PATH: InterviewLearningPath = {
       { claim: 'A permanently failing task does not retry forever.', invariantIds: ['task-conservation', 'bounded-attempts'], reasoning: 'On failure or expiry at max_attempts, the task moves to a retained DEAD record.' }
     ],
     failureScenarios: [
-      { id: 'worker_crash', situation: 'Worker exits after claim and never reports.', queueBehavior: 'After deadline, next claim requeues or dead-letters the task.', sourceTestNames: ['test_crashed_worker_task_is_redelivered_and_late_report_rejected'] },
-      { id: 'silent_timeout', situation: 'Worker hangs or becomes silent.', queueBehavior: 'Monotonic deadline expiry makes the lease eligible for reclaim on a later claim.', sourceTestNames: ['test_crashed_worker_task_is_redelivered_and_late_report_rejected'] },
-      { id: 'slow_live_worker', situation: 'Worker is slow but still making progress.', queueBehavior: 'Current lease holder heartbeats before expiry to move its deadline.', sourceTestNames: ['test_heartbeat_keeps_a_slow_task'] },
-      { id: 'stale_worker_report', situation: 'Old worker reports after task has been redelivered.', queueBehavior: 'Its old token does not match the new holder, so the report returns false without mutation.', sourceTestNames: ['test_crashed_worker_task_is_redelivered_and_late_report_rejected'] },
-      { id: 'duplicate_report', situation: 'Current worker calls complete twice or reports after DONE.', queueBehavior: 'The second report is rejected because the task is no longer LEASED.', sourceTestNames: [], additionalTestRecommendation: 'Add test_duplicate_completion_is_rejected; the source describes this edge case but does not include a dedicated test.' },
-      { id: 'retry_exhaustion', situation: 'Every delivery fails or expires.', queueBehavior: 'On max_attempts, move the task to DEAD and retain the last error.', sourceTestNames: ['test_task_that_always_fails_goes_to_dead_letter'] },
-      { id: 'retry_fairness', situation: 'A task fails while older pending work exists.', queueBehavior: 'Requeue at the tail so other pending tasks can run first.', sourceTestNames: ['test_failed_task_goes_behind_other_work'] },
-      { id: 'concurrent_claims', situation: 'Several worker threads claim available tasks concurrently.', queueBehavior: 'Lock serializes claims; the supplied test covers concurrent successful completion, not failures during contention.', sourceTestNames: ['test_threads_finish_every_task_exactly_once_without_failures'], additionalTestRecommendation: 'Add a contention test with expiries and explicit failures interleaved.' },
-      { id: 'process_restart', situation: 'The queue process crashes while tasks are pending or leased.', queueBehavior: 'The core in-memory design cannot recover; follow-up requires durable transitions and wall-clock deadlines.', sourceTestNames: [], additionalTestRecommendation: 'Out of core scope; add persistence/restart tests when the requirement is enabled.' },
-      { id: 'duplicate_side_effect', situation: 'A stale worker completes an external side effect after a retry has started.', queueBehavior: 'Lease tokens reject stale queue reports but cannot reverse external effects; handlers need idempotency/outbox or fencing support.', sourceTestNames: [], additionalTestRecommendation: 'Out of core scope; validate idempotency with a downstream-effect simulation in the durable/distributed follow-up.' }
+      { id: 'worker_crash', scope: 'CORE', situation: 'Worker exits after claim and never reports.', queueBehavior: 'After deadline, next claim requeues or dead-letters the task.', sourceTestNames: ['test_crashed_worker_task_is_redelivered_and_late_report_rejected'] },
+      { id: 'silent_timeout', scope: 'CORE', situation: 'Worker hangs or becomes silent.', queueBehavior: 'Monotonic deadline expiry makes the lease eligible for reclaim on a later claim.', sourceTestNames: ['test_crashed_worker_task_is_redelivered_and_late_report_rejected'] },
+      { id: 'slow_live_worker', scope: 'CORE', situation: 'Worker is slow but still making progress.', queueBehavior: 'Current lease holder heartbeats before expiry to move its deadline.', sourceTestNames: ['test_heartbeat_keeps_a_slow_task'] },
+      { id: 'stale_worker_report', scope: 'CORE', situation: 'Old worker reports after task has been redelivered.', queueBehavior: 'Its old token does not match the new holder, so the report returns false without mutation.', sourceTestNames: ['test_crashed_worker_task_is_redelivered_and_late_report_rejected'] },
+      { id: 'duplicate_report', scope: 'CORE', situation: 'Current worker calls complete twice or reports after DONE.', queueBehavior: 'The second report is rejected because the task is no longer LEASED.', sourceTestNames: [], additionalTestRecommendation: 'Add a test that a duplicate completion is rejected.' },
+      { id: 'retry_exhaustion', scope: 'CORE', situation: 'Every delivery fails or expires.', queueBehavior: 'On max_attempts, move the task to DEAD and retain the last error.', sourceTestNames: ['test_task_that_always_fails_goes_to_dead_letter'] },
+      { id: 'retry_fairness', scope: 'CORE', situation: 'A task fails while older pending work exists.', queueBehavior: 'Requeue at the tail so other pending tasks can run first.', sourceTestNames: ['test_failed_task_goes_behind_other_work'] },
+      { id: 'concurrent_claims', scope: 'CORE', situation: 'Several worker threads claim available tasks concurrently.', queueBehavior: 'Lock serializes claims; the supplied test covers concurrent successful completion, not failures during contention.', sourceTestNames: ['test_threads_finish_every_task_exactly_once_without_failures'], additionalTestRecommendation: 'Add a contention test with expiries and explicit failures interleaved.' },
+      { id: 'process_restart', scope: 'FOLLOW_UP', situation: 'The queue process crashes while tasks are pending or leased.', queueBehavior: 'The core in-memory design cannot recover; follow-up requires durable transitions and wall-clock deadlines.', sourceTestNames: [], additionalTestRecommendation: 'Out of core scope; add persistence/restart tests when the requirement is enabled.' },
+      { id: 'duplicate_side_effect', scope: 'FOLLOW_UP', situation: 'A stale worker completes an external side effect after a retry has started.', queueBehavior: 'Lease tokens reject stale queue reports but cannot reverse external effects; handlers need idempotency/outbox or fencing support.', sourceTestNames: [], additionalTestRecommendation: 'Out of core scope; validate idempotency with a downstream-effect simulation in the durable/distributed follow-up.' }
     ],
     complexity: [
       { operation: 'submit', time: 'O(1)', space: 'O(1) new task state', qualification: 'Assumes expected O(1) dictionary insertion.' },

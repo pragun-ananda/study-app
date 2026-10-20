@@ -34,6 +34,7 @@ import {
   GitBranch
 } from 'lucide-react';
 import NoteViewerModal from './NoteViewerModal';
+import MarkdownContent from './MarkdownContent';
 import ApplicationViewerModal from './ApplicationViewerModal';
 import ProblemViewerModal from './ProblemViewerModal';
 import NotificationsDropdown from './NotificationsDropdown';
@@ -1396,10 +1397,12 @@ export default function TelemetryHUD() {
               onWheel={(e) => e.stopPropagation()}
               data-testid="topic-inspector"
               className={`pointer-events-auto glass-panel p-4 md:p-5 rounded-xl ${
-                isSolOpen
+                activeProblem
+                  ? 'w-[calc(42vw-1rem)] min-w-0 max-w-none mr-0 md:w-[min(32vw,460px)] md:mr-2'
+                  : isSolOpen
                   ? 'w-[calc(100vw-24px)] max-w-xs sm:w-72 md:w-80 mr-0 sm:mr-4'
                   : 'w-[calc(100vw-24px)] max-w-sm sm:w-80 md:w-96 mr-0 sm:mr-6'
-              } text-xs space-y-3.5 max-h-[calc(100vh-140px)] flex flex-col shadow-2xl overscroll-contain z-30`}
+              } text-xs space-y-3.5 ${activeProblem ? 'max-h-[calc(100vh-2rem)]' : 'max-h-[calc(100vh-140px)]'} flex flex-col shadow-2xl overscroll-contain z-30`}
             >
               {/* Fixed Header */}
               <div className={`flex items-center justify-between border-b pb-2.5 flex-shrink-0 ${isLight ? 'border-slate-200' : 'border-white/10'}`}>
@@ -1798,6 +1801,13 @@ export default function TelemetryHUD() {
                           No notes attached to this topic.
                         </div>
                       )}
+
+                      {activeProblem && selectedNode.notes?.filter((note) => note.content?.trim()).map((note) => (
+                        <article key={`problem-preview-${note.id}`} data-testid="problem-concept-note-preview" className={`mt-2 max-h-64 overflow-y-auto rounded-lg border p-3 ${isLight ? 'border-slate-200 bg-white/80' : 'border-white/10 bg-slate-950/60'}`}>
+                          <h4 className="mb-2 text-[11px] font-bold">{note.title}</h4>
+                          <MarkdownContent content={note.content || ''} accentColor={selectedNodeColor} />
+                        </article>
+                      ))}
 
                       {/* Add New Note Button */}
                       <button

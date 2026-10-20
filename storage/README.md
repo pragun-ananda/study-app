@@ -58,9 +58,9 @@ The database implements 4 core domain entities aligned with the frontend knowled
 ## 2. Seed Data (`storage/seeds/seed_test_db.sql`)
 
 The test database seed contains complete initial domain data extracted from the frontend:
-* **187 Topics** across 7 categories (`AI & ML`, `CS`, `SYSTEMS`, `MATH`, `PHYSICS`, `CYBERSECURITY`, `ARCH`).
+* **190 Topics** across 7 categories (`AI & ML`, `CS`, `SYSTEMS`, `MATH`, `PHYSICS`, `CYBERSECURITY`, `ARCH`).
 * **229 Deduplicated Directed Prerequisite Edges**.
-* **4 Full Markdown + KaTeX Notes** with mathematical proofs, truth tables, and code snippets.
+* **7 Full Markdown + KaTeX Notes** with mathematical proofs, truth tables, and code snippets.
 * **5 Initial Study Todos**.
 
 ### Regenerating Seed Data

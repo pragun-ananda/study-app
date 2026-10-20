@@ -652,6 +652,35 @@ describe('TelemetryHUD Component', () => {
       expect(useStore.getState().isSidebarOpen).toBe(false);
     });
 
+    it('keeps a problem open while showing its selected concept in the graph inspector', () => {
+      const topic = useStore.getState().topicNodes.find((node) => node.id === 'TOPIC-188')!;
+      useStore.getState().setSelectedTopicId(topic.id);
+      useStore.getState().setIsInspectorOpen(true);
+      useStore.getState().setActiveProblem({
+        id: 'PROB-FAULT-TOLERANT-WORK-QUEUE',
+        title: 'Implement a Fault-Tolerant Work Queue',
+        type: 'CODING',
+        difficulty: 'MEDIUM',
+        domain: 'SYSTEMS',
+        summary: 'Keep queued work accounted for when workers fail.',
+        targetCompanies: [],
+        timeLimitMinutes: 45,
+        prompt: 'Implement a fault-tolerant work queue.',
+        hints: [],
+        solution: '',
+        starterCode: {},
+        prerequisiteTopics: [],
+        quizzes: []
+      });
+
+      render(<TelemetryHUD />);
+
+      expect(screen.getByTestId('problem-viewer-modal')).toBeInTheDocument();
+      expect(screen.getByTestId('topic-inspector')).toHaveTextContent('Thread Safety');
+      expect(screen.getByTestId('topic-inspector')).toHaveClass('w-[calc(42vw-1rem)]');
+      expect(screen.queryByLabelText(/concept content$/i)).not.toBeInTheDocument();
+    });
+
     it('displays CODE REPOSITORY ANNOTATIONS in inspector when a topic linked to an annotation is selected', async () => {
       const topic = useStore.getState().topicNodes[0];
       useRepoStore.setState({

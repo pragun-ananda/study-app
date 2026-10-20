@@ -31,4 +31,12 @@ describe('interview learning path validation', () => {
     expect(result.errors).toContain("Resource 'Made up' has not been verified.");
     expect(result.errors).toContain("Resource 'Made up' references an unknown concept.");
   });
+
+  it('rejects empty aliases in concept links', () => {
+    const invalid = structuredClone(TRAPPING_RAIN_WATER_LEARNING_PATH);
+    invalid.concepts[0].terms = ['valid phrase', '  '];
+    const result = validateInterviewLearningPath(invalid);
+    expect(result.valid).toBe(false);
+    expect(result.errors).toContain(`Concept '${invalid.concepts[0].id}' has invalid phrase aliases.`);
+  });
 });

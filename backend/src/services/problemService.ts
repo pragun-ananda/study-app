@@ -2,6 +2,7 @@ import { query } from '../db.js';
 import { generateEntityId } from '../utils/id.js';
 import { toTopicDTO } from '../utils/mappers.js';
 import { formatCanonicalSolutionMarkdown } from '../utils/canonicalSolutionMarkdown.js';
+import { getInterviewLearningPath } from './interviewLearningService.js';
 import {
   ProblemRow,
   ProblemDTO,
@@ -141,10 +142,12 @@ export async function getProblems(filter?: GetProblemsFilter): Promise<ProblemDT
     `SELECT DISTINCT problem_id FROM problem_learning_paths WHERE publication_status IN ('PILOT', 'PUBLISHED')`
   );
   const learningPathIds = new Set(learningPathsRes.rows.map((row) => row.problem_id));
-  return problems.map((p) => ({
+  return Promise.all(problems.map(async (p) => ({
     ...toProblemDTO(p, prereqMap.get(p.id) || []),
-    guidedLearningPathAvailable: learningPathIds.has(p.id)
-  }));
+    // A published row is not enough: the path may be stale relative to the
+    // canonical prompt/solution. Keep the list badge in sync with the endpoint.
+    guidedLearningPathAvailable: learningPathIds.has(p.id) && Boolean(await getInterviewLearningPath(p.id))
+  })));
 }
 
 /**
@@ -157,10 +160,7 @@ export async function getProblemById(id: string): Promise<ProblemDTO | null> {
   }
 
   const problem = problemRes.rows[0];
-  const learningPathRes = await query<{ problem_id: string }>(
-    `SELECT problem_id FROM problem_learning_paths WHERE problem_id = $1 AND publication_status IN ('PILOT', 'PUBLISHED') LIMIT 1`, [id]
-  );
-  problem.guided_learning_path_available = learningPathRes.rows.length > 0;
+  problem.guided_learning_path_available = Boolean(await getInterviewLearningPath(id));
 
   // 1. Fetch prerequisite topic IDs
   const prereqRes = await query<ProblemPrerequisiteRow>(

@@ -62,6 +62,29 @@ export default function GuidedPracticePanel({ problemId, isLight, onAttemptStart
     return topic ? [{ concept, topic }] : [];
   }), [path, topicNodes]);
 
+  const renderConceptLinks = (text: string) => {
+    const terms = relatedConcepts
+      .flatMap(({ concept, topic }) => (concept.terms?.length ? concept.terms : [concept.name])
+        .map((term) => ({ term, topic })))
+      .sort((a, b) => b.term.length - a.term.length);
+    if (!terms.length) return text;
+    const termPattern = terms.map(({ term }) => term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+')).join('|');
+    const matcher = new RegExp(`\\b(${termPattern})\\b`, 'gi');
+    const termByText = new Map(terms.map(({ term, topic }) => [term.toLowerCase(), topic]));
+    const parts: React.ReactNode[] = [];
+    let cursor = 0;
+    for (const match of text.matchAll(matcher)) {
+      const start = match.index ?? 0;
+      if (start > cursor) parts.push(text.slice(cursor, start));
+      const phrase = match[0];
+      const topic = termByText.get(phrase.toLowerCase());
+      parts.push(topic ? <button key={`${topic.id}-${start}`} type="button" aria-label={`Open concept: ${topic.name}`} onClick={() => onOpenConcept(topic)} title={topic.summary} className="font-semibold text-sky-600 underline decoration-sky-400/50 underline-offset-2 hover:text-sky-500 dark:text-cyan-300 dark:decoration-cyan-400/50">{phrase}</button> : phrase);
+      cursor = start + phrase.length;
+    }
+    if (cursor < text.length) parts.push(text.slice(cursor));
+    return parts.length ? parts : text;
+  };
+
   const begin = async () => {
     if (!path) return;
     setBusy(true);
@@ -227,13 +250,13 @@ export default function GuidedPracticePanel({ problemId, isLight, onAttemptStart
   const coreFailures = breakdown?.failureScenarios.filter((item) =>
     ['worker_crash', 'slow_live_worker', 'stale_worker_report', 'retry_exhaustion'].includes(item.id)
   ) || [];
-  const coverageGaps = breakdown?.failureScenarios.filter((item) => item.sourceTestNames.length === 0) || [];
+  const coverageGaps = breakdown?.failureScenarios.filter((item) => item.scope === 'CORE' && item.sourceTestNames.length === 0) || [];
 
   return (
     <section className="space-y-3 p-4" data-testid="guided-practice-panel" aria-label="Problem breakdown and practice">
       <header className={`rounded-xl border p-4 ${cardClass}`}>
         <div className="text-[10px] font-mono font-bold uppercase tracking-widest text-sky-500">Problem guide</div>
-        <p className="mt-2 text-sm leading-relaxed">{path.interpretation.goal}</p>
+        <p className="mt-2 text-sm leading-relaxed">{renderConceptLinks(path.interpretation.goal)}</p>
         {mode === 'intro' && <button type="button" onClick={begin} disabled={busy} className={`mt-3 rounded-lg border px-3 py-2 text-xs font-bold ${buttonClass}`}>
           {busy ? 'Starting…' : 'Start practice'}
         </button>}
@@ -250,32 +273,23 @@ export default function GuidedPracticePanel({ problemId, isLight, onAttemptStart
           </section>
           <section>
             <h3 className="font-bold">Task lifecycle</h3>
-            <p className={`mt-1 ${secondaryClass}`}>PENDING → LEASED → DONE, PENDING (retry), or DEAD (limit reached).</p>
-            <p className={`mt-1 ${secondaryClass}`}>Keep each task recorded. Only its current lease token can change it.</p>
+            <p className={`mt-1 ${secondaryClass}`}>{renderConceptLinks('PENDING → LEASED → DONE, PENDING (retry), or DEAD (limit reached).')}</p>
+            <p className={`mt-1 ${secondaryClass}`}>{renderConceptLinks('Keep each task recorded. Only its current lease token can change it.')}</p>
           </section>
           <section>
             <h3 className="font-bold">Failure handling</h3>
             <ul className={`mt-1 list-disc space-y-1 pl-4 ${secondaryClass}`}>
-              {coreFailures.map((item) => <li key={item.id}><strong>{item.id.replace(/_/g, ' ')}</strong>: {item.queueBehavior}</li>)}
+              {coreFailures.map((item) => <li key={item.id}><strong>{item.id.replace(/_/g, ' ')}</strong>: {renderConceptLinks(item.queueBehavior)}</li>)}
             </ul>
-            {coverageGaps.length > 0 && <p className="mt-2 text-amber-500">Source tests miss: {coverageGaps.map((item) => item.id.replace(/_/g, ' ')).join(', ')}.</p>}
+            {coverageGaps.length > 0 && <p className="mt-2 text-amber-500">Core test gap: {coverageGaps.map((item) => item.id.replace(/_/g, ' ')).join(', ')}.</p>}
           </section>
           <section>
             <h3 className="font-bold">Cost and delivery</h3>
             <p className={`mt-1 ${secondaryClass}`}>Submit O(1) · claim amortized O(log h) · heartbeat O(log h).</p>
-            <p className={`mt-1 ${secondaryClass}`}>At-least-once: duplicate work can happen. Use idempotency or fencing for external effects.</p>
+            <p className={`mt-1 ${secondaryClass}`}>{renderConceptLinks('At-least-once: duplicate work can happen. Use idempotency or fencing for external effects.')}</p>
           </section>
         </div>
       </details>}
-
-      {relatedConcepts.length > 0 && <section className={`rounded-xl border p-4 ${cardClass}`} aria-label="Related concept nodes">
-        <h3 className="text-sm font-bold">Related concepts</h3>
-        <div className="mt-2 flex flex-wrap gap-2">
-          {relatedConcepts.map(({ concept, topic }) => <button key={topic.id} type="button" onClick={() => onOpenConcept(topic)} className={`rounded-full border px-3 py-1.5 text-xs ${buttonClass}`} title={concept.relevance}>
-            {topic.name} <span aria-hidden="true">↗</span>
-          </button>)}
-        </div>
-      </section>}
 
       {mode === 'initial-attempt' && <div className={`rounded-xl border p-4 ${cardClass}`}>
         <h3 className="text-sm font-bold">Your approach</h3>

@@ -1,9 +1,9 @@
 --
 -- KNOWLEDGE GRAPH TEST DATABASE SEED
 -- Deterministically generated from frontend domain model
--- Total Topics: 187 across 7 domain categories
+-- Total Topics: 190 across 7 domain categories
 -- Total Directed Prerequisite Edges: 229
--- Total Markdown Notes: 4
+-- Total Markdown Notes: 7
 -- Total Study Todos: 5
 --
 
@@ -197,7 +197,10 @@ INSERT INTO topics (id, name, category, summary, mastery, status, coord_x, coord
   ('TOPIC-184', 'OpenAPI & RESTful API Specs', 'ARCH', 'Standardized contract specifications for RESTful HTTP web service interfaces.', 83.00, 'MASTERED', 19.59, -17.13, 0.04, '2026-08-17T10:00:00.000Z'),
   ('TOPIC-185', 'Service Workers & PWA Caching', 'ARCH', 'Background browser scripts intercepting network requests for offline caching.', 81.00, 'MASTERED', 2.66, -17.61, -2.52, NULL),
   ('TOPIC-186', 'Distributed Tracing (OpenTelemetry)', 'ARCH', 'Collecting trace spans across microservices to analyze request latencies.', 73.00, 'LEARNING', 12.62, -11.08, 0.38, '2026-08-24T08:00:00.000Z'),
-  ('TOPIC-187', 'Feature Flag Toggles & Canary Deployments', 'ARCH', 'Safe deployment strategy exposing new code incrementally to target user slices.', 14.00, 'NEW', 12.01, -16.59, -1.92, '2026-08-23T10:00:00.000Z');
+  ('TOPIC-187', 'Feature Flag Toggles & Canary Deployments', 'ARCH', 'Safe deployment strategy exposing new code incrementally to target user slices.', 14.00, 'NEW', 12.01, -16.59, -1.92, '2026-08-23T10:00:00.000Z'),
+  ('TOPIC-188', 'Thread Safety', 'SYSTEMS', 'Coordinating concurrent access to shared state so operations remain correct under interleaving.', 0.00, 'NEW', -4.00, 17.00, 5.00, NULL),
+  ('TOPIC-189', 'In-Process vs Distributed Work Queues', 'SYSTEMS', 'How a queue’s failure model and coordination needs change when workers move beyond one process.', 0.00, 'NEW', -8.00, 17.00, 7.00, NULL),
+  ('TOPIC-190', 'Dead Letter Queues', 'SYSTEMS', 'A terminal holding area for tasks that have exhausted their retry policy, preserving them for inspection or replay.', 0.00, 'NEW', -4.00, 13.00, 3.00, NULL);
 
 -- 2. TOPIC PREREQUISITES (Directed Graph Edges)
 INSERT INTO topic_prerequisites (topic_id, prerequisite_id) VALUES
@@ -561,7 +564,31 @@ $$ A = U \Sigma V^T $$
 The optimal rank-$k$ approximation $\hat{A}_k$ in Frobenius and spectral norms is obtained by truncating to the top $k$ singular values:
 
 $$ \hat{A}_k = \sum_{i=1}^{k} \sigma_i u_i v_i^T $$
-', '2026-08-16T10:00:00.000Z', '2026-08-24T06:00:00.000Z');
+', '2026-08-16T10:00:00.000Z', '2026-08-24T06:00:00.000Z'),
+  ('NOTE-Q-THREAD-SAFETY', 'TOPIC-188', 'Thread Safety in Shared Queues', 'queue-thread-safety.md', '# Thread Safety in Shared Queues
+
+Thread safety means shared queue state stays valid when multiple workers call operations at the same time. Protect state transitions such as removing a pending task, assigning its lease token, and recording its deadline as one atomic operation.
+
+Keep task execution outside the queue lock. Otherwise one slow task can prevent every worker from claiming or completing other work.
+
+For a work queue, test that concurrent claims never assign the same current lease to two workers, and that completion or failure with an old lease cannot mutate current state.
+', '2026-08-24T10:00:00.000Z', '2026-08-24T10:00:00.000Z'),
+  ('NOTE-Q-IN-PROCESS', 'TOPIC-189', 'In-Process and Distributed Queue Boundaries', 'queue-process-boundary.md', '# In-Process and Distributed Queue Boundaries
+
+An in-process queue shares memory and synchronization primitives with its workers. It can use a local lock and a monotonic clock, but its task records disappear if the process stops.
+
+A distributed queue must coordinate claims over a network and persist enough state to recover after a restart. A timeout cannot prove a remote worker is dead: a partitioned or paused worker may still finish. Use unique fencing tokens for ownership and make external effects idempotent.
+
+Use the simplest boundary that meets the problem’s requirements. Persistence, replication, and network coordination add important guarantees, but they also add failure modes and operational cost.
+', '2026-08-24T10:00:00.000Z', '2026-08-24T10:00:00.000Z'),
+  ('NOTE-Q-DEAD-LETTER', 'TOPIC-190', 'Dead Letter Queues and Retry Exhaustion', 'queue-dead-letter.md', '# Dead Letter Queues and Retry Exhaustion
+
+A dead letter queue stores tasks that have reached their retry limit. Moving a task to this terminal state makes failure visible and preserves its payload and last error for inspection, correction, or deliberate replay.
+
+Define whether the attempt count means claims or failures, and move the task to the dead letter queue at one precise boundary. Keep this transition atomic with clearing the active lease so the task cannot be both leased and dead.
+
+Dead lettering is a deliberate set-aside, not successful completion. Monitor its size and provide a safe replay or resolution process.
+', '2026-08-24T10:00:00.000Z', '2026-08-24T10:00:00.000Z');
 
 -- 4. STUDY TODOS (Actionable Study Goals)
 INSERT INTO study_todos (id, topic_id, title, category, priority, completed, due_date) VALUES

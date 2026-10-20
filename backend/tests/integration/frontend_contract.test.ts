@@ -18,12 +18,12 @@ describe('Integration: Frontend Seamless Contract Compatibility', () => {
     db.public.none(seedSql);
   });
 
-  it('GET /api/topics returns all 187 cosmos topics matching frontend TopicNode interface', async () => {
+  it('GET /api/topics returns all 190 cosmos topics matching frontend TopicNode interface', async () => {
     const res = await request(app).get('/api/topics');
 
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
-    expect(res.body.length).toBe(187);
+    expect(res.body.length).toBe(190);
 
     // Verify every single topic node satisfies the frontend TopicNode structure
     const validCategories = new Set(['CS', 'AI & ML', 'MATH', 'PHYSICS', 'SYSTEMS', 'CYBERSECURITY', 'ARCH']);

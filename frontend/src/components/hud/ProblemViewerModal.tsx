@@ -154,7 +154,8 @@ export default function ProblemViewerModal() {
   const updateProblem = useStore((state) => state.updateProblem);
   const topicNodes = useStore((state) => state.topicNodes);
   const setSelectedTopicId = useStore((state) => state.setSelectedTopicId);
-  const setActiveNote = useStore((state) => state.setActiveNote);
+  const selectedTopicId = useStore((state) => state.selectedTopicId);
+  const isInspectorOpen = useStore((state) => state.isInspectorOpen);
   const setIsInspectorOpen = useStore((state) => state.setIsInspectorOpen);
   const submitProblem = useStore((state) => state.submitProblem);
   const fetchProblemSubmissions = useStore((state) => state.fetchProblemSubmissions);
@@ -173,6 +174,7 @@ export default function ProblemViewerModal() {
 
   const [activeTab, setActiveTab] = useState<'PROMPT' | 'GUIDED' | 'SOLUTION' | 'QUIZ' | 'SUBMISSIONS' | 'SYSTEM_DESIGN'>('PROMPT');
   const [guidedAttemptStarted, setGuidedAttemptStarted] = useState(false);
+  const [conceptPaneOpen, setConceptPaneOpen] = useState(false);
   const hasGuidedPractice = activeProblem?.guidedLearningPathAvailable === true || activeProblem?.id === 'PROB-TRAPPING-RAIN-WATER';
   const [selectedFollowUpIndex, setSelectedFollowUpIndex] = useState<number>(0);
   const [followUpResponseText, setFollowUpResponseText] = useState<string>('');
@@ -197,6 +199,7 @@ export default function ProblemViewerModal() {
 
   useEffect(() => {
     setGuidedAttemptStarted(false);
+    setConceptPaneOpen(false);
     setActiveTab(hasGuidedPractice ? 'GUIDED' : 'PROMPT');
   }, [activeProblem?.id, hasGuidedPractice]);
 
@@ -518,14 +521,10 @@ export default function ProblemViewerModal() {
       : (activeProblem.prerequisiteTopicIds || [])
           .map((id) => topicNodes.find((n) => n.id === id))
           .filter(Boolean) as TopicNode[];
-
-  const handlePrerequisiteClick = (topic: TopicNode) => {
+  const handleConceptClick = (topic: TopicNode) => {
     setSelectedTopicId(topic.id);
     setIsInspectorOpen(true);
-    if (topic.notes && topic.notes.length > 0) {
-      setActiveNote(topic.notes[0]);
-    }
-    setActiveProblem(null);
+    setConceptPaneOpen(true);
   };
 
   const toggleHint = (index: number) => {
@@ -712,7 +711,7 @@ export default function ProblemViewerModal() {
   return (
     <AnimatePresence>
       <div
-        className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/70 backdrop-blur-md pointer-events-auto"
+        className="fixed inset-0 z-50 pointer-events-none"
         data-testid="problem-viewer-modal-backdrop"
       >
         <motion.div
@@ -720,14 +719,12 @@ export default function ProblemViewerModal() {
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 15 }}
           transition={{ duration: 0.2 }}
-          className={`w-full ${
-            workbenchLayout === 'split' && activeTab === 'PROMPT' && !isEditing
-              ? 'max-w-[96vw] xl:max-w-7xl h-[92vh] max-h-[92vh]'
-              : 'max-w-5xl max-h-[90vh]'
-          } flex flex-col rounded-xl border shadow-2xl overflow-hidden transition-all duration-200 ${
+          className={`pointer-events-auto relative flex h-screen w-screen flex-col overflow-hidden border-r shadow-2xl transition-[width] duration-200 ${
+            conceptPaneOpen && isInspectorOpen && selectedTopicId ? 'w-[58vw]' : 'w-screen'
+          } ${
             isLight
-              ? 'bg-white/95 border-slate-200 text-slate-800'
-              : 'bg-[#0a0f1d]/95 border-slate-700/80 text-slate-100 shadow-[0_0_30px_rgba(0,240,255,0.15)]'
+              ? 'bg-white border-slate-200 text-slate-800'
+              : 'bg-[#0a0f1d] border-slate-700/80 text-slate-100 shadow-[0_0_30px_rgba(0,240,255,0.15)]'
           }`}
           data-testid="problem-viewer-modal"
         >
@@ -1201,7 +1198,7 @@ export default function ProblemViewerModal() {
                   problemId={activeProblem.id}
                   isLight={isLight}
                   topicNodes={topicNodes}
-                  onOpenConcept={handlePrerequisiteClick}
+                  onOpenConcept={handleConceptClick}
                   onAttemptStarted={() => setGuidedAttemptStarted(true)}
                   onRevealSolution={() => {
                     setGuidedAttemptStarted(true);
@@ -2387,7 +2384,7 @@ export default function ProblemViewerModal() {
                         <button
                           key={topic.id}
                           type="button"
-                          onClick={() => handlePrerequisiteClick(topic)}
+                          onClick={() => handleConceptClick(topic)}
                           data-testid={`prereq-topic-chip-${topic.id}`}
                           className={`p-2.5 rounded-lg border text-left transition-all flex items-start justify-between gap-2 group cursor-pointer ${
                             isLight
