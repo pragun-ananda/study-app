@@ -22,17 +22,15 @@ export default defineConfig({
         'src/components/canvas/**'
       ]
     },
-    deps: {
-      optimizer: {
-        web: {
-          include: [
-            'react-markdown',
-            'remark-gfm',
-            'remark-math',
-            'rehype-katex',
-            'react-syntax-highlighter'
-          ]
-        }
+    server: {
+      deps: {
+        inline: [
+          'react-markdown',
+          'remark-gfm',
+          'remark-math',
+          'rehype-katex',
+          'react-syntax-highlighter'
+        ]
       }
     }
   },

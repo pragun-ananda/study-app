@@ -194,10 +194,10 @@ test.describe('3D WebGL SceneCanvas & Engine (FRO-9)', () => {
       const centerY = box.y + box.height / 2;
       await page.mouse.move(centerX, centerY);
 
-      // Scroll mouse wheel to zoom in considerably
-      for (let i = 0; i < 6; i++) {
-        await page.mouse.wheel(0, -600);
-        await page.waitForTimeout(100);
+      // Scroll mouse wheel to zoom in considerably past threshold
+      for (let i = 0; i < 20; i++) {
+        await page.mouse.wheel(0, -800);
+        await page.waitForTimeout(50);
       }
     }
 
@@ -207,9 +207,9 @@ test.describe('3D WebGL SceneCanvas & Engine (FRO-9)', () => {
     expect(countAfterZoom).toBeGreaterThan(0);
 
     // Zoom back out to overview distance
-    for (let i = 0; i < 6; i++) {
-      await page.mouse.wheel(0, 800);
-      await page.waitForTimeout(100);
+    for (let i = 0; i < 25; i++) {
+      await page.mouse.wheel(0, 1000);
+      await page.waitForTimeout(50);
     }
 
     // Node labels should disappear again in overview mode
