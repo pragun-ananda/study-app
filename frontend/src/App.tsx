@@ -142,23 +142,23 @@ export default function App() {
       data-testid="app-container"
       data-theme={theme}
     >
-      {/* Main Website Content Area - Shifts left and resizes when Sol Chat split opens */}
+      {/* Layer z-0: 3D Scene Viewport & WebGL Post Processing (Persistent full-canvas to prevent WebGL resize lag) */}
       <div
-        className={`absolute inset-y-0 left-0 transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] overflow-hidden ${
+        className={`absolute inset-y-0 right-0 z-0 transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] will-change-[left] ${
+          activeApplication ? 'left-0 md:left-1/2' : 'left-0'
+        }`}
+        data-testid="scene-canvas-container"
+      >
+        <SceneCanvas />
+      </div>
+
+      {/* Main Website Content Area - Shifts left and resizes HUD & overlays when Sol Chat split opens */}
+      <div
+        className={`absolute inset-y-0 left-0 transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] overflow-hidden pointer-events-none ${
           isSolOpen ? 'right-full sm:right-[400px] md:right-[440px] lg:right-[460px]' : 'right-0'
         }`}
         data-testid="main-content-viewport"
       >
-        {/* Layer z-0: 3D Scene Viewport & WebGL Post Processing */}
-        <div
-          className={`absolute inset-y-0 right-0 z-0 transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] will-change-[left] ${
-            activeApplication ? 'left-0 md:left-1/2' : 'left-0'
-          }`}
-          data-testid="scene-canvas-container"
-        >
-          <SceneCanvas />
-        </div>
-
         {/* Layer z-10: CRT Scanlines, Screen Vignette & Grain Overlay */}
         <div
           className={`pointer-events-none absolute inset-0 w-full h-full z-10 crt-scanlines crt-vignette transition-opacity duration-300 ${
