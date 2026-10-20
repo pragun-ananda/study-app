@@ -155,12 +155,25 @@ export interface ProblemItem {
   quizzes?: QuizItem[];
   createdAt?: string;
   updatedAt?: string;
+  guidedLearningPathAvailable?: boolean;
 }
 
 export interface InterviewLearningPath {
   problemId: string;
   version: number;
   publicationStatus: 'PILOT' | 'PUBLISHED' | 'RETIRED';
+  initialAttemptPrompt?: string;
+  problemBreakdown?: {
+    framing: { userGoal: string; assumptions: string[]; outOfScope: string[]; clarifications: Array<{ question: string; decision: string; whyItMatters: string }> };
+    contract: Array<{ operation: string; behavior: string; complexity: string }>;
+    states: Array<{ id: string; meaning: string; terminal: boolean }>;
+    transitions: Array<{ from: string; to: string; event: string; guard: string; effect: string }>;
+    invariants: Array<{ id: string; statement: string }>;
+    failureScenarios: Array<{ id: string; situation: string; queueBehavior: string; sourceTestNames: string[]; additionalTestRecommendation?: string }>;
+    complexity: Array<{ operation: string; time: string; space: string; qualification: string }>;
+    deliverySemantics: { guarantee: string; duplicatesPossible: boolean; exactlyOnceEffectRequires: string };
+    sourceReview: { status: 'PILOT_REVIEWED' | 'NEEDS_REVIEW'; notes: string[] };
+  };
   interpretation: { goal: string; constraints: string[]; observations: string[] };
   concepts: Array<{
     id: string;

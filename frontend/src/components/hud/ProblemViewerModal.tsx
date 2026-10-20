@@ -173,7 +173,7 @@ export default function ProblemViewerModal() {
 
   const [activeTab, setActiveTab] = useState<'PROMPT' | 'GUIDED' | 'SOLUTION' | 'QUIZ' | 'SUBMISSIONS' | 'SYSTEM_DESIGN'>('PROMPT');
   const [guidedAttemptStarted, setGuidedAttemptStarted] = useState(false);
-  const hasGuidedPilot = activeProblem?.id === 'PROB-TRAPPING-RAIN-WATER';
+  const hasGuidedPractice = activeProblem?.guidedLearningPathAvailable === true || activeProblem?.id === 'PROB-TRAPPING-RAIN-WATER';
   const [selectedFollowUpIndex, setSelectedFollowUpIndex] = useState<number>(0);
   const [followUpResponseText, setFollowUpResponseText] = useState<string>('');
   const [followUpDiagramData, setFollowUpDiagramData] = useState<any>(null);
@@ -197,10 +197,11 @@ export default function ProblemViewerModal() {
 
   useEffect(() => {
     setGuidedAttemptStarted(false);
-  }, [activeProblem?.id]);
+    setActiveTab(hasGuidedPractice ? 'GUIDED' : 'PROMPT');
+  }, [activeProblem?.id, hasGuidedPractice]);
 
   const openSolutionTab = () => {
-    if (hasGuidedPilot && !guidedAttemptStarted) {
+    if (hasGuidedPractice && !guidedAttemptStarted) {
       setActiveTab('GUIDED');
       return;
     }
@@ -1038,7 +1039,7 @@ export default function ProblemViewerModal() {
                 <Code size={13} /> PROBLEM PROMPT & CONSTRAINTS
               </button>
 
-              {hasGuidedPilot && (
+              {hasGuidedPractice && (
                 <button
                   onClick={() => setActiveTab('GUIDED')}
                   data-testid="problem-tab-guided"
@@ -1048,26 +1049,26 @@ export default function ProblemViewerModal() {
                       : isLight ? 'border-transparent text-slate-500 hover:text-slate-800' : 'border-transparent text-slate-400 hover:text-slate-200'
                   }`}
                 >
-                  <Sparkles size={13} /> GUIDED PRACTICE
+                  <Sparkles size={13} /> BREAKDOWN & PRACTICE
                 </button>
               )}
 
               <button
                 onClick={openSolutionTab}
                 data-testid="problem-tab-solution"
-                disabled={hasGuidedPilot && !guidedAttemptStarted}
+                disabled={hasGuidedPractice && !guidedAttemptStarted}
                 className={`px-3 py-2 border-b-2 transition-colors flex items-center gap-1.5 ${
                   activeTab === 'SOLUTION'
                     ? isLight
                       ? 'border-sky-600 text-sky-600'
                       : 'border-[#00f0ff] text-[#00f0ff]'
-                    : hasGuidedPilot && !guidedAttemptStarted
+                    : hasGuidedPractice && !guidedAttemptStarted
                     ? 'border-transparent text-slate-400/50 cursor-not-allowed'
                     : isLight
                     ? 'border-transparent text-slate-500 hover:text-slate-800'
                     : 'border-transparent text-slate-400 hover:text-slate-200'
                 }`}
-                title={hasGuidedPilot && !guidedAttemptStarted ? 'Start a guided attempt before opening the canonical solution' : undefined}
+                title={hasGuidedPractice && !guidedAttemptStarted ? 'Start a guided attempt before opening the canonical solution' : undefined}
               >
                 <Sparkles size={13} /> CANONICAL SOLUTION & PREREQUISITES
                 {linkedPrereqs.length > 0 && (
@@ -1139,7 +1140,7 @@ export default function ProblemViewerModal() {
                     : 'border-transparent text-slate-400 hover:text-slate-200'
                 }`}
               >
-                <Layers size={13} /> SYSTEM DESIGN
+                <Layers size={13} /> {activeProblem.type === 'CODING' ? 'FOLLOW-UP QUESTIONS' : 'SYSTEM DESIGN'}
                 {followUps.length > 0 && (
                   <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] bg-purple-500/20 text-purple-400 font-mono" data-testid="system-design-count-badge">
                     {followUps.length}
@@ -1194,11 +1195,13 @@ export default function ProblemViewerModal() {
                 : 'overflow-y-auto p-4 sm:p-6 space-y-6'
             }`}
           >
-            {hasGuidedPilot && activeProblem && (
+            {hasGuidedPractice && activeProblem && (
               <div hidden={activeTab !== 'GUIDED'}>
                 <GuidedPracticePanel
                   problemId={activeProblem.id}
                   isLight={isLight}
+                  topicNodes={topicNodes}
+                  onOpenConcept={handlePrerequisiteClick}
                   onAttemptStarted={() => setGuidedAttemptStarted(true)}
                   onRevealSolution={() => {
                     setGuidedAttemptStarted(true);
@@ -2606,10 +2609,10 @@ export default function ProblemViewerModal() {
                   <div>
                     <h3 className="text-base font-bold flex items-center gap-2">
                       <Layers size={16} className="text-purple-400" />
-                      System Design Architectural Follow-Ups
+                      {activeProblem.type === 'CODING' ? 'Follow-Up Questions' : 'System Design Follow-Ups'}
                     </h3>
                     <p className="text-xs text-slate-400 mt-0.5">
-                      Scale algorithmic solutions to real-world distributed architectures, streaming pipelines, and fault-tolerant cloud services.
+                      {activeProblem.type === 'CODING' ? 'Explore how the design changes when requirements change.' : 'Explore how this design changes at larger scale.'}
                     </p>
                   </div>
 
@@ -2639,9 +2642,9 @@ export default function ProblemViewerModal() {
                       <Layers size={24} />
                     </div>
                     <div>
-                      <h4 className="text-sm font-bold">No System Design Follow-Ups</h4>
+                      <h4 className="text-sm font-bold">{activeProblem.type === 'CODING' ? 'No Follow-Up Questions' : 'No System Design Follow-Ups'}</h4>
                       <p className="text-xs text-slate-400 mt-1 max-w-sm">
-                        This problem currently has no registered system design follow-up challenges.
+                        Follow-up questions have not been added yet.
                       </p>
                     </div>
                   </div>

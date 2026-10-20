@@ -63,6 +63,29 @@ Design a high-throughput, low-latency rate limiter service across multiple regio
     expect(container.firstChild).toBeNull();
   });
 
+  it('exposes breakdown and guided practice tabs for any problem with a reviewed path', () => {
+    useStore.getState().setActiveProblem({ ...mockProblem, guidedLearningPathAvailable: true });
+    render(<ProblemViewerModal />);
+    expect(screen.getByTestId('problem-tab-guided')).toHaveTextContent('BREAKDOWN & PRACTICE');
+    expect(screen.getByTestId('problem-tab-guided').className).toContain('text-sky-600');
+  });
+
+  it('shows coding follow-up questions from the problem prompt data', () => {
+    const codingProblem = {
+      ...mockProblem,
+      type: 'CODING' as const,
+      followUps: [{ id: 'FU-1', title: 'Worker restart', prompt: 'What happens after restart?', rubric: {}, hints: [] }]
+    };
+    useStore.getState().setActiveProblem(codingProblem);
+    render(<ProblemViewerModal />);
+
+    fireEvent.click(screen.getByTestId('problem-tab-system-design'));
+    expect(screen.getByTestId('problem-tab-system-design')).toHaveTextContent('FOLLOW-UP QUESTIONS');
+    expect(screen.getByText('Follow-Up Questions')).toBeInTheDocument();
+    expect(screen.getByText('Worker restart')).toBeInTheDocument();
+    expect(screen.getByText('What happens after restart?')).toBeInTheDocument();
+  });
+
   it('renders header, badges, prompt, and starter code when activeProblem is set', () => {
     useStore.getState().setActiveProblem(mockProblem);
     render(<ProblemViewerModal />);
@@ -542,7 +565,7 @@ Design a high-throughput, low-latency rate limiter service across multiple regio
 
       // Section is visible
       expect(screen.getByTestId('problem-system-design-section')).toBeInTheDocument();
-      expect(screen.getByText('System Design Architectural Follow-Ups')).toBeInTheDocument();
+      expect(screen.getByText('System Design Follow-Ups')).toBeInTheDocument();
 
       // Challenge selector pills
       expect(screen.getByTestId('followup-pill-0')).toHaveTextContent('Distributed Stream Aggregation & Flood Early Warning');

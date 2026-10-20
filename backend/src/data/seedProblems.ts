@@ -1,4 +1,5 @@
 import { CreateProblemPayload } from '../types.js';
+import { FAULT_TOLERANT_WORK_QUEUE_PROBLEM } from './faultTolerantWorkQueueProblem.js';
 
 export const SEED_INTERVIEW_PROBLEMS: CreateProblemPayload[] = [
   {
@@ -612,5 +613,6 @@ flowchart TD
     targetCompanies: ['OpenAI', 'Pinterest', 'Netflix', 'Google'],
     timeLimitMinutes: 45,
     prerequisiteTopicIds: ['TOPIC-051', 'TOPIC-053']
-  }
+  },
+  FAULT_TOLERANT_WORK_QUEUE_PROBLEM
 ];

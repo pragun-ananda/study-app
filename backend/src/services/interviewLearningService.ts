@@ -7,9 +7,12 @@ import {
   LearningAttemptEventInput
 } from '../types.js';
 import { TRAPPING_RAIN_WATER_LEARNING_PATH } from '../data/trappingRainWaterLearningPath.js';
+import { FAULT_TOLERANT_WORK_QUEUE_LEARNING_PATH } from '../data/faultTolerantWorkQueueLearningPath.js';
+import { validateQueueProblemBreakdown } from './interviewProblemBreakdownPipeline.js';
+import { CanonicalProblemSource } from '../utils/problemSource.js';
 
 const EVENT_TYPES = new Set([
-  'STARTED', 'DIAGNOSTIC_RESPONSE', 'STAGE_RESPONSE', 'STAGE_VERIFIED',
+  'STARTED', 'INITIAL_ATTEMPT', 'DIAGNOSTIC_RESPONSE', 'STAGE_RESPONSE', 'STAGE_VERIFIED',
   'HINT_REQUESTED', 'SOLUTION_REVEALED', 'TRANSFER_RESPONSE',
   'CONFIDENCE_RECORDED', 'COMPLETED'
 ]);
@@ -37,7 +40,7 @@ export function validateInterviewLearningPath(value: unknown): { valid: boolean;
   if (!Array.isArray(path.concepts) || path.concepts.length === 0) errors.push('At least one concept is required.');
   if (!Array.isArray(path.reasoningStages) || path.reasoningStages.length < 2) errors.push('At least two reasoning stages are required.');
   if (!Array.isArray(path.implementationPlan) || path.implementationPlan.length === 0) errors.push('implementationPlan is required.');
-  if (!Array.isArray(path.edgeCases) || path.edgeCases.length === 0) errors.push('At least one edge case is required.');
+  if (!Array.isArray(path.edgeCases) || (path.edgeCases.length === 0 && !path.problemBreakdown)) errors.push('At least one edge case or a validated problem breakdown is required.');
   if (!Array.isArray(path.assessmentRubric) || path.assessmentRubric.length === 0) errors.push('assessmentRubric is required.');
   if (!path.transferExercise?.prompt?.trim() || !path.transferExercise?.changedConstraint?.trim()) errors.push('A transfer exercise with a changed constraint is required.');
   if (!path.qualityReview || !['PILOT_REVIEWED', 'NEEDS_REVIEW'].includes(path.qualityReview.status)) errors.push('qualityReview.status is required.');
@@ -48,6 +51,9 @@ export function validateInterviewLearningPath(value: unknown): { valid: boolean;
     if (!concept?.id || !concept.name?.trim() || !concept.intuition?.trim() || !concept.relevance?.trim() ||
         !concept.diagnosticQuestion?.trim() || !concept.diagnosticSuccessCriteria?.trim()) {
       errors.push(`Concept '${concept?.id || '(unknown)'}' is incomplete.`);
+    }
+    if (concept?.topicId !== undefined && (typeof concept.topicId !== 'string' || !concept.topicId.trim())) {
+      errors.push(`Concept '${concept?.id || '(unknown)'}' has an invalid topic reference.`);
     }
   }
   for (const resource of Array.isArray(path.resources) ? path.resources : []) {
@@ -92,37 +98,63 @@ export function validateInterviewLearningPath(value: unknown): { valid: boolean;
   for (const criterion of Array.isArray(path.assessmentRubric) ? path.assessmentRubric : []) {
     if (!criterion?.criterion?.trim() || !criterion.evidence?.trim()) errors.push('Every assessment rubric criterion needs an evidence description.');
   }
+  if (path.initialAttemptPrompt !== undefined && !path.initialAttemptPrompt.trim()) errors.push('initialAttemptPrompt must be non-empty when provided.');
   return { valid: errors.length === 0, errors };
+}
+
+async function getCanonicalSource(problemId: string): Promise<CanonicalProblemSource | null> {
+  const result = await query<CanonicalProblemSource>(
+    'SELECT id, title, prompt, solution FROM problems WHERE id = $1', [problemId]
+  );
+  return result.rows[0] || null;
 }
 
 export async function saveLearningPath(path: InterviewLearningPath): Promise<void> {
   const validation = validateInterviewLearningPath(path);
   if (!validation.valid) throw new Error(`Invalid learning path: ${validation.errors.join(' ')}`);
+  if (path.qualityReview.status !== 'PILOT_REVIEWED') throw new Error('Learning path requires a completed pilot review.');
+  let report = { valid: true, pilotReady: true, sourceFingerprint: '', errors: [] as string[], warnings: [] as string[] };
+  if (path.problemBreakdown) {
+    const source = await getCanonicalSource(path.problemId);
+    if (!source) throw new Error(`Canonical problem '${path.problemId}' was not found.`);
+    report = validateQueueProblemBreakdown(source, path.problemBreakdown);
+    if (!report.valid || !report.pilotReady) throw new Error(`Invalid problem breakdown: ${[...report.errors, ...report.warnings].join(' ')}`);
+  }
+  for (const concept of path.concepts) {
+    if (!concept.topicId) continue;
+    const topic = await query<{ id: string }>('SELECT id FROM topics WHERE id = $1', [concept.topicId]);
+    if (topic.rows.length === 0) throw new Error(`Concept '${concept.id}' references unknown topic '${concept.topicId}'.`);
+  }
   await query(
-    `INSERT INTO problem_learning_paths (problem_id, version, publication_status, content, validation_errors)
-     VALUES ($1, $2, $3, $4, '[]'::jsonb)
+    `INSERT INTO problem_learning_paths (problem_id, version, publication_status, content, validation_errors, validation_report)
+     VALUES ($1, $2, $3, $4, '[]'::jsonb, $5)
      ON CONFLICT (problem_id, version) DO NOTHING`,
-    [path.problemId, path.version, path.publicationStatus, JSON.stringify(path)]
+    [path.problemId, path.version, path.publicationStatus, JSON.stringify(path), JSON.stringify({ ...report, checkedAt: new Date().toISOString() })]
   );
 }
 
 export async function seedCuratedLearningPaths(): Promise<void> {
   await saveLearningPath(TRAPPING_RAIN_WATER_LEARNING_PATH);
+  await saveLearningPath(FAULT_TOLERANT_WORK_QUEUE_LEARNING_PATH);
 }
 
 export async function getInterviewLearningPath(problemId: string): Promise<InterviewLearningPath | null> {
-  const result = await query<{ content: InterviewLearningPath; validation_errors: unknown; publication_status: string; version: number }>(
-    `SELECT content, validation_errors, publication_status, version
-       FROM problem_learning_paths
-      WHERE problem_id = $1 AND publication_status IN ('PILOT', 'PUBLISHED')
-      ORDER BY version DESC LIMIT 1`,
+  const result = await query<{ content: InterviewLearningPath; validation_errors: unknown; publication_status: string; version: number; id: string; title: string; prompt: string; solution: string }>(
+    `SELECT lp.content, lp.validation_errors, lp.publication_status, lp.version, p.id, p.title, p.prompt, p.solution
+       FROM problem_learning_paths lp JOIN problems p ON p.id = lp.problem_id
+      WHERE lp.problem_id = $1 AND lp.publication_status IN ('PILOT', 'PUBLISHED')
+      ORDER BY lp.version DESC LIMIT 1`,
     [problemId]
   );
   const row = result.rows[0];
   if (!row || (Array.isArray(row.validation_errors) && row.validation_errors.length > 0)) return null;
   const content = typeof row.content === 'string' ? JSON.parse(row.content) : row.content;
   const validation = validateInterviewLearningPath(content);
-  return validation.valid && content.problemId === problemId && Number(content.version) === Number(row.version) &&
+  if (content.problemBreakdown) {
+    const report = validateQueueProblemBreakdown({ id: row.id, title: row.title, prompt: row.prompt, solution: row.solution }, content.problemBreakdown);
+    if (!report.valid || !report.pilotReady) return null;
+  }
+  return content.qualityReview.status === 'PILOT_REVIEWED' && validation.valid && content.problemId === problemId && Number(content.version) === Number(row.version) &&
     content.publicationStatus === row.publication_status ? content : null;
 }
 
@@ -155,7 +187,7 @@ export async function recordLearningAttemptEvent(
       throw new Error('confidence must be an integer from 1 to 5.');
     }
   }
-  if (['STAGE_RESPONSE', 'DIAGNOSTIC_RESPONSE', 'TRANSFER_RESPONSE'].includes(input.eventType)) {
+  if (['INITIAL_ATTEMPT', 'STAGE_RESPONSE', 'DIAGNOSTIC_RESPONSE', 'TRANSFER_RESPONSE'].includes(input.eventType)) {
     const response = payload.response;
     if (typeof response !== 'string' || response.length > 5000) throw new Error('response must be text up to 5000 characters.');
   }

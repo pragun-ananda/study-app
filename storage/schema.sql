@@ -174,9 +174,12 @@ CREATE TABLE IF NOT EXISTS problem_learning_paths (
     publication_status VARCHAR(16) NOT NULL CHECK (publication_status IN ('PILOT', 'PUBLISHED', 'RETIRED')),
     content JSONB NOT NULL,
     validation_errors JSONB NOT NULL DEFAULT '[]'::jsonb,
+    validation_report JSONB NOT NULL DEFAULT '{}'::jsonb,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     PRIMARY KEY (problem_id, version)
 );
+
+ALTER TABLE problem_learning_paths ADD COLUMN IF NOT EXISTS validation_report JSONB NOT NULL DEFAULT '{}'::jsonb;
 
 CREATE INDEX IF NOT EXISTS idx_problem_learning_paths_status
   ON problem_learning_paths(problem_id, publication_status);
@@ -200,7 +203,7 @@ CREATE TABLE IF NOT EXISTS interview_learning_attempt_events (
     id VARCHAR(64) PRIMARY KEY,
     attempt_id VARCHAR(64) NOT NULL REFERENCES interview_learning_attempts(id) ON DELETE CASCADE,
     event_type VARCHAR(32) NOT NULL CHECK (event_type IN (
-      'STARTED', 'DIAGNOSTIC_RESPONSE', 'STAGE_RESPONSE', 'STAGE_VERIFIED',
+      'STARTED', 'INITIAL_ATTEMPT', 'DIAGNOSTIC_RESPONSE', 'STAGE_RESPONSE', 'STAGE_VERIFIED',
       'HINT_REQUESTED', 'SOLUTION_REVEALED', 'TRANSFER_RESPONSE',
       'CONFIDENCE_RECORDED', 'COMPLETED'
     )),

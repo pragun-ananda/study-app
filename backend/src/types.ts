@@ -179,6 +179,7 @@ export interface ProblemRow {
   time_limit_minutes: number;
   created_at: string | Date;
   updated_at: string | Date;
+  guided_learning_path_available?: boolean;
 }
 
 export interface ProblemPrerequisiteRow {
@@ -213,10 +214,53 @@ export interface LearningPathStage {
   verificationCriteria: string[];
 }
 
+export type QueueFailureArea =
+  | 'worker_crash'
+  | 'silent_timeout'
+  | 'slow_live_worker'
+  | 'stale_worker_report'
+  | 'duplicate_report'
+  | 'retry_exhaustion'
+  | 'retry_fairness'
+  | 'concurrent_claims'
+  | 'process_restart'
+  | 'duplicate_side_effect';
+
+export interface QueueProblemBreakdown {
+  schemaVersion: 1;
+  sourceFingerprint: string;
+  framing: {
+    userGoal: string;
+    actors: string[];
+    assumptions: string[];
+    outOfScope: string[];
+    clarifications: Array<{ question: string; decision: string; whyItMatters: string }>;
+  };
+  contract: Array<{ operation: string; behavior: string; complexity: string }>;
+  states: Array<{ id: string; meaning: string; terminal: boolean }>;
+  transitions: Array<{ from: string; to: string; event: string; guard: string; effect: string }>;
+  invariants: Array<{ id: string; statement: string }>;
+  correctnessArguments: Array<{ claim: string; invariantIds: string[]; reasoning: string }>;
+  failureScenarios: Array<{
+    id: QueueFailureArea;
+    situation: string;
+    queueBehavior: string;
+    sourceTestNames: string[];
+    additionalTestRecommendation?: string;
+  }>;
+  complexity: Array<{ operation: string; time: string; space: string; qualification: string }>;
+  tradeoffs: Array<{ decision: string; benefit: string; cost: string }>;
+  deliverySemantics: { guarantee: string; duplicatesPossible: boolean; exactlyOnceEffectRequires: string };
+  followUps: Array<{ change: string; designConsequence: string }>;
+  sourceReview: { status: 'PILOT_REVIEWED' | 'NEEDS_REVIEW'; notes: string[] };
+}
+
 export interface InterviewLearningPath {
   problemId: string;
   version: number;
   publicationStatus: LearningPathPublicationStatus;
+  initialAttemptPrompt?: string;
+  problemBreakdown?: QueueProblemBreakdown;
   interpretation: {
     goal: string;
     constraints: string[];
@@ -240,6 +284,7 @@ export interface InterviewLearningPath {
 
 export type LearningAttemptEventType =
   | 'STARTED'
+  | 'INITIAL_ATTEMPT'
   | 'DIAGNOSTIC_RESPONSE'
   | 'STAGE_RESPONSE'
   | 'STAGE_VERIFIED'
@@ -296,6 +341,7 @@ export interface ProblemDTO {
   quizzes?: QuizDTO[];
   createdAt?: string;
   updatedAt?: string;
+  guidedLearningPathAvailable?: boolean;
 }
 
 export interface CreateProblemPayload {
