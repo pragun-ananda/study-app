@@ -178,6 +178,13 @@ test.describe('3D WebGL SceneCanvas & Engine (FRO-9)', () => {
   });
 
   test('Toggles Overload mode and CRT scanline overlays via KeyO', async ({ page }) => {
+    // Ensure light theme is active so CRT scanlines toggle from opacity-0 to opacity-80
+    const currentTheme = await page.locator('html').getAttribute('data-theme');
+    if (currentTheme !== 'light') {
+      await page.keyboard.press('KeyT');
+      await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+    }
+
     // Press KeyO to activate overload simulation
     await page.keyboard.press('KeyO');
 

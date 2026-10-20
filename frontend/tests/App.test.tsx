@@ -217,6 +217,11 @@ describe('App Component', () => {
     expect(viewport.className).toContain('lg:right-[460px]');
     expect(screen.getByTestId('sol-chat-drawer')).toBeInTheDocument();
 
+    // Scene canvas container remains persistently mounted at full right-0 to avoid WebGL context rebuffer lag
+    const canvasContainer = screen.getByTestId('scene-canvas-container');
+    expect(canvasContainer.className).toContain('right-0');
+    expect(canvasContainer.className).not.toContain('sm:right-[400px]');
+
     // Escape dismisses Sol chat drawer
     fireEvent.keyDown(window, { key: 'Escape', code: 'Escape' });
     expect(useSolStore.getState().isOpen).toBe(false);

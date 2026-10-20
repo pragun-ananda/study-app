@@ -55,6 +55,11 @@ test.describe('Sol AI Companion & Chat Drawer', () => {
     await expect(viewport).toHaveClass(/md:right-\[440px\]/);
     await expect(viewport).toHaveClass(/lg:right-\[460px\]/);
 
+    // Verify 3D canvas viewport container remains persistently full-width and does not shrink or lag
+    const canvasContainer = page.getByTestId('scene-canvas-container');
+    await expect(canvasContainer).toBeVisible();
+    await expect(canvasContainer).not.toHaveClass(/sm:right-\[400px\]/);
+
     // Verify "Study Companion & Guide" and "Cosmic AI" tags are completely removed
     await expect(page.getByText('Study Companion & Guide')).not.toBeVisible();
     await expect(page.getByText('Cosmic AI')).not.toBeVisible();
