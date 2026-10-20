@@ -12,7 +12,9 @@ const sourceFingerprint = fingerprintProblemSource({
 /** Curated breakdown for the single queue question; it is source-bound and not a generated replacement for the solution. */
 export const FAULT_TOLERANT_WORK_QUEUE_LEARNING_PATH: InterviewLearningPath = {
   problemId: 'PROB-FAULT-TOLERANT-WORK-QUEUE',
-  version: 3,
+  // Version 4 uses presentation-normalized source fingerprints so an editor
+  // round-trip of the formatted solution doesn't orphan this reviewed guide.
+  version: 4,
   publicationStatus: 'PILOT',
   initialAttemptPrompt: 'In your own words, describe the task states and how the queue recovers work after a worker stops.',
   interpretation: {

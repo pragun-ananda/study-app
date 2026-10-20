@@ -158,7 +158,8 @@ Design a high-throughput, low-latency rate limiter service across multiple regio
     expect(useStore.getState().selectedTopicId).toBe('TOPIC-HASH-RING');
     expect(useStore.getState().isInspectorOpen).toBe(true);
     expect(useStore.getState().activeProblem?.id).toBe(mockProblem.id);
-    expect(screen.getByTestId('problem-viewer-modal')).toHaveClass('md:w-[58vw]');
+    expect(screen.getByTestId('problem-viewer-modal')).toHaveClass('w-[58vw]');
+    expect(screen.queryByLabelText(/concept content$/i)).not.toBeInTheDocument();
   });
 
   it('closes modal on Escape key press', () => {

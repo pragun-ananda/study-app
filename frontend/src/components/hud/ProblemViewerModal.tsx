@@ -521,8 +521,6 @@ export default function ProblemViewerModal() {
       : (activeProblem.prerequisiteTopicIds || [])
           .map((id) => topicNodes.find((n) => n.id === id))
           .filter(Boolean) as TopicNode[];
-  const selectedConcept = topicNodes.find((topic) => topic.id === selectedTopicId);
-
   const handleConceptClick = (topic: TopicNode) => {
     setSelectedTopicId(topic.id);
     setIsInspectorOpen(true);
@@ -722,7 +720,7 @@ export default function ProblemViewerModal() {
           exit={{ opacity: 0, scale: 0.95, y: 15 }}
           transition={{ duration: 0.2 }}
           className={`pointer-events-auto relative flex h-screen w-screen flex-col overflow-hidden border-r shadow-2xl transition-[width] duration-200 ${
-            conceptPaneOpen && isInspectorOpen && selectedTopicId ? 'md:w-[58vw]' : 'md:w-screen'
+            conceptPaneOpen && isInspectorOpen && selectedTopicId ? 'w-[58vw]' : 'w-screen'
           } ${
             isLight
               ? 'bg-white border-slate-200 text-slate-800'
@@ -3271,25 +3269,6 @@ export default function ProblemViewerModal() {
             )}
           </div>
         </motion.div>
-
-        {conceptPaneOpen && selectedConcept && (
-          <aside className={`fixed inset-0 z-[55] flex flex-col overflow-hidden p-5 md:hidden ${isLight ? 'bg-white text-slate-800' : 'bg-[#0a0f1d] text-slate-100'}`} aria-label={`${selectedConcept.name} concept content`}>
-            <div className="mb-4 flex items-center justify-between border-b border-slate-500/20 pb-3">
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-sky-500">Graph concept</p>
-                <h2 className="mt-1 text-lg font-bold">{selectedConcept.name}</h2>
-              </div>
-              <button type="button" onClick={() => { setConceptPaneOpen(false); setIsInspectorOpen(false); }} className="rounded-lg border border-slate-500/30 px-3 py-2 text-xs font-bold">Back to problem</button>
-            </div>
-            <p className="mb-4 text-sm leading-relaxed">{selectedConcept.summary}</p>
-            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto">
-              {(selectedConcept.notes || []).map((note) => <article key={note.id} className="rounded-xl border border-slate-500/20 p-4">
-                <h3 className="mb-3 text-sm font-bold">{note.title}</h3>
-                {note.content ? <MarkdownContent content={note.content} /> : <p className="text-sm text-slate-500">No notes added yet.</p>}
-              </article>)}
-            </div>
-          </aside>
-        )}
 
         {/* SUBMISSION RESULT MODAL OVERLAY */}
         {isSubmissionModalOpen && submissionResult && (
