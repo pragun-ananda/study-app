@@ -89,6 +89,24 @@ test.describe('Telemetry HUD & User Controls (FRO-9)', () => {
     await expect(page.getByTestId('sidebar-add-node-btn')).toBeVisible();
   });
 
+  test('Expands left sidebar by clicking anywhere on the minimized panel', async ({ page }) => {
+    // Verify concepts tab is not visible initially
+    await expect(page.getByTestId('sidebar-tab-concepts')).not.toBeVisible();
+
+    // Click anywhere on the minimized left sidebar panel
+    const sidebar = page.getByTestId('left-study-sidebar');
+    await expect(sidebar).toBeVisible();
+    await sidebar.click();
+
+    // Verify left sidebar is maximized and concepts tab is visible
+    await expect(page.getByTestId('sidebar-tab-concepts')).toBeVisible();
+
+    // Close sidebar via toggle arrow
+    const togglePanelBtn = page.getByLabel('Toggle study panel');
+    await togglePanelBtn.click();
+    await expect(page.getByTestId('sidebar-tab-concepts')).not.toBeVisible();
+  });
+
   test('Handles Slash (/) to open search & sidebar, and Escape to dismiss', async ({ page }) => {
     // 1. Press '/' to open search input and expand left sidebar
     await page.keyboard.press('/');
