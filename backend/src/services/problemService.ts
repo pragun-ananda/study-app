@@ -1,6 +1,7 @@
 import { query } from '../db.js';
 import { generateEntityId } from '../utils/id.js';
 import { toTopicDTO } from '../utils/mappers.js';
+import { formatCanonicalSolutionMarkdown } from '../utils/canonicalSolutionMarkdown.js';
 import {
   ProblemRow,
   ProblemDTO,
@@ -50,7 +51,7 @@ export function toProblemDTO(
     domain: row.domain,
     summary: row.summary || '',
     prompt: row.prompt || '',
-    solution: row.solution || '',
+    solution: formatCanonicalSolutionMarkdown(row.solution || ''),
     hints: parseJsonField<string[]>(row.hints, []),
     starterCode: parseJsonField<Record<string, string>>(row.starter_code, {}),
     testCases: parseJsonField<Array<{ input: any; expected: any; explanation?: string }>>(row.test_cases, []),
@@ -59,6 +60,7 @@ export function toProblemDTO(
     targetCompanies: Array.isArray(row.target_companies) ? row.target_companies : [],
     timeLimitMinutes: Number(row.time_limit_minutes) || 45,
     prerequisiteTopicIds,
+    guidedLearningPathAvailable: row.guided_learning_path_available === true,
     prerequisiteTopics: prerequisiteTopics.length > 0 ? prerequisiteTopics : undefined,
     quizzes: quizzes.length > 0 ? quizzes : undefined,
     createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at || ''),
@@ -135,7 +137,14 @@ export async function getProblems(filter?: GetProblemsFilter): Promise<ProblemDT
     prereqMap.get(r.problem_id)!.push(r.topic_id);
   });
 
-  return problems.map((p) => toProblemDTO(p, prereqMap.get(p.id) || []));
+  const learningPathsRes = await query<{ problem_id: string }>(
+    `SELECT DISTINCT problem_id FROM problem_learning_paths WHERE publication_status IN ('PILOT', 'PUBLISHED')`
+  );
+  const learningPathIds = new Set(learningPathsRes.rows.map((row) => row.problem_id));
+  return problems.map((p) => ({
+    ...toProblemDTO(p, prereqMap.get(p.id) || []),
+    guidedLearningPathAvailable: learningPathIds.has(p.id)
+  }));
 }
 
 /**
@@ -148,6 +157,10 @@ export async function getProblemById(id: string): Promise<ProblemDTO | null> {
   }
 
   const problem = problemRes.rows[0];
+  const learningPathRes = await query<{ problem_id: string }>(
+    `SELECT problem_id FROM problem_learning_paths WHERE problem_id = $1 AND publication_status IN ('PILOT', 'PUBLISHED') LIMIT 1`, [id]
+  );
+  problem.guided_learning_path_available = learningPathRes.rows.length > 0;
 
   // 1. Fetch prerequisite topic IDs
   const prereqRes = await query<ProblemPrerequisiteRow>(

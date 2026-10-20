@@ -1,5 +1,6 @@
 import { QueueFailureArea, QueueProblemBreakdown } from '../types.js';
 import { CanonicalProblemSource, fingerprintProblemSource } from '../utils/problemSource.js';
+import { validateCanonicalSolutionPresentation } from '../utils/canonicalSolutionMarkdown.js';
 
 export interface ProblemBreakdownValidationReport {
   valid: boolean;
@@ -44,6 +45,7 @@ export function validateQueueProblemBreakdown(
   const breakdown = value as Partial<QueueProblemBreakdown>;
   if (breakdown.schemaVersion !== 1) errors.push('schemaVersion must be 1.');
   if (breakdown.sourceFingerprint !== sourceFingerprint) errors.push('Breakdown source fingerprint does not match the canonical prompt and solution.');
+  errors.push(...validateCanonicalSolutionPresentation(source.solution));
 
   const framing = breakdown.framing;
   if (!textIsPresent(framing?.userGoal)) errors.push('framing.userGoal is required.');

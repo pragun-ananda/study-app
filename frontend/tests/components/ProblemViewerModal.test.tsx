@@ -63,6 +63,13 @@ Design a high-throughput, low-latency rate limiter service across multiple regio
     expect(container.firstChild).toBeNull();
   });
 
+  it('exposes breakdown and guided practice tabs for any problem with a reviewed path', () => {
+    useStore.getState().setActiveProblem({ ...mockProblem, guidedLearningPathAvailable: true });
+    render(<ProblemViewerModal />);
+    expect(screen.getByTestId('problem-tab-guided')).toHaveTextContent('BREAKDOWN & GUIDED PRACTICE');
+    expect(screen.getByTestId('problem-tab-guided').className).toContain('text-sky-600');
+  });
+
   it('renders header, badges, prompt, and starter code when activeProblem is set', () => {
     useStore.getState().setActiveProblem(mockProblem);
     render(<ProblemViewerModal />);

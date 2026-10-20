@@ -248,8 +248,8 @@ export default function GuidedPracticePanel({ problemId, isLight, onAttemptStart
         <button type="button" onClick={saveInitialAttempt} disabled={busy || !response.trim()} className={`mt-3 rounded-lg border px-3 py-2 text-xs font-bold disabled:opacity-50 ${buttonClass}`}>Save first attempt and continue</button>
       </div>}
 
-      {attempt && path.problemBreakdown && mode !== 'intro' && mode !== 'initial-attempt' && <details className={`rounded-xl border p-4 ${cardClass}`} data-testid="problem-breakdown">
-        <summary className="cursor-pointer text-sm font-bold">Checked problem breakdown</summary>
+      {path.problemBreakdown && <details open={mode === 'intro'} className={`rounded-xl border p-4 ${cardClass}`} data-testid="problem-breakdown">
+        <summary className="cursor-pointer text-sm font-bold">Problem breakdown · source checked</summary>
         <div className="mt-4 space-y-4 text-xs">
           <section><h3 className="font-bold">Contract and scope</h3><p className={`mt-1 ${secondaryClass}`}>{path.problemBreakdown.framing.userGoal}</p><ul className={`mt-1 list-disc pl-4 ${secondaryClass}`}>{path.problemBreakdown.framing.assumptions.map((item) => <li key={item}>{item}</li>)}</ul></section>
           <section><h3 className="font-bold">Operations</h3><ul className={`mt-1 list-disc pl-4 ${secondaryClass}`}>{path.problemBreakdown.contract.map((item) => <li key={item.operation}><strong>{item.operation}</strong>: {item.behavior} ({item.complexity})</li>)}</ul></section>

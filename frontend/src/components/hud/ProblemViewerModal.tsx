@@ -173,7 +173,7 @@ export default function ProblemViewerModal() {
 
   const [activeTab, setActiveTab] = useState<'PROMPT' | 'GUIDED' | 'SOLUTION' | 'QUIZ' | 'SUBMISSIONS' | 'SYSTEM_DESIGN'>('PROMPT');
   const [guidedAttemptStarted, setGuidedAttemptStarted] = useState(false);
-  const hasGuidedPilot = activeProblem?.id === 'PROB-TRAPPING-RAIN-WATER';
+  const hasGuidedPilot = activeProblem?.guidedLearningPathAvailable === true || activeProblem?.id === 'PROB-TRAPPING-RAIN-WATER';
   const [selectedFollowUpIndex, setSelectedFollowUpIndex] = useState<number>(0);
   const [followUpResponseText, setFollowUpResponseText] = useState<string>('');
   const [followUpDiagramData, setFollowUpDiagramData] = useState<any>(null);
@@ -197,7 +197,8 @@ export default function ProblemViewerModal() {
 
   useEffect(() => {
     setGuidedAttemptStarted(false);
-  }, [activeProblem?.id]);
+    setActiveTab(hasGuidedPilot ? 'GUIDED' : 'PROMPT');
+  }, [activeProblem?.id, hasGuidedPilot]);
 
   const openSolutionTab = () => {
     if (hasGuidedPilot && !guidedAttemptStarted) {
@@ -1048,7 +1049,7 @@ export default function ProblemViewerModal() {
                       : isLight ? 'border-transparent text-slate-500 hover:text-slate-800' : 'border-transparent text-slate-400 hover:text-slate-200'
                   }`}
                 >
-                  <Sparkles size={13} /> GUIDED PRACTICE
+                  <Sparkles size={13} /> BREAKDOWN & GUIDED PRACTICE
                 </button>
               )}
 

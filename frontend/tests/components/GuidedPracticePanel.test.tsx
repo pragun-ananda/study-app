@@ -83,7 +83,9 @@ describe('GuidedPracticePanel', () => {
     vi.mocked(api.fetchInterviewLearningPath).mockResolvedValue(queuePath);
     render(<GuidedPracticePanel problemId={pilotPath.problemId} isLight onAttemptStarted={vi.fn()} onRevealSolution={vi.fn()} />);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Start an attempt' }));
+    const startButton = await screen.findByRole('button', { name: 'Start an attempt' });
+    expect(screen.getByTestId('problem-breakdown')).toHaveAttribute('open');
+    fireEvent.click(startButton);
     const response = await screen.findByRole('textbox', { name: 'Your initial problem analysis' });
     fireEvent.change(response, { target: { value: 'PENDING moves to LEASED; the task remains in the task map.' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save first attempt and continue' }));
@@ -92,7 +94,7 @@ describe('GuidedPracticePanel', () => {
       pilotPath.problemId, 'ATTEMPT-1', expect.objectContaining({ eventType: 'INITIAL_ATTEMPT' })
     ));
     expect(await screen.findByTestId('problem-breakdown')).toBeInTheDocument();
-    fireEvent.click(screen.getByText('Checked problem breakdown'));
+    fireEvent.click(screen.getByText('Problem breakdown · source checked'));
     expect(await screen.findByText('Keep each task accounted for.')).toBeInTheDocument();
   });
 });

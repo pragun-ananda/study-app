@@ -155,6 +155,7 @@ export interface ProblemItem {
   quizzes?: QuizItem[];
   createdAt?: string;
   updatedAt?: string;
+  guidedLearningPathAvailable?: boolean;
 }
 
 export interface InterviewLearningPath {

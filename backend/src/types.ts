@@ -179,6 +179,7 @@ export interface ProblemRow {
   time_limit_minutes: number;
   created_at: string | Date;
   updated_at: string | Date;
+  guided_learning_path_available?: boolean;
 }
 
 export interface ProblemPrerequisiteRow {
@@ -340,6 +341,7 @@ export interface ProblemDTO {
   quizzes?: QuizDTO[];
   createdAt?: string;
   updatedAt?: string;
+  guidedLearningPathAvailable?: boolean;
 }
 
 export interface CreateProblemPayload {
